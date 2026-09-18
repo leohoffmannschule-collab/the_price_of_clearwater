@@ -52,6 +52,12 @@ Auch die beiden Session-Zero-Fragen aus Band I, Kapitel 3 gehören euch:
 
 Nach der Erschaffung zeigt das Spiel, was es jetzt über euch weiß. Der Beutel (`I`) zeigt es später wieder.
 
+**Auch zu zweit oder allein.** Die Begegnungen des Begleitbands sind für drei Charaktere
+gerechnet. Zieht ihr mit weniger los, zieht die Gegenseite mit: Fußvolk wird in der Zahl
+gekürzt, Bosse bleiben stehen und geben stattdessen Trefferpunkte ab. Eine Figur allein
+bleibt trotzdem das härtere Spiel — eine Magierin mit sieben Trefferpunkten hat niemanden,
+der vor ihr steht.
+
 ---
 
 ## Umfang
@@ -130,6 +136,9 @@ und der Name unter der Feder, mit **sechs Ausgängen**.
 * **Kein einziges geladenes 3D-Modell.** Jede Figur, jedes Haus, jeder Brunnen entsteht aus
   Grundkörpern: Volk bestimmt Statur, Klasse bestimmt Ausrüstung. Häuser werden aus ihrem
   Grundriss auf der Karte erzeugt, damit Modell und Kollision immer deckungsgleich sind.
+* **Kämpfe mit eigenem Schlachtfeld** bekommen ihre Kulisse aus der Kampfkarte selbst:
+  übernommen wird nur, was dort noch an seinem Platz steht, Deckung und Gebäude werden zum
+  Thema passend nachgestellt. Was das Regelwerk als Deckung zählt, sieht man auch.
 * **Sparmodus**: Erkennt das Spiel nach zwei Sekunden weniger als 22 Bilder/s, schaltet es
   Nachbearbeitung und Schatten ab und senkt die Auflösung.
 * Spielstände liegen im `localStorage` (bis zu zwölf).
@@ -193,8 +202,17 @@ Ein Dialog ist ein Graph; Proben sind sichtbar, mit Schwierigkeitsgrad und Erfol
   check: { skill: 'ueberzeugen', dc: 16, success: 'gestellt', fail: 'kalt' } }
 ```
 
+Ein Kampfaufbau bringt sein Schlachtfeld selbst mit (`makeMap`) oder nimmt die Karte des
+Schauplatzes. `kulisse: [...]` stellt zusätzliche Modelle darauf — nötig überall dort, wo
+das Gelände Teil der Lösung ist, wie bei den elf Gründersteinen im Endkampf.
+`niederlageErlaubt: true` unterdrückt die Wiederholen-Abfrage, wenn eine Niederlage als
+Ausgang gemeint ist.
+
 `node test/content.test.mjs` prüft danach automatisch, dass nichts ins Leere zeigt,
-kein Dialog in einer Schleife hängenbleibt und jeder Kampf zu einem Ergebnis kommt.
+kein Dialog in einer Schleife hängenbleibt, jeder Kampf zu einem Ergebnis kommt und die
+Kulisse jeder eigenen Kampfkarte auf der Karte bleibt. `node test/playthrough.mjs` spielt
+dieselbe Strecke im echten Browser durch (Erschaffung → Probe → Kampf → Klarwasser) und
+prüft dabei die Oberfläche mit.
 
 ---
 

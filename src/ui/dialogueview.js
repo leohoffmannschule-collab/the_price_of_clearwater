@@ -197,7 +197,9 @@ export class DialogueView {
         ergebnis.textContent = roll.crit ? 'KRITISCHER ERFOLG'
           : roll.fumble ? 'PATZER'
             : erfolg ? 'ERFOLG' : 'MISSERFOLG';
-        setTimeout(() => { schicht.remove(); resolve(); }, 1150);
+        // Lange genug stehen lassen, um Rechnung und Ergebnis zu lesen;
+        // ein Klick überspringt die Anzeige sofort.
+        setTimeout(() => { schicht.remove(); resolve(); }, 1600);
       }, 780);
 
       schicht.onclick = () => {

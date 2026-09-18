@@ -206,7 +206,10 @@ export class View3D {
       y: (start.y + area.h) / 3,
     };
     this.camera.setTarget(this.tileToWorld(mitte.x, mitte.y));
-    this.camera.radius = area.kameraRadius ?? Math.min(27, Math.max(15, Math.max(area.w, area.h) * 0.72));
+    // Die Karten sind fast alle breiter als tief, und die Kamera blickt der
+    // Tiefe entlang — die Breite bestimmt daher, wie weit sie zurück muss.
+    this.camera.radius = area.kameraRadius
+      ?? Math.min(34, Math.max(16, Math.max(area.w * 0.8, area.h * 1.15)));
     this.camera.beta = 0.74;
 
     // Statische Kulisse einfrieren — spart jede Menge Rechenzeit.
@@ -624,7 +627,12 @@ export class View3D {
       this.scene.getTransformMatrix(),
       this.camera.viewport.toGlobal(this.engine.getRenderWidth(), this.engine.getRenderHeight()),
     );
-    return { x: p.x, y: p.y, hinten: p.z > 1 };
+    // Die Projektion rechnet in Renderpunkten, die Oberfläche darüber in
+    // CSS-Pixeln. Beides ist nur bei Skalierung 1 dasselbe — im Sparmodus
+    // ist der Puffer kleiner, auf feinen Bildschirmen größer. Ohne diese
+    // Umrechnung wandern sämtliche Namensschilder von ihren Figuren weg.
+    const skala = this.engine.getHardwareScalingLevel();
+    return { x: p.x * skala, y: p.y * skala, hinten: p.z > 1 };
   }
 
   actorScreenPos(uid, hoehenOffset = 1.0) {

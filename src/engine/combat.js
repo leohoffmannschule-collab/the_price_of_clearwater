@@ -9,7 +9,7 @@ import {
   addCondition, removeCondition, hasCondition, gridDistance, proficiencyBonus,
 } from './rules.js';
 import { characterActions, startCombat as prepChar } from './character.js';
-import { spawnCreature } from '../data/creatures.js';
+import { spawnCreature, CREATURES } from '../data/creatures.js';
 
 export const TERRAIN = { FREI: 0, WAND: 1, SCHWIERIG: 2, WASSER: 3, ABGRUND: 4, DECKUNG: 5, GEBAEUDE: 6 };
 
@@ -25,6 +25,9 @@ export class Combat {
     this.ctx = ctx;
     this.map = setup.map;
     this.round = 0;
+    // Bezugsgröße der Kampagne ist die volle Gruppe aus drei Figuren.
+    const stark = Math.max(1, state.party.filter((c) => !c.dead).length);
+    this.gruppenFaktor = Math.min(1, stark / 3);
     this.turnIndex = 0;
     this.order = [];
     this.combatants = [];
@@ -51,10 +54,27 @@ export class Combat {
       const c = spawnCreature(a.id, a.overrides || {});
       this.combatants.push(this.wrapCreature(c, a, 'verbuendet'));
     }
-    for (const e of this.setup.enemies || []) {
+    for (const e of this.skaliereGegner(this.setup.enemies || [])) {
       const c = spawnCreature(e.id, e.overrides || {});
       this.combatants.push(this.wrapCreature(c, e, 'feind'));
     }
+  }
+
+  /**
+   * Die Begegnungen sind für eine volle Gruppe von drei Figuren geschrieben.
+   * Wer allein oder zu zweit loszieht, stünde sonst vor Kämpfen, die schon
+   * als Zwischenstation tödlich wären — also zieht die Gegnerseite mit.
+   *
+   * Fußvolk wird in der Zahl gekürzt (die Aktionsrechnung bleibt so heil),
+   * Bosse bleiben stehen und geben stattdessen Trefferpunkte ab — sie sind
+   * jeweils der ganze Kampf, und ein halber Boss wäre keiner mehr.
+   */
+  skaliereGegner(enemies) {
+    if (this.gruppenFaktor >= 1 || !enemies.length) return enemies;
+    const fussvolk = enemies.filter((e) => !CREATURES[e.id]?.boss);
+    const bosse = enemies.filter((e) => CREATURES[e.id]?.boss);
+    const behalten = Math.max(bosse.length ? 0 : 1, Math.round(fussvolk.length * this.gruppenFaktor));
+    return [...bosse, ...fussvolk.slice(0, behalten)];
   }
 
   wrapPlayer(char, pos) {
@@ -76,6 +96,13 @@ export class Combat {
   }
 
   wrapCreature(c, placement, side) {
+    // Bosse tragen den Kampf allein — für eine kleinere Gruppe geben sie
+    // Trefferpunkte ab, statt dass einer von ihnen wegfällt.
+    if (side === 'feind' && c.boss && this.gruppenFaktor < 1 && !c.skaliert) {
+      c.hp = Math.max(1, Math.round(c.hp * this.gruppenFaktor));
+      c.maxHp = c.hp;
+      c.skaliert = true;
+    }
     return {
       uid: c.uid,
       ref: c,

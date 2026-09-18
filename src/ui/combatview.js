@@ -71,9 +71,13 @@ export class CombatView {
   beenden(result) {
     this.wurzel?.remove();
     this.logBox?.remove();
+    // Die Verweise mit abräumen: die Bildschleife zeichnet sonst noch in der
+    // Wartezeit bis zum Auflösen weiter und stellt die Namensschilder wieder
+    // hin, die hier gerade entfernt wurden.
+    this.wurzel = null;
+    this.logBox = null;
     this.game.view.clearAllHighlights();
-    for (const t of this.tags) t.remove();
-    this.tags = [];
+    this.tagsWeg();
     this.zielModus = null;
     const r = this.resolve;
     this.resolve = null;
@@ -304,9 +308,14 @@ export class CombatView {
   }
 
   /** Namensschilder über den Kämpfenden. */
+  tagsWeg() {
+    for (const t of this.tags) t.remove();
+    this.tags = [];
+  }
+
   updateTags() {
     const c = this.combat;
-    if (!c || !this.game.view) return;
+    if (!c || c.over || !this.wurzel || !this.game.view) { this.tagsWeg(); return; }
     while (this.tags.length < c.combatants.length) {
       const el = document.createElement('div');
       el.className = 'welt-name';
@@ -320,6 +329,7 @@ export class CombatView {
       if (!pos || pos.hinten || c.isDown(k)) { el.style.display = 'none'; return; }
       el.style.display = '';
       el.className = `welt-name ${k.side === 'feind' ? 'feind' : ''}`;
+      el.dataset.marke = k.uid;
       el.style.left = `${pos.x}px`;
       el.style.top = `${pos.y}px`;
       const anteil = Math.max(0, k.ref.hp / k.maxHp);

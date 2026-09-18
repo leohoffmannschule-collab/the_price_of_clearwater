@@ -10,14 +10,22 @@ export class Hud {
     this.game = game;
   }
 
+  /**
+   * Zeichnet nur den eigenen Container neu. Wichtig: NICHT den ganzen
+   * hudRoot leeren — dort hängt während eines Kampfes auch die
+   * Aktionsleiste, und die wäre nach jedem Neuzeichnen weg.
+   */
   render() {
     const g = this.game;
     if (!g.state || g.modus === 'menu') return;
-    const root = g.hudRoot;
-    root.innerHTML = '';
-
-    root.appendChild(this.oben());
-    root.appendChild(this.gruppe());
+    if (!this.container || !this.container.isConnected) {
+      this.container = document.createElement('div');
+      this.container.className = 'hud-basis';
+      g.hudRoot.prepend(this.container);
+    }
+    this.container.innerHTML = '';
+    this.container.appendChild(this.oben());
+    this.container.appendChild(this.gruppe());
   }
 
   oben() {

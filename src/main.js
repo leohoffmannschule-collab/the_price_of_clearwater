@@ -2,12 +2,12 @@
 // Verbindet Regelkern, dreidimensionale Ansicht, Oberfläche und Inhalt.
 
 import { View3D } from './ui/view3d.js';
-import { newGameState, loadGame, saveGame, setFlag, flag, tickClock, tickAshClock,
+import { newGameState, loadGame, saveGame, listSaves, setFlag, flag, tickClock, tickAshClock,
   addQuest, addQuestEntry, completeQuest, failQuest, awakenStaff, addItem, hasItem } from './engine/state.js';
 import { levelUp as charLevelUp, longRest, shortRest } from './engine/character.js';
 import { assignHooks, personalize } from './engine/hooks.js';
 import { DialogueRunner } from './engine/dialogue.js';
-import { getArea } from './data/areas.js';
+import { getArea, kulisseFuerKarte } from './data/areas.js';
 import { PORTRAIT_PALETTES } from './data/chargen.js';
 import { mainMenu, characterCreator } from './ui/screens.js';
 import { Hud } from './ui/hud.js';
@@ -187,10 +187,17 @@ export class Game {
         }
       }
       for (const s of sichtbar) {
+        s.m.el.style.display = '';
+        // Marken am Kartenrand ganz ins Bild holen — halb abgeschnittene
+        // Beschriftungen sind nicht lesbar und nur schwer zu treffen.
+        if (!s.m.halbeBreite) s.m.halbeBreite = s.m.el.offsetWidth / 2 || 60;
+        const rand = 10;
+        s.x = Math.round(Math.max(s.m.halbeBreite + rand,
+          Math.min(window.innerWidth - s.m.halbeBreite - rand, s.x)));
+        s.y = Math.round(Math.max(34, Math.min(window.innerHeight - 24, s.y)));
         // Ganzzahlig runden: sonst zittern die Marken bei jeder Kamerabewegung.
         if (s.m.lx === s.x && s.m.ly === s.y) continue;
         s.m.lx = s.x; s.m.ly = s.y;
-        s.m.el.style.display = '';
         s.m.el.style.left = `${s.x}px`;
         s.m.el.style.top = `${s.y}px`;
       }
@@ -302,16 +309,57 @@ export class Game {
     const setup = build(this);
     this.modus = 'kampf';
     this.clearMarkers();
-    if (setup.area) {
-      const a = getArea(setup.area) || this.aktuellerOrt;
-      this.view.buildArea({ ...a, punkte: [] });
-      this.aktuellerOrt = a;
-    }
+    this.dialogueView.ende();
+    const basis = setup.area ? (getArea(setup.area) || this.aktuellerOrt) : this.aktuellerOrt;
+    if (setup.area) this.aktuellerOrt = basis;
     const area = this.aktuellerOrt;
     const map = setup.map || { w: area.w, h: area.h, tiles: area.tiles.slice(), webs: new Set() };
-    const result = await this.combatView.run({ ...setup, map });
+
+    // Kampfkarte und sichtbare Kulisse müssen deckungsgleich sein — sonst
+    // stehen die Gegner neben dem Raum statt darin.
+    const eigeneKarte = map.w !== basis.w || map.h !== basis.h || !!setup.map;
+    this.view.buildArea({
+      ...basis,
+      id: `${basis.id}_kampf`,
+      w: map.w, h: map.h, tiles: map.tiles,
+      props: (eigeneKarte ? kulisseFuerKarte(basis, map) : basis.props)
+        .concat(setup.kulisse || []),
+      punkte: [],
+      spawns: { party: setup.playerStart || basis.spawns.party },
+    });
+    let result = await this.combatView.run({ ...setup, map });
     this.combat = null;
     this.modus = 'erkundung';
+
+    // Niederlage abfangen: Der Kampf ist verloren, die Kampagne nicht.
+    if (result === 'niederlage' && !setup.niederlageErlaubt) {
+      const wahl = await this.ask({
+        kapitel: 'Gefallen', titel: 'Das war zu viel',
+        text: 'Ihr liegt. Alle.\n\nDas ist in dieser Kampagne selten endgültig — es ist meistens nur der Hinweis, dass ein anderer Weg gemeint war.',
+        optionen: [
+          { text: 'Den Kampf noch einmal aufnehmen.', wert: 'nochmal' },
+          { text: 'Den letzten Spielstand laden.', wert: 'laden' },
+          { text: 'Es dabei belassen und weiterspielen.', wert: 'weiter', abschluss: true },
+        ],
+      });
+      if (wahl === 'nochmal') {
+        for (const c of this.state.party) {
+          c.dead = false; c.downed = false; c.hp = c.maxHp;
+          c.deathSaves = { success: 0, fail: 0 };
+          c.conditions = (c.conditions || []).filter((x) => x.permanent);
+        }
+        return this.startCombat(setupId);
+      }
+      if (wahl === 'laden') {
+        const letzte = listSaves()[0];
+        if (letzte) { await this.ladeSpiel(letzte.name); return 'geladen'; }
+        this.toast('Kein Spielstand vorhanden.');
+      }
+      for (const c of this.state.party) {
+        if (c.dead) { c.dead = false; c.hp = 1; c.downed = false; }
+      }
+    }
+
     // Ort neu aufbauen, damit Marker und Kulisse wieder stimmen
     await this.goToArea(this.state.area, { stumm: true });
     return result;

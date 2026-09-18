@@ -1,7 +1,7 @@
 // Inhaltstest: Prüft Karten, Verweise, Dialoge und Kampfaufbauten.
 // Aufruf: node test/content.test.mjs
 import assert from 'node:assert';
-import { AREAS } from '../src/data/areas.js';
+import { AREAS, kulisseFuerKarte } from '../src/data/areas.js';
 import { CONTENT, pruefeVerweise } from '../src/content/index.js';
 import { newGameState } from '../src/engine/state.js';
 import { buildCharacter } from '../src/engine/character.js';
@@ -232,6 +232,48 @@ suite('Kämpfe durchspielen', () => {
       assert.ok(combat.over || guard >= 900, `Kampf ${id}: hängt`);
       assert.ok(guard < 900, `Kampf ${id}: kein Ergebnis nach 900 Schritten`);
     }
+  });
+});
+
+suite('Kulisse eigener Kampfkarten', () => {
+  test('Jeder Kampf mit eigener Karte bekommt passende Kulisse', () => {
+    const s = testState(5);
+    for (const [id, build] of Object.entries(CONTENT.combats)) {
+      const setup = build({ state: s, flag: () => false, toast() {}, quest() {} });
+      if (!setup?.map) continue;
+      const basis = AREAS[setup.area] || AREAS.dorfeingang;
+      const props = kulisseFuerKarte(basis, setup.map);
+      for (const p of props) {
+        const x = Math.round(p.x); const y = Math.round(p.y);
+        assert.ok(x >= 0 && y >= 0 && x < setup.map.w && y < setup.map.h,
+          `Kampf ${id}: Kulisse ${p.type} liegt außerhalb der Karte (${p.x},${p.y})`);
+        const t = setup.map.tiles[y * setup.map.w + x];
+        assert.notStrictEqual(t, 3, `Kampf ${id}: ${p.type} steht im Wasser`);
+        if (['haus', 'baum', 'fels', 'ruine', 'kapelle', 'muehle'].includes(p.type)) {
+          assert.ok([1, 5, 6].includes(t),
+            `Kampf ${id}: ${p.type} versperrt begehbares Feld (${x},${y})`);
+        }
+      }
+      // Deckungsfelder dürfen nicht unsichtbar bleiben
+      const deckung = [];
+      for (let y = 0; y < setup.map.h; y++) {
+        for (let x = 0; x < setup.map.w; x++) if (setup.map.tiles[y * setup.map.w + x] === 5) deckung.push(`${x},${y}`);
+      }
+      const bestueckt = new Set(props.map((p) => `${Math.round(p.x)},${Math.round(p.y)}`));
+      for (const d of deckung) assert.ok(bestueckt.has(d), `Kampf ${id}: Deckung auf ${d} ohne Modell`);
+      // Gebäudefelder brauchen ein Haus
+      const gebaeude = setup.map.tiles.filter((t) => t === 6).length;
+      if (gebaeude) assert.ok(props.some((p) => p.type === 'haus'), `Kampf ${id}: Gebäudefläche ohne Haus`);
+    }
+  });
+
+  test('Kulisse ist reproduzierbar', () => {
+    const basis = AREAS.waldweg || AREAS.dorfeingang;
+    const map = { w: 20, h: 12, tiles: new Array(240).fill(0), webs: new Set() };
+    for (let x = 0; x < 20; x++) { map.tiles[x] = 1; map.tiles[11 * 20 + x] = 1; }
+    const a = kulisseFuerKarte(basis, map);
+    const b = kulisseFuerKarte(basis, map);
+    assert.deepStrictEqual(JSON.stringify(a), JSON.stringify(b), 'Kulisse würfelt bei jedem Aufruf neu');
   });
 });
 

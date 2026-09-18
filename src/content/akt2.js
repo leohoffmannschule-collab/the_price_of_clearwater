@@ -336,6 +336,8 @@ export const combats = {
       area: 'marktplatz_netz',
       map,
       playerStart: [{ x: 17, y: 12 }, { x: 16, y: 12 }, { x: 18, y: 12 }],
+      // Die Steine müssen sichtbar sein — sonst sucht man den Lösungsweg blind.
+      kulisse: steine.map((st) => ({ type: 'gruenderstein', x: st.x, y: st.y })),
       enemies: [{ id: 'ghortan_p1', x: 17, y: 5 }],
       minionLimit: 3,
       lairActions: false,

@@ -1020,3 +1020,99 @@ add({
 export function getArea(id) {
   return AREAS[id] || null;
 }
+
+/* ═════════════════════ Kulisse für eigene Kampfkarten ═════════════════════ */
+
+// Was als fester Körper gelesen wird und deshalb nur auf blockierenden
+// Feldern stehen darf — sonst liefe die Gruppe mitten durch ein Haus.
+const SOLIDE_PROPS = new Set([
+  'haus', 'kapelle', 'muehle', 'ruine', 'fels', 'baum', 'steintuer',
+  'stabImStein', 'gruenderstein', 'brunnen', 'marktstand', 'regal',
+]);
+
+// Womit ein Kampfplatz je nach Farbwelt möbliert wird:
+// `rand` steht auf Wandfeldern, `deckung` auf halbhohen Deckungsfeldern.
+const KULISSE_NACH_THEMA = {
+  wald: { rand: ['baum', 'baum', 'fels'], deckung: ['fels', 'baum'] },
+  dorf: { rand: ['baum', 'fass', 'kiste'], deckung: ['fass', 'kiste'] },
+  dorf_nacht: { rand: ['fass', 'kiste', 'regal'], deckung: ['tisch', 'fass'] },
+  keller: { rand: ['fass', 'kiste'], deckung: ['kiste', 'fass'] },
+  spiegelhof: { rand: ['kerze', 'spiegel'], deckung: ['spiegel', 'kerze'] },
+  marktplatz_netz: { rand: ['marktstand', 'fass'], deckung: ['marktstand', 'kiste'] },
+  asche: { rand: ['ruine', 'fels'], deckung: ['ruine', 'fels'] },
+  berg: { rand: ['fels', 'fels', 'baum'], deckung: ['fels'] },
+  hort: { rand: ['fels', 'goldhaufen'], deckung: ['goldhaufen', 'fels'] },
+  aschenmark: { rand: ['ruine', 'fels'], deckung: ['ruine'] },
+  bibliothek: { rand: ['regal', 'regal', 'kerze'], deckung: ['regal', 'tisch'] },
+  federhof: { rand: ['fels'], deckung: ['fels'] },
+  urteil: { rand: ['fels', 'gruenderstein'], deckung: ['fels'] },
+};
+
+function feldAuf(map, x, y) {
+  const fx = Math.round(x); const fy = Math.round(y);
+  if (fx < 0 || fy < 0 || fx >= map.w || fy >= map.h) return null;
+  return map.tiles[fy * map.w + fx];
+}
+
+/**
+ * Kulisse für eine selbstgebaute Kampfkarte.
+ *
+ * Viele Kämpfe stecken ihr Schlachtfeld selbst ab (makeMap). Dann passt die
+ * Kulisse des Schauplatzes nicht mehr: Häuser stünden auf freiem Feld, Tische
+ * außerhalb der Karte. Übernommen wird deshalb nur, was auf der neuen Karte
+ * noch stimmt; der Rest wird zum Thema passend nachgestreut, damit Wände,
+ * Deckung und Gebäude auch dort etwas Sichtbares sind.
+ */
+export function kulisseFuerKarte(basis, map) {
+  const rng = makeRng((basis.seed ?? 0) ^ (map.w * 73856093) ^ (map.h * 19349663));
+  const belegt = new Set();
+  const merke = (x, y) => belegt.add(`${Math.round(x)},${Math.round(y)}`);
+  const frei = (x, y) => !belegt.has(`${Math.round(x)},${Math.round(y)}`);
+  const umgebungFrei = (x, y) => {
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (!frei(x + dx, y + dy)) return false;
+    return true;
+  };
+  const out = [];
+
+  // 1. Gebäude aus den Grundrissen der neuen Karte — Modell und Kollision
+  //    bleiben so zwangsläufig deckungsgleich.
+  const haeuser = gebaeudeAusGrundriss({ w: map.w, h: map.h, tiles: map.tiles, seed: basis.seed ?? 1 });
+  for (const haus of haeuser) { out.push(haus); merke(haus.x, haus.y); }
+
+  // 2. Alles übernehmen, was auf der neuen Karte noch an seinem Platz steht.
+  for (const p of basis.props || []) {
+    const t = feldAuf(map, p.x, p.y);
+    if (t === null) continue;                       // liegt außerhalb
+    if (t === 3) continue;                          // stünde im Wasser
+    if (t === 6) continue;                          // dort steht jetzt ein Haus
+    if (SOLIDE_PROPS.has(p.type) && t !== 1 && t !== 5) continue; // stünde im Weg
+    if (!frei(p.x, p.y)) continue;
+    out.push(p);
+    merke(p.x, p.y);
+  }
+
+  const satz = KULISSE_NACH_THEMA[basis.theme] || KULISSE_NACH_THEMA.dorf;
+
+  // 3. Deckungsfelder bekommen etwas, hinter dem man sich ducken kann —
+  //    ohne Modell wäre die halbe Deckung im Regelwerk unsichtbar.
+  for (let y = 0; y < map.h; y++) {
+    for (let x = 0; x < map.w; x++) {
+      if (map.tiles[y * map.w + x] !== 5 || !frei(x, y)) continue;
+      out.push({ type: satz.deckung[Math.floor(rng() * satz.deckung.length)], x, y, rot: rng() * 6 });
+      merke(x, y);
+    }
+  }
+
+  // 4. Den Rand locker bestücken, damit die Karte nicht im Nichts endet.
+  for (let y = 0; y < map.h; y++) {
+    for (let x = 0; x < map.w; x++) {
+      if (map.tiles[y * map.w + x] !== 1 || !frei(x, y)) continue;
+      if (rng() > 0.22) continue;
+      if (!umgebungFrei(x, y)) continue;   // nicht klumpen
+      const typ = satz.rand[Math.floor(rng() * satz.rand.length)];
+      out.push({ type: typ, x, y, rot: rng() * 6, opts: typ === 'baum' ? { h: 3 + rng() * 3 } : {} });
+      merke(x, y);
+    }
+  }
+  return out;
+}
