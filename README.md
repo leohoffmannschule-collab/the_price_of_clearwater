@@ -3,7 +3,8 @@
 Ein taktisches Rollenspiel im Stil von Baldur's Gate 3 — nach der Kampagne
 **„Der Preis von Klarwasser"** (Band I: Kampagnenbuch, Band II/III: Begleitband mit Spielhilfen).
 
-Vier Akte, Stufe 1 bis 20. Läuft vollständig im Browser, ohne Server, ohne Netz.
+Vier Akte, Stufe 1 bis 20. Läuft vollständig im Browser — ohne Installation,
+ohne Kompilieren, ohne Netzzugriff.
 
 > Klarwasser hat seit zweihundert Jahren keine Missernte erlebt. Keine Seuche. Kein Feuer.
 > Die Stadt weiß, warum. Sie muss es nur alle siebzehn Jahre kurz vergessen.
@@ -12,17 +13,26 @@ Vier Akte, Stufe 1 bis 20. Läuft vollständig im Browser, ohne Server, ohne Net
 
 ## Starten
 
+Gebraucht wird nur [Node.js](https://nodejs.org) (Version 18 oder neuer):
+
 ```bash
-python3 -m http.server 8080      # oder: npm start
+git clone https://github.com/leohoffmannschule-collab/the_price_of_clearwater.git
+cd the_price_of_clearwater
+npm start
 ```
 
-Dann `http://localhost:8080` öffnen. Es wird nichts kompiliert und nichts installiert —
-Babylon.js liegt fertig unter `vendor/`.
+Dann `http://localhost:8080` im Browser öffnen. Es wird nichts kompiliert und nichts
+installiert — Babylon.js liegt fertig unter `vendor/`, `npm start` startet nur einen
+kleinen Dateiserver (`tools/server.mjs`, ohne Fremdpakete). Wer lieber Python nimmt:
+`python3 -m http.server 8080` tut dasselbe.
+
+Ein Server ist nötig, weil das Spiel aus ES-Modulen besteht — die lädt kein Browser
+über `file://`. Ein Doppelklick auf `index.html` bleibt deshalb schwarz.
 
 Tests:
 
 ```bash
-npm test          # Regelkern + Inhalte (40 Prüfungen)
+npm test          # Regelkern + Inhalte (44 Prüfungen)
 node test/playthrough.mjs   # Durchspiel-Test im echten Browser (braucht Playwright)
 ```
 
