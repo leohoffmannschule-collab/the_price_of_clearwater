@@ -1,11 +1,12 @@
 {
-  "name": "der-preis-von-klarwasser",
+  "name": "klarwasser-hof",
   "version": "1.0.0",
-  "description": "Ein taktisches Rollenspiel nach der Kampagne „Der Preis von Klarwasser“ — vier Akte, Stufe 1–20, mit selbst erstellten Charakteren.",
+  "description": "Klarwasser-Hof – ein Hofspiel im Browser: Felder bestellen, angeln, in der Mine graben und das Dorf kennenlernen.",
   "type": "module",
   "private": true,
   "scripts": {
     "start": "node tools/server.mjs",
-    "test": "node test/engine.test.mjs && node test/content.test.mjs"
+    "test": "node test/logik.test.mjs && node test/tag.test.mjs",
+    "test:browser": "node test/browser.mjs"
   }
 }

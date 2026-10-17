@@ -77,7 +77,7 @@ server.on('error', (e) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`\n  Der Preis von Klarwasser läuft.\n`);
+  console.log(`\n  Klarwasser-Hof läuft.\n`);
   console.log(`  Im Browser öffnen:  http://localhost:${PORT}\n`);
   console.log(`  Beenden mit Strg+C\n`);
 });
