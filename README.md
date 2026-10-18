@@ -119,18 +119,19 @@ src/
   mine.js        Höhlenform und Monster-Verhalten
   spiel.js       Laufzeit: Bewegung, Werkzeuge, Interaktion, Uhr, Wege der Dorfbewohner
   angeln.js      Auswerfen, Anbiss, Drill
-  sprites.js     Pixelkunst aus Code
-  render.js      Kamera, Tiefensortierung, Wetter, Licht
-  ui.js          Anzeige, Werkzeugleiste, Gespräche, Fenster, Titel
+  sprites.js     Pixelkunst-Kern: Zeichen-Grundfunktionen, Bild-Register, Boden, Figuren
+  render.js      Kamera, Ebenen mit Zeichnern, Tiefensortierung, Kulling, Wetter, Licht
+  ui.js          Anzeige, Werkzeugleiste, Gespräche, Fenster- und Menü-Register, Titel
   eingabe.js     Tastatur, Maus, Touch
   ton.js         Geräusche und Musik mit WebAudio
   zufall.js      Seedbarer Zufall
   bereiche/      basis, hof, dorf, wildnis, pflanzen, angeln, mine, handwerk, tiere,
-                 npcs, npcs2, feste, gemeinschaft – je inhalt.js, grafik.js, oberflaeche.js
+                 npcs, npcs2, feste, gemeinschaft – je inhalt.js (Inhalte),
+                 grafik.js (Pixelkunst, Zeichner), oberflaeche.js (Fenster, Menüreiter)
   style.css
 test/
   alle.mjs       führt alle *.test.mjs aus
-  *.test.mjs     Register, Karten und Punkte, Logik, ganze Tage, Laufzeit
+  *.test.mjs     Register, Karten und Punkte, Logik, ganze Tage, Laufzeit, Darstellung
   browser.mjs    Rauchtest im echten Browser (braucht Playwright)
 tools/server.mjs Kleiner Dateiserver
 ```

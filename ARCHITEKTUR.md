@@ -3,8 +3,8 @@
 Dieses Dokument beschreibt, wie der Kern gebaut ist und wie Bereiche ihn erweitern, ohne
 sich gegenseitig in die Quere zu kommen. Es ist die Grundlage für die parallele Arbeit:
 Jeder Bereich arbeitet in seinem eigenen Ordner und dockt über Register, Hooks,
-Modifikatoren und benannte Kartenpunkte an. Den Teil über die Darstellung (sprites.js,
-render.js, ui.js: Bild-Register, Zeichner, Fenster) ergänzt Teil B weiter unten.
+Modifikatoren und benannte Kartenpunkte an. Die Darstellung (sprites.js, render.js, ui.js:
+Bild-Register, Zeichner-Ebenen, Fenster) steht in Abschnitt 9.
 
 Sprache im Code ist Deutsch. Reine ES-Module, kein Build, keine Abhängigkeiten.
 
@@ -41,18 +41,19 @@ src/
 
 Was die Bereiche nicht besitzen, gehört dem Kern: `s.spieler`, `s.zeit`, `s.welt`, `s.npcs`
 (Freundschaft), `s.versand`, `s.briefe`, `s.post`, `s.stats`, `s.flags`, `s.stufeNeu`.
+Welche Kunst und welche Fenster in `grafik.js` und `oberflaeche.js` liegen, steht in 9.4.
 
 ### Importregeln
 
 * `bereiche/*/inhalt.js` importiert nur DOM-freie Kernmodule: `daten`, `karten`, `system`,
   `logik`, `spiel`, `mine`, `angeln`, `zufall`. Keine anderen Bereiche – Querverweise laufen über
   IDs (Item-IDs, Kartenpunkte, Bedingungsnamen), die erst nach dem Laden aufgelöst werden.
-* `grafik.js` darf zusätzlich `sprites.js` und `render.js` importieren, `oberflaeche.js` `ui.js`.
-* Der DOM-freie Kern importiert nie aus `bereiche/` (ein Test prüft beides).
-* Übergang bis Teil B: `render.js` holt `huehnerDraussen` aus `bereiche/tiere/inhalt.js`,
-  `ui.js` holt Mühle/Brett-Logik aus `bereiche/gemeinschaft/inhalt.js` und den Förderkorb aus
-  `bereiche/mine/inhalt.js`. Diese Importe verschwinden, sobald die Fenster und Zeichner in die
-  Bereiche ziehen.
+* `grafik.js` importiert den DOM-freien Kern, `sprites.js`, `render.js` und das eigene
+  `./inhalt.js`; `oberflaeche.js` den DOM-freien Kern, `ui.js`, `sprites.js` und das eigene
+  `./inhalt.js`. Andere Bereiche nie – auch Bilder und Fenster finden sich über Namen
+  (`KUNST.truhe`, `fenster('laden')`, `WARE_BILD.kueken`).
+* Der Kern importiert nie aus `bereiche/` – weder der DOM-freie noch `sprites.js`, `render.js`,
+  `ui.js` (Tests prüfen beides).
 
 ### Laden
 
@@ -72,12 +73,13 @@ Sammeldateien muss niemand ändern; jeder Bereich hat seinen Ordner schon. Tests
 
 ## 2. Register
 
-Jede Registrierung wirft bei doppelter ID (`… gibt es schon`). Absichtliches Überschreiben geht
-mit `ersetzen: true` im def (bei `bedingung`, `kategorie`, `bodenTyp` als drittes Argument
-`{ ersetzen: true }`). Die bisherigen Exporte (`ITEMS`, `PFLANZEN`, `FISCHE`, `REZEPTE`,
-`LAEDEN`, `NPCS`, `BUENDEL`, `BRIEFE`, `TIPPS`, …) bleiben Objekte/Listen und werden über die
-Funktionen gefüllt. Abgeleitetes (`SAAT_ZU_PFLANZE`, `FISCHE`, `AUFRUESTBAR`) entsteht beim
-Registrieren.
+Hier die Register der Spiellogik; die Register der Darstellung (Bilder, Zeichner, Fenster)
+stehen in Abschnitt 9. Jede Registrierung wirft bei doppelter ID (`… gibt es schon`).
+Absichtliches Überschreiben geht mit `ersetzen: true` im def (bei `bedingung`, `kategorie`,
+`bodenTyp` als drittes Argument `{ ersetzen: true }`). Die bisherigen Exporte (`ITEMS`,
+`PFLANZEN`, `FISCHE`, `REZEPTE`, `LAEDEN`, `NPCS`, `BUENDEL`, `BRIEFE`, `TIPPS`, …) bleiben
+Objekte/Listen und werden über die Funktionen gefüllt. Abgeleitetes (`SAAT_ZU_PFLANZE`,
+`FISCHE`, `AUFRUESTBAR`) entsteht beim Registrieren.
 
 ### daten.js
 
@@ -219,6 +221,7 @@ karte({
   gewaesser: [{ x, y, b, h, art: 'waldsee' }],
   sammel: [{ x, y, w, h, art: 'wald', max: 3, boden: '.' }],
   npcWege: false,                                  // Dorfbewohner gehen hier nicht durch
+  kampf: true,                                     // Gesundheitsleiste zeigen (in der Mine immer)
 });
 ```
 
@@ -341,7 +344,8 @@ CHROMIUM=/opt/pw-browsers/chromium-1194/chrome-linux/chrome node test/browser.mj
 | `logik.test.mjs` | Daten, Feldarbeit, Rucksack, Versand, Läden, Stall, Basteln, Dorf, Aufträge, Mühle, Mine, Speichern |
 | `tag.test.mjs` | ganze Tage: Wege der Dorfbewohner, Ohnmacht um zwei Uhr |
 | `laufzeit.test.mjs` | Laufzeit ohne Bildschirm: Rundgang durch den Weltgraphen, Mine, Werkzeuge, Gespräche, Hühner |
-| `browser.mjs` | Rauchtest in Chromium: neues Spiel, Feldarbeit, Menü, Rundgang bis in die Mine, jedes Item hat ein Bild, Schlafen, Speichern (v2), keine Konsolenfehler |
+| `darstellung.test.mjs` | Darstellung ohne Bildschirm (lädt auch `bereiche/grafik.js` und `bereiche/oberflaeche.js`): jedes Item, jede Deko, jedes Gebäude, jeder Objekttyp, jede Wuchsform, jedes Monster, jedes Bodenzeichen hat ein Bild; Innenraum-, Wasser- und Bandfarben; doppelte Bilder werfen; Zeichner-Ebenen und ihre Reihenfolge; jedes geöffnete Fenster ist registriert; Menüreiter; Warenbilder; Importregeln von grafik.js/oberflaeche.js |
+| `browser.mjs` | Rauchtest in Chromium: neues Spiel, Feldarbeit, Menü, Rundgang bis in die Mine, jedes Item/jede Deko/jedes Gebäude/jedes Objekt/jede Pflanze malt ohne Ersatzbild (alle Jahreszeiten, Tag und Nacht), Ersatzbilder für Fehlendes, Kulling auf einer 100×72-Karte, alle Fenster öffnen sich, Schlafen, Speichern (v2), keine Konsolenfehler |
 
 Bereiche legen eigene `test/<bereich>.test.mjs` an (Vorlage: Kopf mit `test()`/`gruppe()` wie in
 den vorhandenen Dateien, erste Zeile `import '../src/bereiche/inhalt.js';`). `alle.mjs` findet sie
@@ -371,11 +375,210 @@ hilft ein Symlink `node_modules/playwright -> /opt/node22/lib/node_modules/playw
    Änderungen mit `L.kartenGeaendert()` melden. Für viele Prüfungen `L.begehbarPruefer` nehmen,
    für Feldsuchen Indizes `y * w + x`. `update`- und `hinweis`-Hooks früh verlassen, wenn sie auf
    der aktuellen Karte nichts zu tun haben.
-8. **Vor dem Zusammenführen:** `npm test` und der Browser-Rauchtest sind grün.
+8. **Darstellung im eigenen Bereich.** Kunst über die Bild-Register in `grafik.js`, eigene
+   Zeichenschritte als `zeichner` statt Sonderfällen in render.js, Fenster und Menüreiter über
+   `fensterArt`/`menueReiter` in `oberflaeche.js`. Bildnamen sind global wie IDs.
+9. **Vor dem Zusammenführen:** `npm test` und der Browser-Rauchtest sind grün.
 
 ---
 
 ## 9. Darstellung
 
-*(ergänzt Teil B: Bild-Register in sprites.js, Zeichner-Ebenen in render.js, Fenster und
-Menüreiter in ui.js, Kulling für große Karten.)*
+Drei Kernmodule im Browser, jedes mit Registern, die die Bereiche füllen:
+`sprites.js` (Bilder), `render.js` (Zeichner-Ebenen), `ui.js` (Fenster, Menü, Anzeige).
+Die Kunst liegt in `bereiche/<bereich>/grafik.js`, die Fenster in `bereiche/<bereich>/oberflaeche.js`.
+Alle Register lassen sich auch in Node laden (`test/darstellung.test.mjs`); erst das Malen
+braucht eine Leinwand.
+
+### 9.1 Bild-Register (sprites.js)
+
+Jede Registrierfunktion wirft bei doppeltem Namen (außer mit `{ ersetzen: true }` als drittem
+Argument) und nimmt auch ein Objekt mit vielen Einträgen: `kunst({ hacke(g, b, m) {…}, axt(…) {…} })`.
+
+| Register | Füllen mit | Schlüssel | Eintrag | Kontext |
+|---|---|---|---|---|
+| `KUNST` | `kunst(art, fn)` | `item.bild.art`, sonst Item-ID | `(g, bild, metall)` malt 16×16; Umriss macht der Kern; `metall` = Farbe der Werkzeugstufe | `bild` = `item.bild` (bei Handwerkswaren mit `f` des Ausgangsstoffs) |
+| `OBJEKT_BILD` | `objektKunst(t, def)` | Objekttyp (`welt.objekte[…].t`) | `(o, k) → Leinwand`, `{ bild(o, k) }` oder `{ b, h, schluessel(o, k), malen(g, o, k), umriss }`; dazu Darstellungsfelder (unten). Ohne Eintrag: das Bild des gleichnamigen Items | `{ jz, band, nacht, s, t, tx, ty }` |
+| `DEKO_BILD` | `dekoKunst(typ, def)` | `deko[].typ` | `(g, d, k)` malt auf `w×16` oder `{ b(d), h, malen, umriss, zustand(d, k) }` bzw. `{ bild(d, k) }`; dazu Darstellungsfelder | `{ jz, winter, nacht, innen, s, w, zustand }` |
+| `GEBAEUDE_BILD` | `gebaeudeKunst(typ, def)` | `gebaeude[].typ` | `{ b, h, malen(g, k), zustand(s) → Objekt, licht: [[px, py]…], umriss }` | `{ jz, winter, nacht, zustand }` |
+| `GEBAEUDE_LICHT` | `gebaeudeKunst(…, { licht })` | Gebäudetyp | Fensterpunkte im Bild, die nachts leuchten | |
+| `BODEN_BILD` | `bodenKunst(z, fn)` | Bodenzeichen, auch `'z:rand'` (`'#:wald'`) | `(g, x0, y0, k)` malt eine Kachel | `{ tx, ty, z, jz, winter, def, innen (Farben), mf (Bandfarben), rand, gras, nachbarn: { n, s, w, o }, at(x, y) }` |
+| `PFLANZEN_BILD` | `pflanzenKunst(name, fn)` | Pflanzen-ID, sonst `wuchs` | `(g, k)` malt Phase 2–4 auf 16×24 (Keimling, Phase 1 und verwelkt macht der Kern) | `{ p, id, phase, f (Erntefarbe), fuss (21), gross (ab Phase 3) }` |
+| `MONSTER_BILD` | `monsterKunst(art, fn)` | Monster-ID, sonst `art` | `(g, farbe, phase)` 16×16 | |
+| `TIER_BILD` | `tierKunst(art, def)` | Tierart | `(g, schritt)` bzw. `{ b, h, malen }`, nach links schauend; rechts spiegelt der Kern | |
+| `SYMBOL` | `symbolKunst(art, fn)` | Symbolname | `(g)` 16×16 für die Oberfläche (`symbolUrl`) | |
+
+Paletten und Farbtabellen (Objekte, Bereiche ergänzen Einträge): `INNEN_FARBEN[def.innen]`
+(Tapete, Leiste, Teppich; sonst `standard`), `WASSER_FARBE[def.wasser]`, `MINE_FARBEN[band]`,
+`GRAS[jz]`, `LAUB[jz]`, `HOLZ`, `HOLZ_D`, `BLATT`, `BLATT_D`, `BLATT_H`.
+
+**Darstellungsfelder** von Objekten und Deko (render.js wertet sie aus): `tiefe` (Sortier-y
+relativ zur Unterkante, Standard −1), `schatten: [rx, ry, dy]`, `durchsichtig: [breite, hoehe]`
+(halb durchsichtig, wenn die Spielerin dahinter steht), `danach(g, ding, lage, k)` (zeichnet
+gleich danach, `lage = { x, y, bx, by, bild }`), nur Objekte: `versatz(o, k) → [dx, dy]`,
+`wackeln` (Standard true, Axt-Treffer); nur Deko: `flach` (sortiert nach der Oberkante: Bett,
+Leiter).
+
+**Zwischenspeicher:** Jedes Bild wird einmal gemalt. Was das Aussehen ändert, muss in den
+Schlüssel: Jahreszeit und Tag/Nacht nimmt der Kern auf, Deko liefert `zustand(d, k)`, Gebäude
+`zustand(s)`, Objekte `schluessel(o, k)`. Eigene Leinwände mit `gecacht(schluessel, fn)` und
+einem Präfix des Bereichs.
+
+**Ersatzbild:** Fehlt ein Bild (unbekannte Kunst, Deko, Gebäude, Objekt, Wuchsform, Monster,
+Tier, Boden, Symbol), malt der Kern ein magenta-schwarz kariertes Feld in passender Größe,
+setzt `leinwand.ersatz = true` und warnt einmal in der Konsole. Es stürzt nichts ab; die Tests
+finden das Feld trotzdem.
+
+**Grundfunktionen** (alle exportiert): `leinwand(w, h)`, `gecacht`, `P` (Pixel), `R` (Rechteck),
+`E` (Ellipse), `L` (Linie mit Dicke – in grafik.js deshalb logik.js als `* as Logik` holen),
+`POLY`, `kugel`, `umriss`, `gespiegelt`, `schrift` (3×5-Großbuchstaben), `mische`, `hell`,
+`dunkel`, Bausteine für Gebäude `dach`, `fensterKasten`, `tuer`, für Boden `grasKachel`,
+`zackenRand`, `kunstMalen(g, art, bild)` (andere Kunst wiederverwenden), `ersatzBild`. Abrufen:
+`itemBild`, `itemDatenUrl`, `objektBild`/`objektArt`, `dekoBild`/`dekoArt`, `gebaeudeBild`,
+`pflanzeBild`, `tierBild`, `monsterBild`, `figurBild`, `portraetBild`, `symbolUrl`,
+`bodenStueck`, `bodenBild`.
+
+Beispiel (ein Fass als Maschine im Bereich handwerk):
+
+```js
+// bereiche/handwerk/grafik.js
+import { kunst, objektKunst, R, E, P, dunkel } from '../../sprites.js';
+import { blase } from '../../render.js';
+
+kunst('fass', (g, b) => { E(g, 8, 9, 6, 6.5, '#8a5a32'); R(g, 2, 5, 12, 1, '#4a4a52'); });
+objektKunst('fass', {
+  b: 16, h: 24,                                              // ragt ein halbes Feld nach oben
+  schluessel: (o) => (o.fertig ? 'fertig' : o.inhalt ? 'arbeit' : 'leer'),
+  malen(g, o) { E(g, 8, 15, 6, 8, '#8a5a32'); if (o.inhalt) P(g, 8, 4, dunkel('#8a5a32')); },
+  danach(g, o, { bx, y }) { if (o.fertig) blase(g, bx, y - 3, '!'); },
+});
+```
+
+### 9.2 Ebenen und Zeichner (render.js)
+
+Jedes Bild läuft so: Boden (nur die sichtbaren Stücke) → Ebene `boden` → Ebene `welt`
+(alle Zeichenstücke sammeln, nach `y` sortieren, zeichnen) → `ueber` → `licht` → `bildschirm`.
+
+```js
+zeichner({ name, ebene: 'welt', reihe, sammeln(ort, sicht) → [{ y, f(g) }] })
+zeichner({ name, ebene: 'boden' | 'ueber' | 'licht' | 'bildschirm', reihe, zeichnen(g, kamera, ort, sicht) })
+```
+
+| Ebene | Koordinaten | Kern (reihe) | Bereiche (reihe) |
+|---|---|---|---|
+| `boden` | Weltpixel | glitzern 10, beete 20, wanddeko 30 | |
+| `welt` | Weltpixel, y-sortiert | objekte 10, pflanzen 20, deko 30, gebaeude 40, funde 50, npcs 60, spieler 90 | muehlrad 42 (gemeinschaft), fallend 45 (basis), huehner 70 (tiere), monster 80 (mine), fang 95 (angeln) |
+| `ueber` | Weltpixel | ziel 10, partikel 30, texte 40 | angeln 20 (angeln) |
+| `licht` | Bildschirmpixel | wetter 10, dunkel 50 | |
+| `bildschirm` | Bildschirmpixel | blitz 10 | drill 20 (angeln) |
+
+Innerhalb einer Ebene zählt `reihe`, bei gleichem `y` in der Welt die Reihenfolge der Zeichner.
+Vor jedem Zeichner setzt der Kern Transformation, Deckkraft 1 und normales Überblenden.
+`sicht = { x0, x1, y0, y1, sichtbar(tx, ty), imBild(px, py, b, h), def, s, jz, nacht, t, kamera }`
+(Feldbereich mit Rand: 2 Felder links/rechts, 1 oben, 3 unten für hohe Bilder),
+`kamera = { x, y, zoom, dpr, W, H, vw, vh }`. Helfer: `schatten(g, x, y, rx, ry)`,
+`blase(g, x, y, '!' | '…')`, `spielerHinter(bx, by, b, h)`.
+
+**Kulling:** Der Boden ist in Stücke zu 16×16 Feldern (`BODEN_STUECK`) geteilt, die erst
+gemalt werden, wenn sie ins Bild kommen. Objekte, Pflanzen und Beete werden über die sichtbaren
+Felder gesucht, nicht über alle Einträge; Deko, Gebäude, Figuren und Monster werden vorher gegen
+das Bild geprüft. Eigene Zeichner tun dasselbe (`sicht.sichtbar`, `sicht.imBild`). Messung auf
+einer 100×72-Karte mit 6000 Objekten: erstes Bild 25 ms statt 137 ms, danach 4 ms statt 8 ms.
+
+**Licht:** Draußen wird es ab 18 Uhr dunkel (bei Regen immer etwas), drinnen halb so stark, in
+der Mine nach `def.dunkel`. Lichtquellen: `GEBAEUDE_LICHT` jedes Gebäudes, Deko mit `licht`,
+Objekttypen mit `licht` (`objektTyp('fackel', { licht: 3 })`, Radius in Feldern), eigene Quellen über
+`lichtQuelle((ort, sicht) => [{ x, y, r, warm }])` und die Spielerin selbst.
+
+Beispiel (vereinfacht nach den Hühnern im Bereich tiere):
+
+```js
+zeichner({
+  name: 'huehner', ebene: 'welt', reihe: 70,
+  sammeln(ort, v) {
+    if (!huehnerDraussen()) return null;
+    return S.huehner.filter((h) => v.imBild(h.x - 10, h.y - 18, 20, 22)).map((h) => ({
+      y: h.y, f: (g) => { schatten(g, h.x, h.y, 4, 1.5); g.drawImage(tierBild('huhn', 0, h.links), h.x - 8, h.y - 15); },
+    }));
+  },
+});
+```
+
+### 9.3 Oberfläche (ui.js)
+
+| Register | Füllen mit | Eintrag |
+|---|---|---|
+| `FENSTER` | `fensterArt(name, bau)` | `bau(daten) → Element`, meist `fensterRahmen(titel, inhalt, { klasse: 'breit', kopfExtra })` |
+| `MENUE_REITER` | `menueReiter({ id, name, bauen(d), reihe })` | Reiter im Menü; Kern: rucksack 10, basteln 20, faehigkeiten 30, freunde 40, optionen 90 |
+| `HUD_ELEMENTE` | `hudElement({ id, bauen(), aktualisieren(el, s), reihe })` | eigene Anzeigen im HUD (Buffs, Fest-Uhr …); `aktualisieren` läuft jedes Bild |
+| `WARE_BILD` | `wareBild(spezial, (ware) → Element)` | Bild einer Spezialware ohne Item im Laden |
+| `STATISTIK` | `statistik({ id, name, wert(s), reihe })` | Zeilen unter „Bisher" im Reiter Fähigkeiten |
+
+Geöffnet wird ein Fenster aus der Spiellogik mit `fenster(name, daten)` (spiel.js, über
+`S.hooks`) – inhalt.js importiert ui.js nie. Fenster des Kerns: `menue`, `brief`, `tagEnde`.
+
+**Bau-Helfer:** `el(tag, attrs, …kinder)`, `bild(src, klasse)`, `leinwandBild(c)`,
+`symbol(art)`, `sternSymbol(q)`, `itemIcon(slot)`, `slotKnopf(slot, i, { klick, aktiv,
+gedimmt, markiert, taste })`, `invGitter(klick, { markiere, dimme, aktivIdx })`,
+`itemInfo(slot)`, `portraet(npcId)`, `goldAnzeige()`, `fensterRahmen`, `fensterOeffnen`,
+`fensterNeu` (nach Änderungen neu bauen), `fensterSchliessen`, `offenesFenster()`,
+`menueOeffnen(reiter)`, `dialog`/`dialogZeigen`, `frage`, `meldung`/`meldungZeigen`,
+`fundeZeigen`, `ton`, `zahl` (Zahlenformat), `$`.
+
+Beispiel:
+
+```js
+// bereiche/tiere/oberflaeche.js
+import { fensterArt, menueReiter, fensterRahmen, el } from '../../ui.js';
+
+fensterArt('tierinfo', (d) => fensterRahmen(d.tier.name, el('p', {}, `Freundschaft: ${d.tier.freundschaft}`)));
+menueReiter({ id: 'tiere', name: 'Tiere', reihe: 45, bauen: () => el('div', { class: 'liste' }, '…') });
+```
+
+### 9.4 Kunst und Fenster je Bereich
+
+| Bereich | grafik.js | oberflaeche.js |
+|---|---|---|
+| basis | Werkzeuge, Grundrohstoffe, Müll; Objekte baum, stumpf, grossstumpf, ast, stein, fels, unkraut, sammel; geteilte Deko baum, busch, felsen, laterne, schild, kiste, fenster, bild, kamin, pflanze, tisch; Zeichner fallend | – |
+| hof | Gebäude haus; Innenfarben haus; Deko bett, tv, herd, versandkiste, briefkasten | Fenster versand |
+| dorf | Essen aus dem Gasthaus; Gebäude laden, rathaus, gasthaus, schmiede, atelier; Innenfarben laden, gasthaus; Deko brunnen, bank, blumen, amboss, fass, theke, regal, saatregal, flaschen | Fenster laden (für alle Händler), Warenbilder upgrade, rucksack |
+| wildnis | Gebäude huette; Deko strandkorb | – |
+| pflanzen | Saatgut, Ernte, Wildpflanzen, Strandfunde, Dünger; Wuchsformen | – |
+| angeln | Angel, Fische, Köder; Deko stand; Zeichner fang, angeln, drill | – |
+| mine | Erze, Barren, Mineralien, Schwert; Minen-Bänder; Objekte mstein, leiter, schatz; Deko leiter_ab, leiter_auf, aufzug, schwertfund, wandlampe; Gebäude hoehle; Monster schleim, fledermaus; Zeichner monster | Fenster aufzug, Statistik tiefste |
+| handwerk | Truhe, Vogelscheuche, Sprenger, Einmachglas, Marmelade, Eingelegtes; Objekt einmachglas | Fenster truhe |
+| tiere | Eier; Gebäude stall; Tier huhn; Zeichner huehner | Warenbilder kueken, stall |
+| gemeinschaft | Medaille; Gebäude muehle (verfallen/repariert); Deko brett; Zeichner muehlrad | Fenster muehle, brett; Menüreiter aufgaben |
+| npcs, npcs2, feste | – (Figuren und Porträts malt der Kern aus `aussehen`) | – |
+
+### 9.5 Konventionen für Pixelkunst
+
+* **Raster:** Ein Feld ist 16×16 Pixel (`T`). Gezeichnet wird nur in ganzen Pixeln mit den
+  Grundfunktionen, ohne Kantenglättung. Zufall nur über `hash(x, y, n)` aus zufall.js, damit
+  Bilder stabil bleiben und gecacht werden können.
+* **Gegenstände:** 16×16, Motiv innerhalb von x/y 1–14, den dunklen Umriss (`#2b1d1c`) setzt
+  der Kern. Farben über `bild.f`/`bild.f2`, damit eine Kunst für viele Items reicht.
+* **Figuren:** 16×24, Füße unten mittig (y 21–23), Blickrichtungen unten, oben, links
+  (rechts gespiegelt), Schrittphasen 0–2. Gezeichnet mit dem Fuß auf der Position der Figur.
+* **Porträts:** 32×32, Kopf und Schultern, gleicher Umriss.
+* **Objekte und Deko** stehen unten mittig auf ihrem Feld (bzw. ihrer Fläche `w×h`); höhere
+  Bilder ragen nach oben (Baum 32×44, Laterne 16×32). Sortiert wird nach der Unterkante.
+* **Gebäude:** so breit wie `w×16`, unten bündig mit der letzten Reihe; Tür im Bild dort, wo
+  `tuer` liegt. Fensterpunkte für die Nacht in `licht`.
+* **Pflanzen:** 16×24, Erde bei y = 21 (`fuss`), Phasen 0–4 (4 = reif).
+* **Boden:** Kacheln bleiben in ihrem Feld; höchstens ein Pixel Überstand nach links oder oben
+  ist erlaubt (Waldrand), weil der Boden in Stücken gemalt wird.
+* **Licht von oben links:** Grundfarbe, `hell()` oben links, `dunkel()` unten rechts; `kugel()`
+  macht das für runde Formen.
+* **Jahreszeiten:** Bilder bekommen `jz` (fruehling, sommer, herbst, winter) und malen
+  Varianten: Laub aus `LAUB` (im Winter kahl), Gras aus `GRAS`, Schnee auf Dächern
+  (`dach(…, winter)`), Kanten und Bänken im Winter. **Tag und Nacht:** `nacht` (draußen ab
+  18:30, drinnen ab 19 Uhr) lässt Fenster (`fensterKasten(…, nacht)`) und Lampen leuchten.
+* **Nie pro Bild malen:** Alles Gemalte wird gecacht; in Zeichnern nur fertige Leinwände
+  zeichnen und einfache Formen (Schatten, Balken, Blasen).
+
+Wer an der Darstellung des Kerns etwas ändert, vergleicht Bildschirmfotos fester Szenen vorher
+und nachher (Playwright, eingefrorene Zeit `S.t`, `S.uebergang = true`, fester `Math.random`).
+Beim Umbau auf die Register waren alle 56 Szenen (Hof in vier Jahreszeiten und nachts, Dorf, Strand,
+Angeln, Wald, Berg, Mine in allen Bändern, Innenräume, alle Fenster und Reiter, Titel)
+pixelgleich.

@@ -1,6 +1,7 @@
 // Rauchtest im echten Browser: Titel → neues Spiel → Briefe → aus dem Haus laufen →
 // hacken, säen, gießen → Menü → Rundgang durch den Weltgraphen bis in die Mine →
-// jedes Item hat ein Bild → schlafen → nächster Morgen. Bricht bei Konsolenfehlern ab.
+// jedes Item, jede Deko, jedes Gebäude hat ein Bild → Ersatzbilder → Kulling auf 100×72 →
+// alle Fenster → schlafen → nächster Morgen. Bricht bei Konsolenfehlern ab.
 //
 // Aufruf: node test/browser.mjs
 // Braucht Playwright. Ein eigener Chromium-Pfad geht über CHROMIUM=/pfad/zu/chrome.
@@ -118,11 +119,96 @@ try {
     const { ITEMS } = await import('/src/daten.js');
     const fehlt = [];
     for (const id of Object.keys(ITEMS)) {
-      try { const c = SP.itemBild({ id }); if (!c || c.width !== 16) fehlt.push(id); } catch (e) { fehlt.push(`${id}: ${e.message}`); }
+      try { const c = SP.itemBild({ id }); if (!c || c.width !== 16 || c.ersatz) fehlt.push(id); } catch (e) { fehlt.push(`${id}: ${e.message}`); }
     }
     return fehlt;
   });
   pruefe(ohneBild.length === 0, `Jedes Item hat ein Bild${ohneBild.length ? `: ${ohneBild.join(', ')}` : ''}`);
+
+  // Jede Deko, jedes Gebäude und jedes Objekt aller Karten in allen Jahreszeiten, Tag und Nacht
+  const kartenOhneBild = await page.evaluate(async () => {
+    const SP = await import('/src/sprites.js');
+    const { KARTEN } = await import('/src/karten.js');
+    const { OBJEKT_TYPEN, PFLANZEN } = await import('/src/daten.js');
+    const { S } = await import('/src/spiel.js');
+    const fehlt = new Set();
+    const pruefen = (was, fn) => { try { if (fn()?.ersatz) fehlt.add(was); } catch (e) { fehlt.add(`${was}: ${e.message}`); } };
+    for (const jz of ['fruehling', 'sommer', 'herbst', 'winter']) {
+      for (const nacht of [false, true]) {
+        for (const def of Object.values(KARTEN)) {
+          for (const d of def.deko) pruefen(`Deko ${d.typ}`, () => SP.dekoBild(d, { jz, nacht, innen: def.innen, s: S.s }));
+          for (const g of def.gebaeude) pruefen(`Gebäude ${g.typ}`, () => SP.gebaeudeBild(g, { jz, nacht, s: S.s }));
+        }
+        for (const t of Object.keys(OBJEKT_TYPEN)) pruefen(`Objekt ${t}`, () => SP.objektBild({ t, id: 'holz', art: 'stein', v: 1 }, { jz, band: 1 }));
+      }
+    }
+    for (const id of Object.keys(PFLANZEN)) for (let p = 0; p <= 4; p++) pruefen(`Pflanze ${id}`, () => SP.pflanzeBild(id, p, false));
+    return [...fehlt];
+  });
+  pruefe(kartenOhneBild.length === 0, `Deko, Gebäude, Objekte und Pflanzen haben Bilder${kartenOhneBild.length ? `: ${kartenOhneBild.join(', ')}` : ''}`);
+
+  const ersatz = await page.evaluate(async () => {
+    const SP = await import('/src/sprites.js');
+    const bilder = [
+      SP.itemBild({ id: 'gibtsnicht' }), SP.dekoBild({ typ: 'gibtsnicht', w: 2 }, { jz: 'sommer' }),
+      SP.gebaeudeBild({ typ: 'gibtsnicht', w: 3, h: 2 }, { jz: 'sommer' }), SP.objektBild({ t: 'gibtsnicht' }, {}),
+      SP.pflanzeBild('gibtsnicht', 2, false), SP.monsterBild('gibtsnicht', '#ffffff', 'gibtsnicht', 0), SP.tierBild('gibtsnicht', 0, true),
+    ];
+    return { alle: bilder.every((c) => c.ersatz), groessen: bilder.map((c) => `${c.width}×${c.height}`).join(' ') };
+  });
+  pruefe(ersatz.alle && ersatz.groessen === '16×16 32×16 48×32 16×16 16×24 16×16 16×16', `Fehlende Bilder werden zum Ersatzbild (${ersatz.groessen})`);
+
+  // Kulling: auf einer 100×72-Karte sammelt der Objekt-Zeichner nur, was im Bild liegt
+  const gross = await page.evaluate(async () => {
+    const R = await import('/src/render.js');
+    const K = await import('/src/karten.js');
+    const m = await import('/src/spiel.js');
+    const L = await import('/src/logik.js');
+    const g = K.rahmen(K.raster(100, 72, '.'), '#');
+    K.karte({ id: 'testgross', name: 'Testkarte', aussen: true, rand: 'wald', grid: K.fertigRaster(g), punkte: { start: [50, 36] }, npcWege: false });
+    const w = L.welt(m.S.s, 'testgross');
+    for (let i = 0; i < 6000; i++) w.objekte[L.k(1 + (i % 98), 1 + Math.floor(i / 98))] = { t: 'stein', hp: 2, v: i % 3 };
+    m.karteBetreten('testgross');
+    let sicht = null;
+    R.zeichner({ name: 'test_sicht', ebene: 'welt', reihe: 0, sammeln(ort, v) { sicht = v; return null; } });
+    R.zeichnen();
+    const teile = R.ZEICHNER.welt.find((z) => z.name === 'objekte').sammeln(m.S.ort, sicht).length;
+    const t0 = performance.now();
+    for (let i = 0; i < 30; i++) R.zeichnen();
+    const ms = (performance.now() - t0) / 30;
+    m.karteBetreten('hof', 20, 9, 'unten');
+    return { teile, gesamt: Object.keys(w.objekte).length, ms: Math.round(ms * 10) / 10 };
+  });
+  pruefe(gross.teile > 0 && gross.teile < gross.gesamt / 4, `Kulling auf 100×72: ${gross.teile} von ${gross.gesamt} Objekten gesammelt, ${gross.ms} ms je Bild`);
+
+  // Alle registrierten Fenster öffnen sich ohne Fehler
+  const fensterFehler = await page.evaluate(async () => {
+    const ui = await import('/src/ui.js');
+    const { LAEDEN } = await import('/src/daten.js');
+    const { S } = await import('/src/spiel.js');
+    const daten = {
+      laden: Object.keys(LAEDEN).map((laden) => ({ laden })),
+      truhe: [{ truhe: { t: 'truhe', inv: Array(24).fill(null) } }],
+      brief: [{ text: 'Hallo {name}', von: 'Test' }],
+      tagEnde: [{ bericht: { verkauf: [], summe: 0, stufen: [], meldungen: ['Test'], ohnmacht: null } }],
+      menue: ui.MENUE_REITER.map((r) => ({ reiter: r.id })),
+    };
+    const fehler = [];
+    for (const name of Object.keys(ui.FENSTER)) {
+      for (const d of daten[name] || [{}]) {
+        try {
+          ui.fensterOeffnen(name, d);
+          if (!document.querySelector('#fenster .fenster')) fehler.push(`${name}: leer`);
+        } catch (e) { fehler.push(`${name}: ${e.message}`); }
+        document.querySelector('#fenster').hidden = true;
+        document.querySelector('#fenster').replaceChildren();
+      }
+    }
+    ui.fensterSchliessen();
+    S.pause = false;
+    return fehler;
+  });
+  pruefe(fensterFehler.length === 0, `Alle Fenster öffnen sich${fensterFehler.length ? `: ${fensterFehler.join(', ')}` : ''}`);
 
   await page.evaluate(async () => { const m = await import('/src/spiel.js'); m.schlafen(false); });
   await page.waitForSelector('text=Guten Morgen!');

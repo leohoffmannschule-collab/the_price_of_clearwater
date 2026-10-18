@@ -1,5 +1,7 @@
-// Bereich „tiere" – Fenster und Menüreiter (Ställe, Scheunen, Tiere, Bauen beim Zimmermann).
-// Registriert Fenster in ui.js. Darf ui.js importieren.
-// Noch leer: Die bisherigen Fenster stehen vorerst in ui.js.
+// Bereich „tiere" – Oberfläche: das Bild von Küken und Hühnerstall im Laden.
 
-export {};
+import { tierBild } from '../../sprites.js';
+import { wareBild, leinwandBild } from '../../ui.js';
+
+wareBild('kueken', () => leinwandBild(tierBild('huhn', 0, true)));
+wareBild('stall', () => leinwandBild(tierBild('huhn', 0, true)));
