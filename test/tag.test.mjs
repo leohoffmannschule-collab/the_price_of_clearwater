@@ -1,7 +1,9 @@
 // Spielt ganze Tage ohne Bildschirm durch: Uhr, Wege der Dorfbewohner, Ohnmacht um zwei Uhr.
 // Aufruf: node test/tag.test.mjs
 import assert from 'node:assert/strict';
+import '../src/bereiche/inhalt.js';
 import { T } from '../src/daten.js';
+import { punkt } from '../src/karten.js';
 import * as L from '../src/logik.js';
 import { S, spielStarten, update, neuerMorgen } from '../src/spiel.js';
 
@@ -22,6 +24,7 @@ function bis(minute, max = 60000) {
   for (let i = 0; i < max && S.s.zeit.minute < minute && !S.pause; i++) update(0.05, E);
 }
 const feldVon = (n) => [Math.floor(n.x / T), Math.floor((n.y - 3) / T)];
+const xy = (karte, name) => { const p = punkt(karte, name); return [p.x, p.y]; };
 const npc = (id) => S.npcs.find((n) => n.id === id);
 
 console.log('\nEin Tag in Klarwasser');
@@ -37,23 +40,24 @@ test('morgens um sechs sind alle noch zu Hause', () => {
 test('um zehn steht Ottilie hinter der Theke und Bruno am Amboss', () => {
   bis(600);
   assert.equal(npc('ottilie').karte, 'laden');
-  assert.deepEqual(feldVon(npc('ottilie')), [3, 3]);
+  assert.deepEqual(feldVon(npc('ottilie')), xy('laden', 'theke'));
+  assert.deepEqual(xy('laden', 'theke'), [3, 3]);
   assert.equal(npc('bruno').karte, 'dorf');
-  assert.deepEqual(feldVon(npc('bruno')), [7, 24]);
+  assert.deepEqual(feldVon(npc('bruno')), xy('dorf', 'amboss'));
   assert.equal(npc('lene').karte, 'strand');
-  assert.deepEqual(feldVon(npc('lene')), [27, 10]);
+  assert.deepEqual(feldVon(npc('lene')), xy('strand', 'stand'));
 });
 
 test('mittags wechselt Hannes vom Dorf ins Gasthaus', () => {
   bis(720);
   assert.equal(npc('hannes').karte, 'gasthaus');
-  assert.deepEqual(feldVon(npc('hannes')), [11, 3]);
+  assert.deepEqual(feldVon(npc('hannes')), xy('gasthaus', 'theke'));
 });
 
 test('Lene geht abends vom Strand durchs Dorf ins Gasthaus', () => {
   bis(1230);
   assert.equal(npc('lene').karte, 'gasthaus');
-  assert.deepEqual(feldVon(npc('lene')), [12, 5]);
+  assert.deepEqual(feldVon(npc('lene')), xy('gasthaus', 'tresen2'));
   assert.equal(npc('bruno').karte, 'gasthaus');
 });
 
@@ -69,6 +73,7 @@ test('um zwei Uhr endet der Tag von selbst', () => {
   assert.equal(S.s.zeit.tag, 2);
   neuerMorgen();
   assert.equal(S.ort.def.id, 'haus');
+  assert.deepEqual([S.s.spieler.x, S.s.spieler.y], xy('haus', 'bett'));
   assert.ok(!S.pause);
 });
 

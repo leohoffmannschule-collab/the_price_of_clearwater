@@ -5,7 +5,9 @@ import { T, ITEMS, NPCS, PFLANZEN } from './daten.js';
 import * as L from './logik.js';
 import * as SP from './sprites.js';
 import { MONSTER } from './mine.js';
-import { S, huehnerDraussen, spielerFeld } from './spiel.js';
+import { S, spielerFeld } from './spiel.js';
+// Übergang, bis die Hühner als Zeichner im Bereich „tiere" stehen (Teil B):
+import { huehnerDraussen } from './bereiche/tiere/inhalt.js';
 
 let canvas;
 let ctx;
@@ -118,7 +120,7 @@ export function zeichnen() {
   const sp = S.sp;
   const spielerHinter = (bx, by, breite, hoehe) => !S.demo && sp.x > bx - breite / 2 && sp.x < bx + breite / 2 && sp.y < by - 2 && sp.y > by - hoehe;
 
-  for (const [kk, o] of Object.entries(S.ort.welt.objekte)) {
+  for (const [kk, o] of L.alleObjekte(s, S.ort)) {
     const [tx, ty] = kk.split(',').map(Number);
     if (!sichtbar(tx, ty)) continue;
     const wackel = S.wackel[kk] ? Math.sin(S.wackel[kk] * 60) * 1.2 : 0;

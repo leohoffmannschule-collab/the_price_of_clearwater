@@ -1,5 +1,6 @@
 // Rauchtest im echten Browser: Titel → neues Spiel → Briefe → aus dem Haus laufen →
-// hacken, säen, gießen → schlafen → nächster Morgen. Bricht bei Konsolenfehlern ab.
+// hacken, säen, gießen → Menü → Rundgang durch den Weltgraphen bis in die Mine →
+// jedes Item hat ein Bild → schlafen → nächster Morgen. Bricht bei Konsolenfehlern ab.
 //
 // Aufruf: node test/browser.mjs
 // Braucht Playwright. Ein eigener Chromium-Pfad geht über CHROMIUM=/pfad/zu/chrome.
@@ -70,6 +71,59 @@ try {
   await page.keyboard.press('Escape');
   pruefe(true, 'Alle Menüreiter öffnen sich');
 
+  // Rundgang: an den Rand stellen und über den Warp laufen
+  const rundgang = [
+    ['hof', 'vonDorf', 'd', 'dorf'],
+    ['dorf', 'vonStrand', 's', 'strand'],
+    ['strand', 'vonDorf', 'w', 'dorf'],
+    ['dorf', 'vonWald', 'a', 'wald'],
+    ['wald', 'vonDorf', 'd', 'dorf'],
+    ['dorf', 'vonBerg', 'w', 'berg'],
+    ['berg', 'vonHof', 's', 'hof'],
+    ['hof', 'vonWald', 's', 'wald'],
+    ['wald', 'vonHof', 'w', 'hof'],
+    ['hof', 'vonBerg', 'w', 'berg'],
+    ['berg', 'vorMine', 'w', 'mine0'],
+  ];
+  for (const [karte, name, taste, ziel] of rundgang) {
+    await page.evaluate(async ([karte, name]) => {
+      const m = await import('/src/spiel.js');
+      const k = await import('/src/karten.js');
+      const p = k.punkt(karte, name);
+      m.S.s.flags.mineOffen = true;
+      m.S.s.zeit.minute = 600;
+      m.karteBetreten(karte, p.x, p.y, 'unten');
+    }, [karte, name]);
+    await page.keyboard.down(taste);
+    let jetzt = karte;
+    for (let i = 0; i < 30 && jetzt !== ziel; i++) { await page.waitForTimeout(100); jetzt = (await zustand()).karte; }
+    await page.keyboard.up(taste);
+    await page.waitForTimeout(350);
+    pruefe((await zustand()).karte === ziel, `Rundgang: ${karte} → ${ziel}`);
+  }
+  await page.evaluate(async () => {
+    const m = await import('/src/spiel.js');
+    m.karteBetreten('mine0', 9, 5, 'oben');
+  });
+  await page.keyboard.press('e');
+  await page.waitForTimeout(700);
+  const mine = await page.evaluate(() => { const { S } = window.__klarwasser; return { karte: S.ort.def.id, ebene: S.mineEbene, monster: S.monster.length }; });
+  pruefe(mine.karte === 'mine1' && mine.ebene === 1 && mine.monster > 0, 'Leiter hinab: Minenebene 1 mit Monstern');
+  await page.evaluate(async () => { const m = await import('/src/bereiche/mine/inhalt.js'); m.aufzugFahren(0); });
+  await page.waitForTimeout(500);
+  pruefe((await zustand()).karte === 'mine0', 'Förderkorb fährt zurück zum Eingang');
+
+  const ohneBild = await page.evaluate(async () => {
+    const SP = await import('/src/sprites.js');
+    const { ITEMS } = await import('/src/daten.js');
+    const fehlt = [];
+    for (const id of Object.keys(ITEMS)) {
+      try { const c = SP.itemBild({ id }); if (!c || c.width !== 16) fehlt.push(id); } catch (e) { fehlt.push(`${id}: ${e.message}`); }
+    }
+    return fehlt;
+  });
+  pruefe(ohneBild.length === 0, `Jedes Item hat ein Bild${ohneBild.length ? `: ${ohneBild.join(', ')}` : ''}`);
+
   await page.evaluate(async () => { const m = await import('/src/spiel.js'); m.schlafen(false); });
   await page.waitForSelector('text=Guten Morgen!');
   await page.click('text=Guten Morgen!');
@@ -77,7 +131,7 @@ try {
   const morgen = await zustand();
   pruefe(morgen.tag === 2 && morgen.karte === 'haus', 'Nach dem Schlafen beginnt Tag 2 im Haus');
 
-  const gespeichert = await page.evaluate(() => !!localStorage.getItem('klarwasser-hof-v1'));
+  const gespeichert = await page.evaluate(() => !!localStorage.getItem('klarwasser-hof-v2'));
   pruefe(gespeichert, 'Der Morgen wurde gespeichert');
   pruefe(fehler.length === 0, `Keine Fehler in der Konsole${fehler.length ? `: ${fehler.join(' | ')}` : ''}`);
 } finally {

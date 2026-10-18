@@ -1,17 +1,19 @@
 // Oberfläche aus DOM: Anzeige, Werkzeugleiste, Gespräche, Fenster, Titel.
 
 import {
-  ITEMS, NPCS, LAEDEN, REZEPTE, BUENDEL, FAEHIGKEITEN, XP_STUFEN, JZ_NAME, WERKZEUG_STUFEN,
-  AUFRUESTBAR, KANNE_INHALT, KATEGORIE_NAME, OMA_BRIEF, MAX_HERZEN, JZ,
+  ITEMS, NPCS, LAEDEN, REZEPTE, BUENDEL, BRIEFE, FAEHIGKEITEN, XP_STUFEN, JZ_NAME, WERKZEUG_STUFEN,
+  AUFRUESTBAR, KANNE_INHALT, KATEGORIE_NAME, MAX_HERZEN, JZ,
 } from './daten.js';
 import * as L from './logik.js';
 import * as SP from './sprites.js';
 import {
-  S, spielStarten, neuerMorgen, speichern, essenAus, aufzugFahren, postZeigen, zustandSichern,
+  S, spielStarten, neuerMorgen, speichern, essenAus, postZeigen, zustandSichern,
 } from './spiel.js';
 import { E, eingabeLeeren } from './eingabe.js';
 import { ton, einstellen, einstellungen, musikStimmung } from './ton.js';
-import { MINE_TIEFE } from './mine.js';
+// Übergang, bis diese Fenster in die oberflaeche.js ihrer Bereiche ziehen (Teil B):
+import { MINE_TIEFE, aufzugFahren } from './bereiche/mine/inhalt.js';
+import * as G from './bereiche/gemeinschaft/inhalt.js';
 
 const $ = (sel) => document.querySelector(sel);
 const zahl = new Intl.NumberFormat('de-DE');
@@ -417,7 +419,7 @@ function itemInfo(slot) {
     el('div', { class: 'item-kopf' }, itemIcon(slot), el('div', {}, el('h3', {}, L.nameVon(slot, S.s)), el('div', { class: 'chips' }, zeilen))),
     it.text ? el('p', {}, it.text) : null,
     el('dl', { class: 'werte' },
-      L.verkaufbar(slot) ? [el('dt', {}, 'Wert'), el('dd', {}, `${L.preisVon(slot)} g`)] : null,
+      L.verkaufbar(slot) ? [el('dt', {}, 'Wert'), el('dd', {}, `${L.preisVon(slot, S.s)} g`)] : null,
       e ? [el('dt', {}, 'Energie'), el('dd', {}, `+${e}`)] : null,
       slot.n > 1 ? [el('dt', {}, 'Anzahl'), el('dd', {}, slot.n)] : null));
 }
@@ -585,9 +587,9 @@ function aufgabenReiter() {
     teile.push(el('p', { class: 'leise' }, 'Kein Auftrag angenommen. Aufträge hängen am Schwarzen Brett auf dem Marktplatz.'));
   }
   teile.push(el('h3', {}, 'Die alte Mühle'));
-  const fertig = BUENDEL.filter((b) => L.buendelFertig(s, b)).length;
+  const fertig = BUENDEL.filter((b) => G.buendelFertig(s, b)).length;
   teile.push(el('p', { class: 'leise' }, s.muehle ? 'Die Mühle dreht sich wieder. Klarwasser feiert dich.' : `${fertig} von ${BUENDEL.length} Bündeln vollständig. Spenden nimmt die Mühle am Fluss entgegen.`));
-  teile.push(el('div', { class: 'buendel-mini' }, BUENDEL.map((b) => el('span', { class: `chip${L.buendelFertig(s, b) ? ' ok' : ''}` }, `${b.name} ${(s.buendel[b.id] || []).length}/${L.buendelNoetig(b)}`))));
+  teile.push(el('div', { class: 'buendel-mini' }, BUENDEL.map((b) => el('span', { class: `chip${G.buendelFertig(s, b) ? ' ok' : ''}` }, `${b.name} ${(s.buendel[b.id] || []).length}/${G.buendelNoetig(b)}`))));
   teile.push(el('h3', {}, 'Briefe'));
   const gelesen = s.briefe.filter((id) => L.briefVon(id));
   teile.push(gelesen.length
@@ -672,10 +674,7 @@ function ladenInhalt(d) {
             if (erg.grund) { meldungZeigen(erg.grund, 'warn'); ton('dumpf'); }
             else {
               ton('geld');
-              if (w.spezial === 'upgrade') meldungZeigen(`Fertig! Deine ${name} fühlt sich gleich ganz anders an.`, 'gut');
-              else if (w.spezial === 'stall') meldungZeigen('Bruno baut deinen Hühnerstall heute Nacht.', 'gut');
-              else if (w.spezial === 'kueken') meldungZeigen('Ein Küken ist in deinen Stall gezogen.', 'gut');
-              else if (w.spezial === 'rucksack') meldungZeigen('Dein Rucksack hat jetzt 36 Plätze.', 'gut');
+              if (erg.text) meldungZeigen(erg.text, 'gut');
             }
             fensterNeu();
           },
@@ -701,7 +700,7 @@ function ladenInhalt(d) {
 
 function versandInhalt() {
   const s = S.s;
-  const liste = s.versand.map((slot) => el('div', { class: 'versand-zeile' }, itemIcon(slot), el('span', {}, `${slot.n}× ${L.nameVon(slot, s)}`), el('span', { class: 'preis' }, `${zahl.format(L.preisVon(slot) * slot.n)} g`)));
+  const liste = s.versand.map((slot) => el('div', { class: 'versand-zeile' }, itemIcon(slot), el('span', {}, `${slot.n}× ${L.nameVon(slot, s)}`), el('span', { class: 'preis' }, `${zahl.format(L.preisVon(slot, S.s) * slot.n)} g`)));
   return fenster('Versandkiste', el('div', { class: 'zweispaltig' },
     el('div', {},
       el('p', { class: 'leise' }, 'Tippe einen Stapel an, um ihn in die Kiste zu legen. Über Nacht wird alles verkauft.'),
@@ -733,14 +732,14 @@ function truheInhalt(d) {
 
 function muehleInhalt() {
   const s = S.s;
-  const passend = (slot) => !!slot && BUENDEL.some((b) => L.buendelPlatz(s, b, slot) >= 0);
+  const passend = (slot) => !!slot && BUENDEL.some((b) => G.buendelPlatz(s, b, slot) >= 0);
   const karten = BUENDEL.map((b) => {
     const geg = s.buendel[b.id] || [];
-    const fertig = L.buendelFertig(s, b);
+    const fertig = G.buendelFertig(s, b);
     const belohnung = b.belohnung.gold ? `${zahl.format(b.belohnung.gold)} g` : `${b.belohnung.n}× ${ITEMS[b.belohnung.id].name}`;
     return el('div', { class: `buendel rahmen-leicht${fertig ? ' fertig' : ''}` },
-      el('div', { class: 'buendel-kopf' }, el('strong', {}, b.name), el('span', { class: 'chip' }, `${geg.length}/${L.buendelNoetig(b)}`)),
-      el('div', { class: 'buendel-items' }, L.buendelEintraege(b).map((e, j) => {
+      el('div', { class: 'buendel-kopf' }, el('strong', {}, b.name), el('span', { class: 'chip' }, `${geg.length}/${G.buendelNoetig(b)}`)),
+      el('div', { class: 'buendel-items' }, G.buendelEintraege(b).map((e, j) => {
         const da = geg.includes(j);
         return el('span', { class: `buendel-item${da ? ' da' : ''}`, title: `${e.n > 1 ? `${e.n}× ` : ''}${ITEMS[e.id].name}${da ? ' (gespendet)' : ''}` }, itemIcon({ id: e.id }), e.n > 1 ? el('span', { class: 'anzahl' }, e.n) : null);
       })),
@@ -752,9 +751,9 @@ function muehleInhalt() {
     el('h3', {}, 'Rucksack'),
     invGitter((i) => {
       const slot = s.spieler.inv[i];
-      const b = BUENDEL.find((x) => L.buendelPlatz(s, x, slot) >= 0);
+      const b = BUENDEL.find((x) => G.buendelPlatz(s, x, slot) >= 0);
       if (!b) return;
-      const erg = L.spenden(s, b.id, i, S.ort);
+      const erg = G.spenden(s, b.id, i, S.ort);
       if (!erg) return;
       if (erg.grund) { meldungZeigen(erg.grund, 'warn'); fensterNeu(); return; }
       ton('pop');
@@ -782,7 +781,7 @@ function brettInhalt() {
     inhalt = el('div', { class: 'papier' },
       el('p', {}, b.text), el('p', { class: 'unterschrift' }, `– ${NPCS[b.npc].name}`),
       el('p', { class: 'klein' }, `Belohnung: ${b.belohnung} g · Drei Tage Zeit`),
-      el('button', { type: 'button', class: 'knopf', onclick: () => { L.questAnnehmen(s); ton('pop'); meldungZeigen('Auftrag angenommen.', 'gut'); fensterNeu(); } }, 'Auftrag annehmen'));
+      el('button', { type: 'button', class: 'knopf', onclick: () => { G.questAnnehmen(s); ton('pop'); meldungZeigen('Auftrag angenommen.', 'gut'); fensterNeu(); } }, 'Auftrag annehmen'));
   } else if (s.quest) {
     const q = s.quest;
     inhalt = el('div', { class: 'papier' },
@@ -952,7 +951,10 @@ export function spielBeginnen(s, neu) {
     const steuerung = touch
       ? 'Stick: laufen · Benutzen: Werkzeug · Aktion: reden, ernten, öffnen · Menü: Rucksack und mehr'
       : 'WASD: laufen · Leertaste oder Linksklick: Werkzeug · E oder Rechtsklick: reden, ernten, öffnen · I: Rucksack';
-    fensterOeffnen('brief', { text: OMA_BRIEF, von: 'Oma Liesel', danach: () => { postZeigen(false); meldungZeigen(steuerung); } });
+    const start = BRIEFE.find((b) => b.start);
+    const danach = () => { postZeigen(false); meldungZeigen(steuerung); };
+    if (start) fensterOeffnen('brief', { text: start.text, von: start.von, danach });
+    else danach();
   } else if (s.post.length) postZeigen(false);
 }
 

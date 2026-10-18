@@ -1,5 +1,9 @@
-// Einstieg: Leinwand, Eingabe, Oberfläche, Spielschleife.
+// Einstieg: Bereiche laden, dann Leinwand, Eingabe, Oberfläche, Spielschleife.
 
+// Die Sammeldateien zuerst, damit alle Register gefüllt sind, bevor das Spiel startet.
+import './bereiche/inhalt.js';
+import './bereiche/grafik.js';
+import './bereiche/oberflaeche.js';
 import { S, update } from './spiel.js';
 import { renderStarten, zeichnen } from './render.js';
 import { E, eingabeStarten, eingabeLesen, eingabeZuruecksetzen } from './eingabe.js';

@@ -1,9 +1,12 @@
-// Prüft Daten, Karten und Spiellogik ohne Browser.
+// Prüft Daten und Spiellogik ohne Browser. (Karten, Punkte und Wege: karten.test.mjs)
 // Aufruf: node test/logik.test.mjs
 import assert from 'node:assert/strict';
-import { ITEMS, PFLANZEN, NPCS, LAEDEN, REZEPTE, BUENDEL, BRIEFE, FISCHE, JZ, TAGE_PRO_JZ } from '../src/daten.js';
-import { KARTEN, NPC_HEIM, boden, verbindungen } from '../src/karten.js';
-import { mineErzeugen, MINE_TIEFE } from '../src/mine.js';
+import '../src/bereiche/inhalt.js';
+import { ITEMS, PFLANZEN, NPCS, LAEDEN, REZEPTE, BUENDEL, BRIEFE, FISCHE, JZ, TAGE_PRO_JZ, SPEZIAL_WARE } from '../src/daten.js';
+import { KARTEN, punkt, wasserArt } from '../src/karten.js';
+import { mineErzeugen, MINE_TIEFE } from '../src/bereiche/mine/inhalt.js';
+import { glasBenutzen } from '../src/bereiche/handwerk/inhalt.js';
+import * as G from '../src/bereiche/gemeinschaft/inhalt.js';
 import { zufall } from '../src/zufall.js';
 import * as L from '../src/logik.js';
 
@@ -46,12 +49,17 @@ gruppe('Daten', () => {
   });
   test('Rezepte, Läden, Bündel und Dorfbewohner verweisen auf echte Gegenstände', () => {
     for (const r of REZEPTE) {
-      assert.ok(ITEMS[r.id], r.id);
+      assert.ok(ITEMS[r.ergebnis], r.id);
       for (const id of Object.keys(r.zutaten)) assert.ok(ITEMS[id], `${r.id}: ${id}`);
     }
-    for (const L2 of Object.values(LAEDEN)) for (const w of L2.ware) if (w.id) assert.ok(ITEMS[w.id], w.id);
+    for (const L2 of Object.values(LAEDEN)) {
+      for (const w of L2.ware) {
+        if (w.id) assert.ok(ITEMS[w.id], w.id);
+        if (w.spezial) assert.ok(SPEZIAL_WARE[w.spezial], `Spezialware ${w.spezial}`);
+      }
+    }
     for (const b of BUENDEL) {
-      for (const e of L.buendelEintraege(b)) assert.ok(ITEMS[e.id], `${b.id}: ${e.id}`);
+      for (const e of G.buendelEintraege(b)) assert.ok(ITEMS[e.id], `${b.id}: ${e.id}`);
       if (b.belohnung.id) assert.ok(ITEMS[b.belohnung.id], b.belohnung.id);
     }
     for (const [id, n] of Object.entries(NPCS)) {
@@ -62,74 +70,33 @@ gruppe('Daten', () => {
       for (const jz of JZ) assert.ok(n.zeilen[jz]?.length, `${id}: Zeilen für ${jz}`);
     }
   });
-  test('jedes Gewässer hat in jeder Jahreszeit mindestens einen Fisch', () => {
-    for (const ort of ['teich', 'fluss', 'meer']) {
-      for (const jz of JZ) assert.ok(FISCHE.some((f) => f.fisch.o.includes(ort) && f.fisch.jz.includes(jz)), `${ort}/${jz}`);
+  test('jedes Gewässer auf den Karten hat in jeder Jahreszeit mindestens einen Fisch', () => {
+    const arten = new Set(['teich', 'fluss', 'meer']);
+    for (const def of Object.values(KARTEN)) {
+      if (def.wasser) arten.add(def.wasser);
+      for (const g of def.gewaesser) arten.add(g.art);
+    }
+    for (const ort of arten) {
+      for (const jz of JZ) assert.ok(FISCHE.some((f) => f.fisch.orte.includes(ort) && f.fisch.jz.includes(jz)), `${ort}/${jz}`);
     }
   });
-  test('Briefe haben Absender und Text', () => {
+  test('Gewässerart je Feld: Rechtecke vor dem Standard der Karte', () => {
+    assert.equal(wasserArt(KARTEN.strand, 5, 15), 'meer');
+    const see = KARTEN.wald.gewaesser[0];
+    assert.equal(wasserArt({ def: KARTEN.wald }, see.x + 1, see.y + 1), see.art);
+    assert.equal(wasserArt(KARTEN.wald, 5, 14), 'fluss');
+  });
+  test('Briefe haben Absender und Text, genau einer ist der Startbrief', () => {
     for (const b of BRIEFE) assert.ok(b.von && b.text.length > 20, b.id);
+    assert.equal(BRIEFE.filter((b) => b.start).length, 1);
   });
-});
-
-gruppe('Karten', () => {
-  const s = neues();
-  test('alle Raster sind rechteckig', () => {
-    for (const def of Object.values(KARTEN)) {
-      for (const z of def.grid) assert.equal(z.length, def.w, `${def.id}: Zeile „${z}"`);
-    }
-  });
-  test('Warps und Türen führen auf begehbare Felder', () => {
-    for (const v of verbindungen()) {
-      const ziel = KARTEN[v.nach];
-      assert.ok(ziel, `${v.von} → ${v.nach}`);
-      assert.ok(L.begehbar({ ...s, flags: { mineOffen: true } }, ziel, L.welt(s, v.nach), v.zx, v.zy), `${v.von} → ${v.nach} (${v.zx},${v.zy})`);
-      assert.ok(!L.warpAn(ziel, v.zx, v.zy), `Ankunft auf Warp: ${v.nach} (${v.zx},${v.zy})`);
-    }
-  });
-  test('Gebäudetüren liegen in der untersten Reihe', () => {
-    for (const def of Object.values(KARTEN)) {
-      for (const g of def.gebaeude) {
-        if (!g.tuer) continue;
-        assert.equal(g.tuer.y, g.y + g.h - 1, `${def.id}/${g.typ}`);
-        assert.ok(g.tuer.x >= g.x && g.tuer.x < g.x + g.w, `${def.id}/${g.typ}`);
-        if (g.ziel) assert.notEqual(boden(def, g.tuer.x, g.tuer.y + 1), '#', `${def.id}/${g.typ}: vor der Tür`);
-      }
-    }
-  });
-  test('Dorfbewohner stehen laut Plan auf begehbaren Feldern', () => {
-    for (const [id, n] of Object.entries(NPCS)) {
-      for (const plan of Object.values(n.plan)) {
-        for (const [, karte, x, y] of plan) {
-          if (!karte) continue;
-          assert.ok(L.begehbar(s, KARTEN[karte], L.welt(s, karte), x, y), `${id}: ${karte} (${x},${y})`);
-        }
-      }
-      const h = NPC_HEIM[id];
-      assert.ok(L.begehbar(s, KARTEN[h.karte], L.welt(s, h.karte), h.x, h.y), `${id}: Zuhause`);
-    }
-  });
-  test('Ladenstände stehen dort, wo ihre Leute arbeiten', () => {
-    for (const [id, l] of Object.entries(LAEDEN)) {
-      const plan = NPCS[l.npc].plan.normal;
-      assert.ok(plan.some(([, karte, x, y]) => karte === l.ort.karte && x === l.ort.x && y === l.ort.y), id);
-    }
-  });
-  test('vom Bett aus ist jeder Ausgang des Hofs erreichbar', () => {
-    const t = neues(1234);
-    t.flags.mineOffen = true;
-    const def = KARTEN.hof;
-    const w = L.welt(t, 'hof');
-    const ok = erreichbar(t, def, w, 20, 7);
-    assert.ok(ok.has(L.k(38, 15)), 'Weg ins Dorf');
-    assert.ok(ok.has(L.k(5, 4)), 'Weg zur Mine');
-    assert.ok(ok.has(L.k(23, 7)), 'Versandkiste');
-    assert.ok(ok.has(L.k(16, 6)), 'Briefkasten');
-  });
-  test('im Dorf ist jeder Laden zu Fuß erreichbar', () => {
-    const def = KARTEN.dorf;
-    const ok = erreichbar(s, def, L.welt(s, 'dorf'), 1, 15);
-    for (const ziel of [[11, 9], [26, 9], [33, 9], [7, 24], [21, 29], [40, 10]]) assert.ok(ok.has(L.k(...ziel)), `Feld ${ziel}`);
+  test('Iridium steht in den Tabellen, Upgrades nur mit vorhandenem Barren', () => {
+    assert.equal(L.werkzeugName('hacke', 4), 'Iridiumhacke');
+    const s = neues(30);
+    s.spieler.werkzeug.hacke = 3;
+    assert.ok(!L.ladenWare(s, 'schmiede').some((w) => w.werkzeug === 'hacke'), 'Iridium-Upgrade ohne Iridiumbarren');
+    assert.equal(L.preisVon({ id: 'pastinake', n: 1, q: 3 }), 70);
+    assert.equal(L.werkzeugFelder(5, 5, 'unten', 4).length, 18);
   });
 });
 
@@ -144,7 +111,8 @@ gruppe('Neues Spiel', () => {
     const w = L.welt(s, 'hof');
     const anzahl = Object.values(w.objekte).filter((o) => ['baum', 'stein', 'unkraut', 'ast'].includes(o.t)).length;
     assert.ok(anzahl > 60, `nur ${anzahl} Hindernisse`);
-    assert.ok(!w.objekte[L.k(20, 7)], 'vor der Haustür');
+    const vor = punkt('hof', 'vorHaus');
+    assert.ok(!w.objekte[L.k(vor.x, vor.y)], 'vor der Haustür');
   });
   test('der erste Brief liegt bereit', () => {
     assert.deepEqual(s.post, ['frieda_willkommen']);
@@ -330,9 +298,9 @@ gruppe('Rucksack, Versand, Läden', () => {
     const ort = L.ortVon(s, 'hof');
     ort.welt.objekte[L.k(25, 24)] = { t: 'einmachglas', inhalt: null, fertig: false };
     L.hinzufuegen(s, { id: 'blaubeere', n: 1 });
-    assert.ok(L.glasBenutzen(s, ort, 25, 24, s.spieler.inv.findIndex((x) => x?.id === 'blaubeere')).ok);
+    assert.ok(glasBenutzen(s, ort, 25, 24, s.spieler.inv.findIndex((x) => x?.id === 'blaubeere')).ok);
     L.tagBeenden(s, { r: () => 0.99 });
-    assert.ok(L.glasBenutzen(s, ort, 25, 24, null).ok);
+    assert.ok(glasBenutzen(s, ort, 25, 24, null).ok);
     const glas = s.spieler.inv.find((x) => x?.id === 'marmelade');
     assert.equal(glas.von, 'blaubeere');
     assert.equal(L.preisVon(glas), 150);
@@ -376,13 +344,13 @@ gruppe('Dorf', () => {
   });
   test('Aufträge lassen sich annehmen und abgeben', () => {
     const s = neues(21);
-    s.brett = L.questErzeugen(s, zufall(3));
+    s.brett = G.questErzeugen(s, zufall(3));
     assert.ok(ITEMS[s.brett.id] && NPCS[s.brett.npc]);
-    L.questAnnehmen(s);
+    G.questAnnehmen(s);
     L.hinzufuegen(s, { id: s.quest.id, n: s.quest.n });
     const gold = s.spieler.gold;
     const belohnung = s.quest.belohnung;
-    const erg = L.questAbgeben(s, s.quest.npc);
+    const erg = G.questAbgeben(s, s.quest.npc);
     assert.equal(s.spieler.gold, gold + belohnung);
     assert.ok(erg && !s.quest);
   });
@@ -393,13 +361,13 @@ gruppe('Dorf', () => {
     const ort = L.ortVon(s, 'dorf');
     let letztes;
     for (const b of BUENDEL) {
-      const eintraege = L.buendelEintraege(b).slice(0, L.buendelNoetig(b));
+      const eintraege = G.buendelEintraege(b).slice(0, G.buendelNoetig(b));
       for (const e of eintraege) {
         s.spieler.inv[30] = { id: e.id, n: e.n };
-        letztes = L.spenden(s, b.id, 30, ort);
+        letztes = G.spenden(s, b.id, 30, ort);
         assert.ok(letztes?.ok, `${b.id}: ${e.id}`);
       }
-      assert.ok(L.buendelFertig(s, b));
+      assert.ok(G.buendelFertig(s, b));
     }
     assert.ok(letztes.muehle);
     assert.ok(s.muehle);
@@ -457,8 +425,22 @@ gruppe('Speichern', () => {
     assert.deepEqual(t, JSON.parse(text));
     assert.equal(L.serialisieren(t), text);
   });
-  test('fremde Daten werden abgelehnt', () => {
+  test('fremde Daten und alte v1-Stände werden abgelehnt', () => {
     assert.throws(() => L.deserialisieren('{"version":99}'));
+    const alt = JSON.parse(L.serialisieren(neues(26)));
+    alt.version = 1;
+    assert.throws(() => L.deserialisieren(JSON.stringify(alt)));
+    assert.equal(L.SPEICHER_SCHLUESSEL, 'klarwasser-hof-v2');
+  });
+  test('Bereichszustand liegt in eigenen Schlüsseln und wird beim Laden ergänzt', () => {
+    const s = neues(27);
+    for (const k of ['mine', 'stall', 'buendel', 'flags']) assert.ok(s[k], k);
+    const t = JSON.parse(L.serialisieren(s));
+    delete t.mine;
+    delete t.stall;
+    const u = L.deserialisieren(JSON.stringify(t));
+    assert.deepEqual(u.mine, { tiefste: 0, schwert: false, truhen: [] });
+    assert.equal(u.stall.gebaut, false);
   });
 });
 

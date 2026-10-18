@@ -74,7 +74,7 @@ schenken auch mal zurück.
 über dem Fisch halten. 18 Fische in Teich, Fluss und Meer, je nach Jahreszeit,
 Uhrzeit und Wetter.
 
-**Die alte Mine.** Ab Tag 4 offen. 30 Ebenen, bei jedem Besuch neu gegraben: Kupfer,
+**Die alte Mine.** Am Berg nördlich des Hofs, ab Tag 4 offen. 30 Ebenen, bei jedem Besuch neu gegraben: Kupfer,
 Eisen, Gold, Edelsteine und Schleime in drei Gesteinsschichten. Die Leiter liegt unter
 einem der Steine, der Förderkorb merkt sich jede fünfte Ebene, auf Ebene 10, 20 und 30
 wartet eine Schatztruhe.
@@ -87,6 +87,9 @@ und machen Werkzeuge sparsamer, Ernten besser, Fangbalken breiter und die Gesund
 
 **Die Mühle.** Acht Bündel aus Feld, Wald, Wasser, Tiefe und Stall. Jedes volle Bündel
 bringt eine Belohnung, alle zusammen bringen das Rad wieder zum Drehen.
+
+**Wald und Berg.** Südlich des Hofs liegt der Wald, nördlich von Hof und Dorf der Berg mit
+dem Mineneingang – beide noch klein und ruhig, sie wachsen mit den nächsten Ausbaustufen.
 
 Außerdem: Tag und Nacht mit Licht aus Fenstern und Laternen, Regen, Gewitter und Schnee,
 Wettervorhersage im Fernseher, Briefe in der Post, ein Hühnerstall mit Eiern,
@@ -101,15 +104,19 @@ Aufträge vom Schwarzen Brett und eine Ohnmacht, wenn man um zwei Uhr nachts noc
   Google Fonts; ohne Netz greift eine Ersatzschrift.
 * Die Spiellogik (`logik.js`, `mine.js`, `spiel.js`) kommt ohne DOM aus und lässt sich
   direkt in Node testen.
+* Der Kern enthält nur Mechanik. Die Inhalte – Karten, Gegenstände, Pflanzen, Fische, Läden,
+  Dorfbewohner, Bündel, Briefe – liegen in `src/bereiche/<bereich>/` und docken über Register,
+  Hooks und benannte Kartenpunkte an. Wie das geht, steht in [ARCHITEKTUR.md](ARCHITEKTUR.md).
 
 ```
 index.html
 src/
-  main.js        Einstieg und Spielschleife
-  daten.js       Gegenstände, Pflanzen, Fische, Rezepte, Läden, Dorfbewohner, Bündel, Briefe
-  karten.js      Hof, Dorf, Strand, Innenräume, Mineneingang als lesbare Raster
-  logik.js       Rucksack, Feldarbeit, Tageswechsel, Freundschaft, Aufträge, Mühle, Speichern
-  mine.js        Höhlengenerator, Gestein, Schleime und Fledermäuse
+  main.js        Einstieg: lädt die Bereiche, dann Spielschleife
+  daten.js       Register: Gegenstände, Pflanzen, Fische, Rezepte, Läden, Leute, Objekttypen …
+  karten.js      Kartenformat, Bodenarten, Punkte, Bereiche, Gewässer, dynamische Karten
+  system.js      Hooks und Modifikatoren
+  logik.js       Rucksack, Feldarbeit, Tageswechsel, Freundschaft, Läden, Wege, Speichern
+  mine.js        Höhlenform und Monster-Verhalten
   spiel.js       Laufzeit: Bewegung, Werkzeuge, Interaktion, Uhr, Wege der Dorfbewohner
   angeln.js      Auswerfen, Anbiss, Drill
   sprites.js     Pixelkunst aus Code
@@ -118,10 +125,12 @@ src/
   eingabe.js     Tastatur, Maus, Touch
   ton.js         Geräusche und Musik mit WebAudio
   zufall.js      Seedbarer Zufall
+  bereiche/      basis, hof, dorf, wildnis, pflanzen, angeln, mine, handwerk, tiere,
+                 npcs, npcs2, feste, gemeinschaft – je inhalt.js, grafik.js, oberflaeche.js
   style.css
 test/
-  logik.test.mjs Daten, Karten, Feldarbeit, Läden, Dorf, Mine, Speichern
-  tag.test.mjs   Ganze Tage ohne Bildschirm, Wege der Dorfbewohner
+  alle.mjs       führt alle *.test.mjs aus
+  *.test.mjs     Register, Karten und Punkte, Logik, ganze Tage, Laufzeit
   browser.mjs    Rauchtest im echten Browser (braucht Playwright)
 tools/server.mjs Kleiner Dateiserver
 ```
@@ -129,16 +138,17 @@ tools/server.mjs Kleiner Dateiserver
 ### Tests
 
 ```bash
-npm test                 # Logik und ganze Spieltage in Node
+npm test                 # alle Tests in Node (test/alle.mjs)
 npm run test:browser     # Rauchtest im Browser (Playwright, optional CHROMIUM=/pfad/zu/chrome)
 ```
 
 ### Karten bearbeiten
 
 Ein Schauplatz ist ein Raster aus Zeichen (`.` Gras, `:` Weg, `=` Pflaster, `s` Sand,
-`~` Wasser, `h` Steg, `#` Wald oder Wand, `X` Klippe). Gebäude, Deko und Übergänge
-stehen daneben als Listen. `npm test` prüft danach, dass jede Tür und jeder Übergang
-auf ein begehbares Feld führt und alle Dorfbewohner ihre Ziele erreichen.
+`~` Wasser, `h` Steg, `#` Wald oder Wand, `X` Klippe), für große Karten auch per Bau-Helfer
+gezeichnet. Gebäude, Deko, Übergänge und benannte Punkte stehen daneben. Türen, Übergänge und
+Tagespläne verweisen auf Punkte. `npm test` prüft danach, dass jede Tür und jeder Übergang auf
+ein begehbares Feld führt, alle Pflicht-Punkte da sind und alle Dorfbewohner ihre Ziele erreichen.
 
 ---
 
