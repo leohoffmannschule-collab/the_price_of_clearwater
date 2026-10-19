@@ -5,12 +5,13 @@
 //   .  Gras          :  Erdweg        =  Pflaster      s  Sand
 //   ~  Wasser        h  Steg/Brücke   _  Holzboden     t  Teppich
 //   m  Minenboden    #  Wald, Wand oder Fels (je nach `rand`)
-//   X  Felsklippe
+//   X  Felsklippe    T  Steintreppe (in Klippen, begehbar)
 //
 // Eine Karte:
 //   karte({ id, name, aussen, farmbar, innen, rand, wasser: 'teich', grid: [...Zeilen],
 //           gebaeude: [{ typ, x, y, w, h, tuer: {x, y}, ziel: { karte, punkt }, zu, aktion, nurWenn, tuerWenn, sonst }],
 //           deko: [{ typ, x, y, w, h, aktion, wand, begehbar, licht, nurWenn, … }],
+//           ganzjaehrig, aufstellen, zuhause,
 //           warps: [{ x, y, w, h, karte, punkt }],
 //           punkte: { name: [x, y, blick?] }, bereiche: { name: [x, y, b, h] },
 //           gewaesser: [{ x, y, b, h, art }], sammel: [{ x, y, w, h, art, max, boden }], npcWege })
@@ -48,6 +49,7 @@ bodenTyp('t', { name: 'teppich', begehbar: true });
 bodenTyp('m', { name: 'minenboden', begehbar: true });
 bodenTyp('#', { name: 'wand', wand: true });
 bodenTyp('X', { name: 'klippe' });
+bodenTyp('T', { name: 'treppe', begehbar: true });
 
 // ─── Karten anlegen ─────────────────────────────────────────────────────────
 
@@ -122,6 +124,19 @@ export function rahmen(g, z = '#', dicke = 1) {
   return g;
 }
 export const fertigRaster = (g) => g.map((zeile) => (Array.isArray(zeile) ? zeile.join('') : zeile));
+/**
+ * Innenraum b×h: zwei Reihen Wand oben (die untere zeigt die Tapete), Wände links, rechts und
+ * unten, dazwischen Boden; in der unteren Wand eine Türlücke bei tuerX (Standard: Mitte).
+ */
+export function raum(b, h, { tuerX = Math.floor(b / 2) - 1, boden: z = '_' } = {}) {
+  const g = raster(b, h, z);
+  rechteck(g, 0, 0, b, 2, '#');
+  rechteck(g, 0, 0, 1, h, '#');
+  rechteck(g, b - 1, 0, 1, h, '#');
+  rechteck(g, 0, h - 1, b, 1, '#');
+  setzen(g, tuerX, h - 1, z);
+  return g;
+}
 
 // ─── Abfragen ───────────────────────────────────────────────────────────────
 
@@ -164,40 +179,40 @@ export function wasserArt(ort, x, y) {
   return def.wasser || null;
 }
 
-/** punkt('dorf', 'brunnen') → { x, y, blick } oder null. */
-export function punkt(kartenId, name) {
-  const def = typeof kartenId === 'string' ? karteHolen(kartenId) : kartenId;
+/** punkt('dorf', 'brunnen') → { x, y, blick } oder null. `s` reicht den Spielstand an Kartenanbieter. */
+export function punkt(kartenId, name, s) {
+  const def = typeof kartenId === 'string' ? karteHolen(kartenId, s) : kartenId;
   const p = def?.punkte?.[name];
   if (!p) return null;
   return { x: p[0], y: p[1], blick: p[2] };
 }
 
 /** bereichVon('hof', 'auslauf') → { x, y, w, h } oder null. */
-export function bereichVon(kartenId, name) {
-  const def = typeof kartenId === 'string' ? karteHolen(kartenId) : kartenId;
+export function bereichVon(kartenId, name, s) {
+  const def = typeof kartenId === 'string' ? karteHolen(kartenId, s) : kartenId;
   const b = def?.bereiche?.[name];
   if (!b) return null;
   return { x: b[0], y: b[1], w: b[2], h: b[3] };
 }
 
-function punktOderFehler(kartenId, name) {
-  const p = punkt(kartenId, name);
+function punktOderFehler(kartenId, name, s) {
+  const p = punkt(kartenId, name, s);
   if (!p) throw new Error(`Punkt „${kartenId}.${name}" fehlt.`);
   return p;
 }
 
 /** Ziel einer Tür oder eines Plans: { karte, punkt, blick } oder { karte, x, y, blick }. */
-export function zielVon(z) {
+export function zielVon(z, s) {
   if (z.punkt) {
-    const p = punktOderFehler(z.karte, z.punkt);
+    const p = punktOderFehler(z.karte, z.punkt, s);
     return { karte: z.karte, x: p.x, y: p.y, blick: z.blick ?? p.blick ?? 'unten' };
   }
   return { karte: z.karte, x: z.x, y: z.y, blick: z.blick ?? 'unten' };
 }
 
 /** Ziel eines Warp-Streifens: { karte, punkt } oder { karte, zx, zy }. */
-export function warpZiel(w) {
-  if (w.punkt) return zielVon({ karte: w.karte, punkt: w.punkt, blick: w.blick });
+export function warpZiel(w, s) {
+  if (w.punkt) return zielVon({ karte: w.karte, punkt: w.punkt, blick: w.blick }, s);
   return { karte: w.karte, x: w.zx, y: w.zy, blick: w.blick ?? 'unten' };
 }
 
@@ -210,6 +225,8 @@ const DYNAMISCH = new Map();
  * kartenAnbieter(pruefen(id) → bool, erzeugen(id, s) → def): Karten, die erst bei Bedarf
  * entstehen (Minenebenen, Stall-Innenräume). Mit `fluechtig: true` im def entsteht die
  * Karte bei jedem Betreten neu und ihr Zustand (`weltStart`) wird nicht gespeichert.
+ * Erzeugte Karten werden nach ihrer ID gecacht: erzeugen(id, s) muss aus id (und s) eindeutig
+ * sein; ändert sich die Karte (Stall ausgebaut), ruft der Bereich karteVergessen(id).
  */
 export function kartenAnbieter(pruefen, erzeugen) {
   ANBIETER.push({ pruefen, erzeugen });
@@ -235,7 +252,11 @@ export const istKarte = (id) => !!KARTEN[id] || ANBIETER.some((a) => a.pruefen(i
 let vCache = null;
 let vStand = -1;
 
-/** Alle Warps und Türen zwischen festen Karten (für Wege der Dorfbewohner), gecacht. */
+/**
+ * Alle Warps und Türen zwischen festen Karten (für Wege der Dorfbewohner), gecacht. Türen tragen
+ * nurWenn (Gebäude steht nur dann) und npcWenn (Dorfbewohner dürfen durch; tuerWenn gilt nur für
+ * die Spielerin). Gebäude aus dem Hook `gebaeude` und dynamische Karten fehlen hier.
+ */
 export function verbindungen() {
   if (vCache && vStand === kartenStand) return vCache;
   const v = [];
@@ -247,7 +268,7 @@ export function verbindungen() {
     for (const g of def.gebaeude) {
       if (!g.ziel) continue;
       const z = zielVon(g.ziel);
-      v.push({ von: def.id, nach: z.karte, x: g.tuer.x, y: g.tuer.y, zx: z.x, zy: z.y, art: 'tuer', tuerWenn: g.tuerWenn });
+      v.push({ von: def.id, nach: z.karte, x: g.tuer.x, y: g.tuer.y, zx: z.x, zy: z.y, art: 'tuer', nurWenn: g.nurWenn, npcWenn: g.npcWenn });
     }
   }
   vCache = v;

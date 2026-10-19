@@ -2,7 +2,12 @@
 
 import * as L from '../../logik.js';
 import { S } from '../../spiel.js';
-import { fensterArt, fensterRahmen, fensterNeu, el, itemIcon, invGitter, ton, zahl } from '../../ui.js';
+import { fensterArt, fensterRahmen, fensterNeu, el, itemIcon, invGitter, ton, zahl, stil } from '../../ui.js';
+
+stil('hof-versand', `
+.versand-liste { padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+.versand-liste h3 { margin-top: 0; }
+`);
 
 fensterArt('versand', () => {
   const s = S.s;

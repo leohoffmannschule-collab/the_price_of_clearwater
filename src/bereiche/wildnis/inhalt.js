@@ -1,7 +1,10 @@
-// Bereich „wildnis": Strand, Wald und Berg (Wald und Berg vorerst als kleine Platzhalter
-// mit allen Rand-Punkten des Weltgraphen). Der Mineneingang liegt am Berg.
+// Bereich „wildnis": Strand und Wald (der Wald vorerst als kleiner Platzhalter mit allen
+// Rand-Punkten des Weltgraphen), dazu Platzhalter-Innenräume mit den Pflicht-Punkten:
+// Fischladen (Lenes Laden, Tür am Strand), Ranch und Turm (Türen im Wald), Hütte von Mats und
+// der Geheime Wald (noch ohne Zugang). Den Laden im Fischladen liefert „angeln", Person und
+// Laden der Ranch „tiere".
 
-import { karte, raster, rechteck, ellipse, pfad, fertigRaster } from '../../karten.js';
+import { karte, raster, rechteck, ellipse, pfad, raum, fertigRaster } from '../../karten.js';
 
 karte({
   id: 'strand', name: 'Strand', aussen: true, wasser: 'meer', rand: 'fels',
@@ -28,10 +31,10 @@ karte({
     '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~',
   ],
   gebaeude: [
-    { typ: 'huette', x: 26, y: 5, w: 5, h: 4, tuer: { x: 28, y: 8 }, zu: 'Lenes Hütte. Es riecht nach Teer und Tang.' },
+    // Lenes Hütte ist vorerst der Fischladen
+    { typ: 'huette', x: 26, y: 5, w: 5, h: 4, tuer: { x: 28, y: 8 }, ziel: { karte: 'fischladen', punkt: 'eingang' } },
   ],
   deko: [
-    { typ: 'stand', x: 28, y: 10, aktion: 'laden', laden: 'fischer' },
     { typ: 'strandkorb', x: 20, y: 7 },
     { typ: 'strandkorb', x: 8, y: 9 },
     { typ: 'felsen', x: 3, y: 6 }, { typ: 'felsen', x: 5, y: 11 }, { typ: 'felsen', x: 33, y: 7 },
@@ -73,12 +76,17 @@ rechteck(wald, 14, 14, 2, 1, 'h');
 karte({
   id: 'wald', name: 'Wald', aussen: true, wasser: 'fluss', rand: 'wald',
   grid: fertigRaster(wald),
-  gewaesser: [{ x: 1, y: 2, b: 10, h: 7, art: 'teich' }],
+  gewaesser: [{ x: 1, y: 2, b: 10, h: 7, art: 'waldsee' }],
+  gebaeude: [
+    { typ: 'ranch', x: 18, y: 3, w: 5, h: 4, tuer: { x: 20, y: 6 }, ziel: { karte: 'ranch', punkt: 'eingang' } },
+    { typ: 'turm', x: 3, y: 10, w: 3, h: 3, tuer: { x: 4, y: 12 }, ziel: { karte: 'turm', punkt: 'eingang' } },
+  ],
   deko: [
     { typ: 'schild', x: 16, y: 3, aktion: 'text', text: 'Der Wald. Nördlich liegt dein Hof, östlich das Dorf. Tiefer hinein führt noch kein Weg.' },
-    { typ: 'baum', x: 3, y: 10 }, { typ: 'baum', x: 9, y: 11 }, { typ: 'baum', x: 20, y: 4 },
-    { typ: 'baum', x: 25, y: 12 }, { typ: 'baum', x: 6, y: 16 }, { typ: 'baum', x: 22, y: 16 },
-    { typ: 'busch', x: 11, y: 3 }, { typ: 'busch', x: 18, y: 12 }, { typ: 'busch', x: 26, y: 3 },
+    { typ: 'zaun', x: 23, y: 6, w: 4 },
+    { typ: 'baum', x: 9, y: 11 }, { typ: 'baum', x: 26, y: 3, art: 'kiefer' },
+    { typ: 'baum', x: 6, y: 16 }, { typ: 'baum', x: 22, y: 16 }, { typ: 'baum', x: 1, y: 16, art: 'kiefer' },
+    { typ: 'busch', x: 11, y: 3 }, { typ: 'busch', x: 27, y: 16 },
   ],
   warps: [
     { x: 14, y: 0, w: 2, h: 1, karte: 'hof', punkt: 'vonWald' },
@@ -87,8 +95,8 @@ karte({
   punkte: {
     vonHof: [14, 2, 'unten'],
     vonDorf: [27, 9, 'links'],
-    vorRanch: [22, 7],
-    vorTurm: [4, 12],
+    vorRanch: [20, 7],
+    vorTurm: [4, 13],
     haendler: [20, 11],
     see1: [10, 5, 'links'],
     fluss1: [20, 13, 'unten'],
@@ -96,49 +104,51 @@ karte({
     vorGeheimwald: [2, 16, 'links'],
   },
   bereiche: {
-    fest: [17, 2, 11, 6],
+    fest: [17, 11, 11, 3],
   },
   sammel: [{ x: 1, y: 15, w: 28, h: 3, art: 'wald', max: 3 }],
 });
 
-// ─── Berg (Platzhalter) ─────────────────────────────────────────────────────
+// ─── Platzhalter-Innenräume ─────────────────────────────────────────────────
 
-const berg = raster(30, 20, '.');
-rechteck(berg, 0, 0, 30, 2, '#');
-rechteck(berg, 0, 18, 30, 2, '#');
-rechteck(berg, 0, 0, 1, 20, '#');
-rechteck(berg, 29, 0, 1, 20, '#');
-rechteck(berg, 1, 2, 28, 2, 'X');
-pfad(berg, [[5, 19], [5, 8], [24, 8], [24, 19]], 2, ':');
-pfad(berg, [[8, 3], [8, 8]], 2, ':');
-ellipse(berg, 21, 5, 3.4, 1.4, '~');
+/** Kleiner Raum 12×9 mit Ausgang unten in der Mitte; weitere Deko und Punkte nach Bedarf. */
+function platzhalterRaum(id, name, vor, punkte, deko = []) {
+  karte({
+    id, name, aussen: false,
+    grid: fertigRaster(raum(12, 9)),
+    deko: [{ typ: 'fenster', x: 3, y: 1, wand: true }, { typ: 'fenster', x: 8, y: 1, wand: true }, ...deko],
+    warps: [{ x: 5, y: 8, w: 1, h: 1, ...vor }],
+    punkte: { eingang: [5, 7, 'oben'], ...punkte },
+  });
+}
+
+platzhalterRaum('fischladen', 'Lenes Fischladen', { karte: 'strand', punkt: 'vorFischladen' },
+  { theke: [3, 3, 'unten'], bett_lene: [9, 5] },
+  [{ typ: 'theke', x: 2, y: 4, w: 4, aktion: 'laden', laden: 'fischer' }, { typ: 'kiste', x: 10, y: 2 }, { typ: 'pflanze', x: 1, y: 6 }]);
+platzhalterRaum('ranch', 'Ranch', { karte: 'wald', punkt: 'vorRanch' },
+  { theke: [3, 3, 'unten'], bett_wilma: [9, 5], bett_sanne: [9, 7] },
+  [{ typ: 'theke', x: 2, y: 4, w: 4, aktion: 'laden', laden: 'ranch' }, { typ: 'kiste', x: 10, y: 2 }, { typ: 'tisch', x: 7, y: 5 }]);
+platzhalterRaum('turm', 'Turm', { karte: 'wald', punkt: 'vorTurm' },
+  { buch: [3, 3], bett_oswin: [9, 5] },
+  [{ typ: 'kamin', x: 5, y: 0, w: 2, h: 2, wand: true, licht: 3 }, { typ: 'tisch', x: 3, y: 4 }]);
+platzhalterRaum('huetteMats', 'Hütte von Mats', { karte: 'strand', punkt: 'vorHuetteMats' },
+  { staffelei: [3, 4], bett_mats: [9, 5] },
+  [{ typ: 'bild', x: 5, y: 1, wand: true }, { typ: 'pflanze', x: 10, y: 2 }]);
+
+// Geheimer Wald: noch ohne Zugang (später hinter einem umgestürzten Stamm im Wald)
+const geheim = raster(24, 16, '.');
+rechteck(geheim, 0, 0, 24, 2, '#');
+rechteck(geheim, 0, 14, 24, 2, '#');
+rechteck(geheim, 0, 0, 1, 16, '#');
+rechteck(geheim, 23, 0, 1, 16, '#');
+ellipse(geheim, 16, 7, 3.4, 2.2, '~');
+rechteck(geheim, 23, 7, 1, 2, '.');
 
 karte({
-  id: 'berg', name: 'Am Berg', aussen: true, wasser: 'teich', rand: 'fels',
-  grid: fertigRaster(berg),
-  gebaeude: [
-    {
-      typ: 'hoehle', x: 7, y: 2, w: 3, h: 2, tuer: { x: 8, y: 3 }, ziel: { karte: 'mine0', punkt: 'eingang' }, tuerWenn: 'mineOffen',
-      sonst: 'Geröll versperrt den Eingang. Jemand mit kräftigen Armen müsste es wegräumen.',
-    },
-  ],
-  deko: [
-    { typ: 'schild', x: 12, y: 7, aktion: 'text', text: 'Am Berg. Oben die alte Mine, unten links dein Hof, unten rechts das Dorf.' },
-    { typ: 'felsen', x: 3, y: 5 }, { typ: 'felsen', x: 13, y: 15 }, { typ: 'felsen', x: 11, y: 14 },
-    { typ: 'felsen', x: 17, y: 13 }, { typ: 'felsen', x: 27, y: 11 },
-    { typ: 'baum', x: 2, y: 13 }, { typ: 'baum', x: 16, y: 4 }, { typ: 'busch', x: 27, y: 15 },
-  ],
-  warps: [
-    { x: 5, y: 19, w: 2, h: 1, karte: 'hof', punkt: 'vonBerg' },
-    { x: 24, y: 19, w: 2, h: 1, karte: 'dorf', punkt: 'vonBerg' },
-  ],
-  punkte: {
-    vonHof: [5, 17, 'oben'],
-    vonDorf: [24, 17, 'oben'],
-    vorMine: [8, 4, 'unten'],
-    vorZimmerei: [14, 11],
-    vorGilde: [27, 7],
-    see1: [21, 7, 'oben'],
-    steinbruch: [12, 16],
-  },
+  id: 'geheimwald', name: 'Geheimer Wald', aussen: true, wasser: 'geheimteich', rand: 'wald', npcWege: false,
+  grid: fertigRaster(geheim),
+  deko: [{ typ: 'baum', x: 4, y: 4 }, { typ: 'baum', x: 8, y: 11, art: 'kiefer' }, { typ: 'busch', x: 19, y: 12 }],
+  warps: [{ x: 23, y: 7, w: 1, h: 2, karte: 'wald', punkt: 'vorGeheimwald' }],
+  punkte: { vonWald: [21, 8, 'links'] },
+  sammel: [{ x: 1, y: 2, w: 22, h: 12, art: 'geheimwald', max: 3 }],
 });

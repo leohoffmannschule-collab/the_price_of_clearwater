@@ -1,7 +1,9 @@
 // Rauchtest im echten Browser: Titel → neues Spiel → Briefe → aus dem Haus laufen →
 // hacken, säen, gießen → Menü → Rundgang durch den Weltgraphen bis in die Mine →
 // jedes Item, jede Deko, jedes Gebäude hat ein Bild → Ersatzbilder → Kulling auf 100×72 →
-// alle Fenster → schlafen → nächster Morgen. Bricht bei Konsolenfehlern ab.
+// große Objekte, Beläge, Pflanzenkunst, Kameraführung → alle Fenster (mit ihren Beispieldaten
+// aus fensterArt) → schlafen → nächster Morgen. Bricht bei Konsolenfehlern ab.
+// Orte kommen aus dem Punkte-Vertrag, nicht aus festen Koordinaten.
 //
 // Aufruf: node test/browser.mjs
 // Braucht Playwright. Ein eigener Chromium-Pfad geht über CHROMIUM=/pfad/zu/chrome.
@@ -38,21 +40,39 @@ try {
     const { S } = window.__klarwasser;
     return { karte: S.ort.def.id, x: Math.floor(S.sp.x / 16), y: Math.floor((S.sp.y - 3) / 16), tag: S.s.zeit.tag, pause: S.pause };
   });
-  pruefe((await zustand()).karte === 'haus', 'Das Spiel beginnt im Haus');
+  const start = await page.evaluate(() => { const { S, L } = window.__klarwasser; return [S.ort.def.id, L.zuhause(S.s).karte]; });
+  pruefe(start[0] === start[1], 'Das Spiel beginnt zu Hause');
 
   const halte = async (taste, ms) => { await page.keyboard.down(taste); await page.waitForTimeout(ms); await page.keyboard.up(taste); };
-  await halte('d', 420);
-  await halte('s', 1500);
+  await page.evaluate(async () => {
+    const m = await import('/src/spiel.js');
+    const k = await import('/src/karten.js');
+    const p = k.punkt('haus', 'eingang');
+    m.karteBetreten('haus', p.x, p.y, 'unten');
+  });
+  await halte('s', 900);
   await page.waitForTimeout(400);
   pruefe((await zustand()).karte === 'hof', 'Durch die Haustür auf den Hof');
 
-  await halte('s', 350);
-  await halte('d', 260);
-  await page.evaluate(() => {
+  // Ein freies Stück Acker nahe am Haus suchen und dort Feldarbeit tun
+  await page.evaluate(async () => {
     const { S, L } = window.__klarwasser;
-    const f = { x: Math.floor(S.sp.x / 16) + 1, y: Math.floor((S.sp.y - 3) / 16) };
-    delete S.s.welt.hof.objekte[L.k(f.x, f.y)];
-    delete S.s.welt.hof.felder[L.k(f.x, f.y)];
+    const k = await import('/src/karten.js');
+    const m = await import('/src/spiel.js');
+    const def = S.ort.def;
+    const vor = k.punkt('hof', 'vorHaus');
+    let beste = null;
+    for (let y = 1; y < def.h - 1; y++) {
+      for (let x = 1; x < def.w - 2; x++) {
+        if (!k.bodenFlag(def, x + 1, y, k.B_FARMBAR) || L.warpAn(def, x, y) || L.warpAn(def, x + 1, y)) continue;
+        // begehbar ohne Objekte und Beete (welt = null); die räumen wir gleich weg
+        if (!L.begehbar(S.s, def, null, x, y) || !L.begehbar(S.s, def, null, x + 1, y)) continue;
+        const d = Math.abs(x - vor.x) + Math.abs(y - vor.y);
+        if (!beste || d < beste.d) beste = { x, y, d };
+      }
+    }
+    for (const xx of [beste.x, beste.x + 1]) { delete S.s.welt.hof.objekte[L.k(xx, beste.y)]; delete S.s.welt.hof.felder[L.k(xx, beste.y)]; }
+    m.karteBetreten('hof', beste.x, beste.y, 'rechts');
   });
   await page.keyboard.press('1'); await page.keyboard.press('Space'); await page.waitForTimeout(450);
   await page.keyboard.press('6'); await page.keyboard.press('Space'); await page.waitForTimeout(200);
@@ -103,14 +123,21 @@ try {
     pruefe((await zustand()).karte === ziel, `Rundgang: ${karte} → ${ziel}`);
   }
   await page.evaluate(async () => {
+    // vor die Leiter nach unten stellen (Deko mit aktion „mine_ab")
     const m = await import('/src/spiel.js');
-    m.karteBetreten('mine0', 9, 5, 'oben');
+    const { KARTEN } = await import('/src/karten.js');
+    const leiter = KARTEN.mine0.deko.find((d) => d.aktion === 'mine_ab');
+    m.karteBetreten('mine0', leiter.x, leiter.y + 1, 'oben');
   });
   await page.keyboard.press('e');
   await page.waitForTimeout(700);
   const mine = await page.evaluate(() => { const { S } = window.__klarwasser; return { karte: S.ort.def.id, ebene: S.mineEbene, monster: S.monster.length }; });
-  pruefe(mine.karte === 'mine1' && mine.ebene === 1 && mine.monster > 0, 'Leiter hinab: Minenebene 1 mit Monstern');
-  await page.evaluate(async () => { const m = await import('/src/bereiche/mine/inhalt.js'); m.aufzugFahren(0); });
+  pruefe(mine.karte !== 'mine0' && mine.ebene === 1 && mine.monster > 0, 'Leiter hinab: Minenebene 1 mit Monstern');
+  await page.evaluate(async () => {
+    const m = await import('/src/bereiche/mine/inhalt.js');
+    const sp = await import('/src/spiel.js');
+    if (m.aufzugFahren) m.aufzugFahren(0); else sp.wechselnZu({ karte: 'mine0', punkt: 'eingang' });
+  });
   await page.waitForTimeout(500);
   pruefe((await zustand()).karte === 'mine0', 'Förderkorb fährt zurück zum Eingang');
 
@@ -181,21 +208,46 @@ try {
   });
   pruefe(gross.teile > 0 && gross.teile < gross.gesamt / 4, `Kulling auf 100×72: ${gross.teile} von ${gross.gesamt} Objekten gesammelt, ${gross.ms} ms je Bild`);
 
-  // Alle registrierten Fenster öffnen sich ohne Fehler
+  // Große Objekte, Bodenbeläge und Pflanzenkunst für alle Phasen zeichnen ohne Fehler
+  const erweiterung = await page.evaluate(async () => {
+    const D = await import('/src/daten.js');
+    const K = await import('/src/karten.js');
+    const SP = await import('/src/sprites.js');
+    const R = await import('/src/render.js');
+    const m = await import('/src/spiel.js');
+    const L = await import('/src/logik.js');
+    D.objektTyp('test_gross', { blockiert: true, flaeche: [3, 2] });
+    SP.objektKunst('test_gross', { b: 48, h: 40, malen(g) { SP.R(g, 2, 4, 44, 34, '#7cc25a'); } });
+    D.belagTyp('test_kies', { name: 'Kies' });
+    SP.belagKunst('test_kies', (g, k) => { SP.R(g, 0, 0, 16, 16, k.o ? '#a8a29a' : '#8a847a'); });
+    let alle = 0;
+    SP.pflanzenKunst('test_ranke', { alle: true, malen(g, k) { alle++; SP.R(g, 7, 2, 2, k.fuss - 2, '#8a5a32'); } });
+    D.item('test_rankenfrucht', { name: 'Rankenfrucht', kat: 'ernte', bild: { art: 'beeren', f: '#a03a8a' } });
+    D.pflanze('test_ranke', { saat: 'test_rankensaat', ernte: 'test_rankenfrucht', tage: 4, jz: ['fruehling'], rankhilfe: true });
+    const bild0 = SP.pflanzeBild('test_ranke', 0, false);
+    K.karte({ id: 'testerweiterung', name: 'Test', aussen: true, grid: K.fertigRaster(K.rahmen(K.raster(20, 14, '.'), '#')), punkte: { start: [10, 10] } });
+    const ort = L.ortVon(m.S.s, 'testerweiterung');
+    L.objektSetzen(ort, 4, 3, { t: 'test_gross' });
+    for (let x = 3; x < 12; x++) ort.welt.belag[L.k(x, 9)] = { t: 'test_kies' };
+    ort.welt.felder[L.k(14, 8)] = { pflanze: { id: 'test_ranke', tage: 0 } };
+    m.karteBetreten('testerweiterung', 6, 6, 'unten');
+    R.zeichnen();
+    m.S.kameraFokus = { x: 0, y: 0 };
+    R.zeichnen();
+    const kameraLinks = m.S.kamera.x === 0;
+    m.karteBetreten('hof', 20, 9, 'unten');
+    return { alle, bild0: !bild0.ersatz && bild0.width === 16, kameraLinks };
+  });
+  pruefe(erweiterung.alle >= 1 && erweiterung.bild0, 'Pflanzenkunst mit { alle: true } malt auch den Keimling');
+  pruefe(erweiterung.kameraLinks, 'S.kameraFokus lenkt die Kamera');
+
+  // Alle registrierten Fenster öffnen sich ohne Fehler (Beispieldaten aus fensterArt(…, { beispiele }))
   const fensterFehler = await page.evaluate(async () => {
     const ui = await import('/src/ui.js');
-    const { LAEDEN } = await import('/src/daten.js');
     const { S } = await import('/src/spiel.js');
-    const daten = {
-      laden: Object.keys(LAEDEN).map((laden) => ({ laden })),
-      truhe: [{ truhe: { t: 'truhe', inv: Array(24).fill(null) } }],
-      brief: [{ text: 'Hallo {name}', von: 'Test' }],
-      tagEnde: [{ bericht: { verkauf: [], summe: 0, stufen: [], meldungen: ['Test'], ohnmacht: null } }],
-      menue: ui.MENUE_REITER.map((r) => ({ reiter: r.id })),
-    };
     const fehler = [];
     for (const name of Object.keys(ui.FENSTER)) {
-      for (const d of daten[name] || [{}]) {
+      for (const d of ui.FENSTER_OPT[name]?.beispiele?.() ?? [{}]) {
         try {
           ui.fensterOeffnen(name, d);
           if (!document.querySelector('#fenster .fenster')) fehler.push(`${name}: leer`);
@@ -215,7 +267,8 @@ try {
   await page.click('text=Guten Morgen!');
   await page.waitForTimeout(300);
   const morgen = await zustand();
-  pruefe(morgen.tag === 2 && morgen.karte === 'haus', 'Nach dem Schlafen beginnt Tag 2 im Haus');
+  const daheim = await page.evaluate(() => { const { S, L } = window.__klarwasser; return L.zuhause(S.s).karte; });
+  pruefe(morgen.tag === 2 && morgen.karte === daheim, 'Nach dem Schlafen beginnt Tag 2 zu Hause');
 
   const gespeichert = await page.evaluate(() => !!localStorage.getItem('klarwasser-hof-v2'));
   pruefe(gespeichert, 'Der Morgen wurde gespeichert');

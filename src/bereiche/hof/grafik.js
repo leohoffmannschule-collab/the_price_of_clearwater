@@ -1,9 +1,9 @@
 // Bereich „hof" – Pixelkunst: Wohnhaus, Innenraumfarben des Hauses, Bett, Fernseher, Herd,
 // Versandkiste und Briefkasten (mit Fähnchen, wenn Post da ist).
 
-import { gebaeudeKunst, dekoKunst, INNEN_FARBEN, dach, fensterKasten, tuer, P, R, E } from '../../sprites.js';
+import { gebaeudeKunst, dekoKunst, innenFarben, dach, fensterKasten, tuer, P, R, E } from '../../sprites.js';
 
-INNEN_FARBEN.haus = { tapete: '#d7b98c', streifen: '#c9a676', leiste: '#7a4e2c', teppich: '#a8453f', muster: '#e0b060' };
+innenFarben('haus', { tapete: '#d7b98c', streifen: '#c9a676', leiste: '#7a4e2c', teppich: '#a8453f', muster: '#e0b060' });
 
 gebaeudeKunst('haus', {
   b: 80, h: 80, licht: [[21, 52], [59, 52]],

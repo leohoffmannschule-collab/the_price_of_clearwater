@@ -1,11 +1,12 @@
 // Spielt ganze Tage ohne Bildschirm durch: Uhr, Wege der Dorfbewohner, Ohnmacht um zwei Uhr.
+// Die Prüfungen lesen die Tagespläne der Dorfbewohner, statt Orte fest vorzugeben – so bleiben sie
+// richtig, wenn Bereiche Karten umbauen oder Leute dazukommen.
 // Aufruf: node test/tag.test.mjs
 import assert from 'node:assert/strict';
 import '../src/bereiche/inhalt.js';
-import { T } from '../src/daten.js';
-import { punkt } from '../src/karten.js';
+import { T, NPCS, LAEDEN } from '../src/daten.js';
 import * as L from '../src/logik.js';
-import { S, spielStarten, update, neuerMorgen } from '../src/spiel.js';
+import { S, spielStarten, update, neuerMorgen, ladenGeoeffnetBei } from '../src/spiel.js';
 
 let bestanden = 0;
 let fehlgeschlagen = 0;
@@ -24,8 +25,31 @@ function bis(minute, max = 60000) {
   for (let i = 0; i < max && S.s.zeit.minute < minute && !S.pause; i++) update(0.05, E);
 }
 const feldVon = (n) => [Math.floor(n.x / T), Math.floor((n.y - 3) / T)];
-const xy = (karte, name) => { const p = punkt(karte, name); return [p.x, p.y]; };
 const npc = (id) => S.npcs.find((n) => n.id === id);
+
+/** Der Planeintrag, der um diese Minute gilt, und seit wann. */
+function eintragUm(id, minute) {
+  const plan = L.npcTagesplan(S.s, id);
+  let e = plan[0];
+  for (const x of plan) if (L.planMinute(x[0]) <= minute) e = x;
+  return { ziel: L.planZiel(e), seit: L.planMinute(e[0]) };
+}
+
+/** Wer seit mindestens `vorlauf` Minuten unterwegs sein durfte, steht an seinem Planziel (oder ist zu Hause). */
+function alleAmZiel(vorlauf) {
+  const m = S.s.zeit.minute;
+  let geprueft = 0;
+  for (const id of Object.keys(NPCS)) {
+    const { ziel, seit } = eintragUm(id, m);
+    if (m - seit < vorlauf) continue;
+    const n = npc(id);
+    if (!ziel) { assert.equal(n.karte, null, `${id} sollte zu Hause sein, ist auf ${n.karte}`); continue; }
+    assert.equal(n.karte, ziel.karte, `${id} (${L.uhrzeit(m)})`);
+    assert.deepEqual(feldVon(n), [ziel.x, ziel.y], `${id} auf ${ziel.karte}`);
+    geprueft++;
+  }
+  return geprueft;
+}
 
 console.log('\nEin Tag in Klarwasser');
 const s = L.neuesSpiel({ seed: 99 });
@@ -33,32 +57,36 @@ let berichte = 0;
 const hooks = { tagEnde: () => { berichte++; } };
 spielStarten(s, hooks);
 
-test('morgens um sechs sind alle noch zu Hause', () => {
-  for (const n of S.npcs) assert.equal(n.karte, null, n.id);
+test('morgens um sechs steht jeder dort, wo sein Plan beginnt', () => {
+  for (const n of S.npcs) {
+    const { ziel } = eintragUm(n.id, S.s.zeit.minute);
+    assert.equal(n.karte, ziel ? ziel.karte : null, n.id);
+  }
 });
 
-test('um zehn steht Ottilie hinter der Theke und Bruno am Amboss', () => {
+test('um zehn steht jeder, der seit zwei Stunden unterwegs sein durfte, an seinem Planziel', () => {
   bis(600);
-  assert.equal(npc('ottilie').karte, 'laden');
-  assert.deepEqual(feldVon(npc('ottilie')), xy('laden', 'theke'));
-  assert.deepEqual(xy('laden', 'theke'), [3, 3]);
-  assert.equal(npc('bruno').karte, 'dorf');
-  assert.deepEqual(feldVon(npc('bruno')), xy('dorf', 'amboss'));
-  assert.equal(npc('lene').karte, 'strand');
-  assert.deepEqual(feldVon(npc('lene')), xy('strand', 'stand'));
+  assert.ok(alleAmZiel(120) >= 2, 'mindestens zwei Dorfbewohner geprüft');
 });
 
-test('mittags wechselt Hannes vom Dorf ins Gasthaus', () => {
+test('Händler stehen zu ihren Planzeiten an der Theke, der Laden ist dann offen', () => {
   bis(720);
-  assert.equal(npc('hannes').karte, 'gasthaus');
-  assert.deepEqual(feldVon(npc('hannes')), xy('gasthaus', 'theke'));
+  alleAmZiel(120);
+  let offen = 0;
+  for (const [id, l] of Object.entries(LAEDEN)) {
+    const { ziel, seit } = eintragUm(l.npc, S.s.zeit.minute);
+    const o = L.ladenOrt(id);
+    if (!ziel || ziel.karte !== o.karte || ziel.x !== o.x || ziel.y !== o.y || S.s.zeit.minute - seit < 120) continue;
+    if (l.ruhetag === L.wochentag(S.s.zeit) || l.zeiten) continue;
+    assert.equal(ladenGeoeffnetBei(npc(l.npc)), id, `${l.name} offen`);
+    offen++;
+  }
+  assert.ok(offen >= 1, 'mindestens ein Laden geprüft');
 });
 
-test('Lene geht abends vom Strand durchs Dorf ins Gasthaus', () => {
-  bis(1230);
-  assert.equal(npc('lene').karte, 'gasthaus');
-  assert.deepEqual(feldVon(npc('lene')), xy('gasthaus', 'tresen2'));
-  assert.equal(npc('bruno').karte, 'gasthaus');
+test('abends gehen alle über mehrere Karten zu ihren Abendzielen', () => {
+  bis(1290);
+  alleAmZiel(90);
 });
 
 test('nach Mitternacht sind alle wieder daheim', () => {
@@ -66,21 +94,24 @@ test('nach Mitternacht sind alle wieder daheim', () => {
   for (const n of S.npcs) assert.equal(n.karte, null, `${n.id} ist noch auf ${n.karte}`);
 });
 
-test('um zwei Uhr endet der Tag von selbst', () => {
+test('um zwei Uhr endet der Tag von selbst, morgens wacht man zu Hause auf', () => {
   bis(1600);
   assert.equal(berichte, 1);
   assert.ok(S.pause);
   assert.equal(S.s.zeit.tag, 2);
   neuerMorgen();
-  assert.equal(S.ort.def.id, 'haus');
-  assert.deepEqual([S.s.spieler.x, S.s.spieler.y], xy('haus', 'bett'));
+  const z = L.zuhause(S.s);
+  assert.equal(S.ort.def.id, z.karte);
+  assert.deepEqual([S.s.spieler.x, S.s.spieler.y], [z.x, z.y]);
   assert.ok(!S.pause);
 });
 
-test('an einem Regentag bleibt Mats im Gasthaus', () => {
+test('an einem Regentag gelten die Regenpläne', () => {
   S.s.zeit.wetter = 'regen';
-  bis(660);
-  assert.equal(npc('mats').karte, 'gasthaus');
+  assert.ok(Object.values(NPCS).some((n) => n.plan.regen), 'jemand hat einen Regenplan');
+  bis(900);
+  for (const [id, n] of Object.entries(NPCS)) if (n.plan.regen) assert.equal(L.npcTagesplan(S.s, id), n.plan.regen, id);
+  alleAmZiel(120);
 });
 
 console.log(`\n${bestanden} bestanden, ${fehlgeschlagen} fehlgeschlagen\n`);

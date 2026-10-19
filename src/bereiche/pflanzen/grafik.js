@@ -1,11 +1,84 @@
-// Bereich „pflanzen" – Pixelkunst: Saatgut, Ernte, Wildpflanzen, Strandfunde, Dünger und die
-// Wuchsformen auf dem Beet (Phase 2–4; Keimling und verwelkt zeichnet der Kern).
+// Bereich „pflanzen" – Pixelkunst: Saatgut, Ernte, Wildpflanzen, Strandfunde, Dünger, die
+// Wuchsformen auf dem Beet (Phase 2–4; Keimling und verwelkt zeichnet der Kern, außer mit
+// pflanzenKunst { alle: true }), Bäume und Stümpfe samt fallender Bäume.
 // Wuchsformen: wurzel, knolle, kohl, rank, busch, gross, hoch, aehre, blume. Eine Pflanze mit
 // eigener Form registriert pflanzenKunst unter ihrer ID.
 
 import {
-  kunst, pflanzenKunst, P, R, E, L, POLY, kugel, mische, hell, dunkel, HOLZ_D, BLATT, BLATT_D, BLATT_H,
+  kunst, pflanzenKunst, objektKunst, objektBild, gecacht, leinwand, umriss, P, R, E, L, POLY, kugel, mische, hell, dunkel,
+  HOLZ_D, BLATT, BLATT_D, BLATT_H, LAUB,
 } from '../../sprites.js';
+import { zeichner } from '../../render.js';
+import { S } from '../../spiel.js';
+import { T } from '../../daten.js';
+import { hash } from '../../zufall.js';
+
+// ─── Bäume ──────────────────────────────────────────────────────────────────
+
+/** Baum 32×44 (eiche, kiefer); der Stamm steht unten mittig auf seinem Feld. */
+function baumBild(art, jz) {
+  return gecacht(`baum:${art}:${jz}`, () => {
+    const [c, g] = leinwand(32, 44);
+    R(g, 13, 30, 6, 14, '#7a5232'); R(g, 17, 30, 2, 14, '#5a3a22'); R(g, 14, 30, 1, 14, '#9a6e44');
+    P(g, 12, 43, '#7a5232'); P(g, 19, 43, '#7a5232');
+    if (art === 'kiefer') {
+      const gruen = jz === 'herbst' ? ['#2a5a3a', '#3a6e48', '#4a8458'] : ['#24603e', '#2f7a4c', '#46945e'];
+      for (const [y, w] of [[30, 13], [21, 11], [12, 8]]) {
+        POLY(g, [[16, y - 13], [16 - w, y + 1], [16 + w, y + 1]], gruen[0]);
+        POLY(g, [[16, y - 12], [16 - w + 2, y], [16 + w - 4, y]], gruen[1]);
+        L(g, 16, y - 11, 16 - w + 4, y - 1, gruen[2], 1);
+        if (jz === 'winter') { L(g, 16, y - 12, 16 - w + 2, y, '#f4f8fb', 1); L(g, 16, y - 12, 16 + w - 3, y - 1, '#e4ecf2', 1); }
+      }
+    } else if (jz === 'winter') {
+      const ast = '#6a4a30';
+      L(g, 16, 30, 16, 8, ast, 2); L(g, 16, 22, 7, 12, ast, 2); L(g, 16, 18, 25, 9, ast, 2);
+      L(g, 10, 15, 6, 6, ast, 1); L(g, 22, 12, 27, 5, ast, 1); L(g, 16, 12, 13, 4, ast, 1); L(g, 16, 12, 20, 3, ast, 1);
+      for (const [x, y] of [[7, 11], [25, 8], [13, 4], [20, 3], [16, 8], [6, 6], [27, 5]]) { P(g, x, y - 1, '#ffffff'); P(g, x + 1, y - 1, '#f0f4f8'); }
+    } else {
+      const p = LAUB[jz];
+      E(g, 16, 17, 14, 13, p.d); E(g, 9, 20, 7, 6, p.d); E(g, 23, 20, 7, 6, p.d);
+      E(g, 16, 15, 12.5, 11, p.b); E(g, 9.5, 19, 6, 5, p.b); E(g, 22.5, 19, 6, 5, p.b);
+      E(g, 12, 10, 5, 4, p.h); E(g, 21, 13, 3, 2.5, p.h);
+      for (let i = 0; i < 18; i++) P(g, 4 + Math.floor(hash(i, 3, art.length) * 24), 4 + Math.floor(hash(i, 7, 2) * 22), i % 2 ? p.d : p.h);
+      if (p.bluete) for (let i = 0; i < 10; i++) P(g, 5 + Math.floor(hash(i, 11, 1) * 22), 4 + Math.floor(hash(i, 13, 1) * 20), p.bluete);
+    }
+    return umriss(c);
+  });
+}
+
+objektKunst({
+  baum: { bild: (o, k) => baumBild(o.art || 'eiche', k.jz), tiefe: 0, schatten: [7, 2.5, -2], durchsichtig: [30, 40] },
+  stumpf: {
+    malen(g) {
+      R(g, 4, 8, 8, 6, '#7a5232'); R(g, 10, 8, 2, 6, '#5a3a22'); E(g, 8, 8, 4, 2, '#c8a070'); E(g, 8, 8, 2, 1, '#a8804e');
+      P(g, 3, 13, '#7a5232'); P(g, 12, 13, '#7a5232');
+    },
+  },
+});
+
+/** Fallende Bäume (S.fallend, von der Axt angestoßen); das Bild kommt aus dem Objektbild „baum". */
+zeichner({
+  name: 'fallend', ebene: 'welt', reihe: 45,
+  sammeln(ort, v) {
+    const teile = [];
+    for (const f of S.fallend) {
+      const bx = f.x * T + 8;
+      const by = (f.y + 1) * T;
+      if (!v.imBild(bx - 48, by - 48, 96, 56)) continue;
+      const bild = objektBild({ t: 'baum', art: f.art }, { jz: v.jz, s: v.s, ort });
+      teile.push({ y: by, f: (g) => {
+        const w = Math.min(1, f.t / 0.75);
+        g.save();
+        g.globalAlpha = f.t > 0.75 ? Math.max(0, 1 - (f.t - 0.75) / 0.35) : 1;
+        g.translate(bx, by - 4);
+        g.rotate(f.richtung * w * w * 1.45);
+        g.drawImage(bild, -bild.width / 2, 4 - bild.height);
+        g.restore();
+      } });
+    }
+    return teile;
+  },
+});
 
 // ─── Gegenstände ────────────────────────────────────────────────────────────
 

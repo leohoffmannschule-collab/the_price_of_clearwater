@@ -6,9 +6,23 @@ import * as L from '../../logik.js';
 import { S } from '../../spiel.js';
 import {
   fensterArt, menueReiter, fensterRahmen, fensterNeu, fensterOeffnen, fensterSchliessen, el, itemIcon, invGitter,
-  meldung, fundeZeigen, dialog, ton, zahl,
+  meldung, fundeZeigen, dialog, ton, zahl, stil,
 } from '../../ui.js';
 import { buendelEintraege, buendelNoetig, buendelFertig, buendelPlatz, spenden, questAnnehmen } from './inhalt.js';
+
+stil('gemeinschaft-buendel', `
+.buendel-mini { display: flex; flex-wrap: wrap; gap: 4px; }
+.buendel-gitter { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 8px; margin: 10px 0; }
+.buendel { padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+.buendel.fertig { border-color: #4a8a4a; background: #2a4a3a; }
+.buendel-kopf { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.buendel-items { display: flex; flex-wrap: wrap; gap: 4px; }
+.buendel-item { position: relative; width: 34px; height: 34px; display: grid; place-items: center; background: var(--mulde); border: 2px solid var(--holz-dunkel); border-radius: 4px; }
+.buendel-item img { width: 26px; height: 26px; opacity: .3; filter: grayscale(1); image-rendering: pixelated; }
+.buendel-item.da { border-color: var(--gut); }
+.buendel-item.da img { opacity: 1; filter: none; }
+.buendel-item .anzahl { position: absolute; right: 1px; bottom: -2px; font-size: 11px; text-shadow: 1px 1px 0 #000; }
+`);
 
 // ─── Mühle ──────────────────────────────────────────────────────────────────
 

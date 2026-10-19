@@ -8,8 +8,14 @@ import { S } from '../../spiel.js';
 import { itemDatenUrl } from '../../sprites.js';
 import {
   fensterArt, wareBild, WARE_BILD, fensterRahmen, fensterNeu, el, bild, symbol, itemIcon, portraet, invGitter, goldAnzeige,
-  meldung, ton, zahl,
+  meldung, ton, zahl, stil,
 } from '../../ui.js';
+
+stil('dorf-laden', `
+.laden-kopf { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.menge { display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; min-width: 92px; justify-content: center; }
+.menge span { min-width: 2ch; text-align: center; }
+`);
 
 wareBild('upgrade', (w) => bild(itemDatenUrl({ id: w.werkzeug }, w.stufe)));
 wareBild('rucksack', () => symbol('rucksack'));
@@ -37,7 +43,7 @@ fensterArt('laden', (d) => {
     inhalt = el('div', { class: 'liste' }, ware.length ? ware.map((w, i) => {
       const name = w.name || ITEMS[w.id].name;
       const text = w.text || (w.id ? ITEMS[w.id].text : '');
-      const stapel = !!w.id && w.id !== 'angel';
+      const stapel = !!w.id && L.stapelbar(w.id);
       const n = stapel ? (d.menge[i] || 1) : 1;
       const zutaten = w.zutaten ? Object.entries(w.zutaten).map(([id, m]) => el('span', { class: `zutat${L.anzahl(s, id) >= m ? ' ok' : ''}` }, itemIcon({ id }), `${m}× ${ITEMS[id].name}`)) : null;
       return el('div', { class: 'zeile' },
@@ -65,7 +71,7 @@ fensterArt('laden', (d) => {
   } else {
     d.ganz ??= false;
     inhalt = el('div', {},
-      el('p', { class: 'leise' }, `${l.name} kauft: ${l.kauft.map((k) => KATEGORIE_NAME[k]).join(', ')}.`),
+      el('p', { class: 'leise' }, L.kauftKategorien(d.laden).length ? `${l.name} kauft: ${L.kauftKategorien(d.laden).map((k) => KATEGORIE_NAME[k] || k).join(', ')}.` : `${l.name} kauft nichts an.`),
       el('label', { class: 'umschalter' }, el('input', { type: 'checkbox', checked: d.ganz, onchange: (e) => { d.ganz = e.target.checked; } }), 'Ganzen Stapel verkaufen'),
       invGitter((i, e) => {
         const slot = s.spieler.inv[i];
@@ -76,4 +82,4 @@ fensterArt('laden', (d) => {
       }, { dimme: (slot) => slot && !L.kauftLaden(d.laden, slot), markiere: (slot) => L.kauftLaden(d.laden, slot) }));
   }
   return fensterRahmen(l.name, el('div', {}, kopf, reiter, inhalt), { klasse: 'breit', kopfExtra: goldAnzeige() });
-});
+}, { beispiele: () => Object.keys(LAEDEN).flatMap((laden) => [{ laden }, { laden, reiter: 'verkaufen' }]) });

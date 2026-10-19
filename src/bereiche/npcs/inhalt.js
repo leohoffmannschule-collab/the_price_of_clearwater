@@ -102,10 +102,10 @@ npc('lene', {
   geburtstag: { jz: 'herbst', tag: 9 },
   liebt: ['wels', 'thunfisch', 'tintenfisch', 'koralle', 'kugelfisch'],
   mag: ['kat:fisch', 'fischsuppe', 'muschel', 'seeigel'], magNicht: ['kat:mineral'], hasst: ['stiefel', 'treibholz'],
-  heim: { karte: 'strand', punkt: 'vorFischladen' },
+  heim: { karte: 'fischladen', punkt: 'bett_lene' },
   plan: {
-    normal: [[600, null], [700, 'strand', 'stand'], [1700, 'strand', 'steg'], [1930, 'gasthaus', 'tresen2'], [2300, null]],
-    regen: [[600, null], [700, 'strand', 'stand'], [1200, 'gasthaus', 'tresen2'], [2300, null]],
+    normal: [[600, null], [700, 'fischladen', 'theke'], [1700, 'strand', 'steg'], [1930, 'gasthaus', 'tresen2'], [2300, null]],
+    regen: [[600, null], [700, 'fischladen', 'theke'], [1200, 'gasthaus', 'tresen2'], [2300, null]],
   },
   zeilen: {
     allgemein: [

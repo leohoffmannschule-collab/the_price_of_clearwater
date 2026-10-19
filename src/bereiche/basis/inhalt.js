@@ -1,7 +1,8 @@
 // Bereich „basis": Werkzeuge und was sie tun, Grundrohstoffe, Müll, die Hindernisse auf der
-// Karte (Bäume, Steine, Äste, Unkraut), liegende Sammelfunde, Aufstellen, Tipps.
+// Karte (Steine, Äste, Unkraut, Felsen, große Stümpfe), liegende Sammelfunde, Aufstellen und
+// Bodenbeläge aus der Hand, Tipps. (Bäume und Baumstümpfe gehören dem Bereich „pflanzen".)
 
-import { ITEMS, item, kategorie, werkzeugArt, objektTyp, muell, tipp, itemBenutzen } from '../../daten.js';
+import { ITEMS, KANNE_INHALT, item, kategorie, werkzeugArt, objektTyp, muell, tipp, itemBenutzen } from '../../daten.js';
 import { system, mod } from '../../system.js';
 import * as L from '../../logik.js';
 import { S, ton, meldung, staub, spritzer, splitter, halme, blaetter } from '../../spiel.js';
@@ -26,13 +27,15 @@ werkzeugArt('hacke', {
   felder: L.werkzeugFelder,
   wirkung({ s, ort, felder }) {
     const erg = L.hacken(s, ort, felder);
-    if (erg.n) { ton('hacken'); for (const [x, y] of felder) if (ort.welt.felder[L.k(x, y)]) staub(x, y, '#8a5e3a'); } else ton('dumpf');
+    if (erg.n || erg.treffer) { ton('hacken'); for (const [x, y] of felder) if (erg.treffer || ort.welt.felder[L.k(x, y)]) staub(x, y, '#8a5e3a'); } else ton('dumpf');
     return erg;
   },
 });
 
 werkzeugArt('giesskanne', {
   skill: 'landwirtschaft', aufladbar: true, upgradeText: 'Fasst mehr Wasser. Gedrückt halten gießt mehrere Beete.',
+  haltung: 'giessen',
+  anzeige: (s) => `Wasser ${s.spieler.wasser}/${KANNE_INHALT[s.spieler.werkzeug.giesskanne || 0]}`,
   felder: L.werkzeugFelder,
   wirkung({ s, ort, felder, zx, zy }) {
     const erg = L.giessen(s, ort, felder);
@@ -92,7 +95,7 @@ item('holz', { name: 'Holz', kat: 'ressource', preis: 2, bild: { art: 'holz' }, 
 item('hartholz', { name: 'Hartholz', kat: 'ressource', preis: 15, bild: { art: 'hartholz' }, text: 'Aus großen Baumstümpfen. Sehr fest.' });
 item('stein', { name: 'Stein', kat: 'ressource', preis: 2, bild: { art: 'stein' }, text: 'Zum Basteln und Bauen.' });
 item('faser', { name: 'Faser', kat: 'ressource', preis: 1, bild: { art: 'faser' }, text: 'Zähe Halme aus Unkraut.' });
-item('saft', { name: 'Baumharz', kat: 'ressource', preis: 2, bild: { art: 'saft' }, text: 'Klebriger Saft aus gefällten Bäumen.' });
+item('harz', { name: 'Baumharz', kat: 'ressource', preis: 2, bild: { art: 'harz' }, text: 'Klebriger Saft aus gefällten Bäumen.' });
 item('kohle', { name: 'Kohle', kat: 'ressource', preis: 15, bild: { art: 'kohle' }, text: 'Brennt heiß. Nötig für Barren.' });
 
 item('treibholz', { name: 'Treibholz', kat: 'muell', preis: 1, bild: { art: 'treibholz' }, text: 'Vom Meer glattgeschliffen.' });
@@ -103,37 +106,7 @@ muell('fluss', ['stiefel', 'treibholz']);
 muell('meer', ['seetang', 'treibholz', 'stiefel']);
 
 // ─── Hindernisse auf der Karte ──────────────────────────────────────────────
-
-objektTyp('baum', {
-  blockiert: true,
-  axt({ s, ort, x, y, kk, o, erg, r, kraft }) {
-    o.hp -= kraft;
-    erg.treffer = 'holz';
-    if (o.hp <= 0) {
-      L.geben(s, ort, x, y, { id: 'holz', n: ganz(r, 10, 14) }, erg);
-      if (r() < 0.6) L.geben(s, ort, x, y, { id: 'saft', n: ganz(r, 1, 3) }, erg);
-      L.xpGeben(s, 'sammeln', 12, erg);
-      ort.welt.objekte[kk] = { t: 'stumpf', hp: 4, art: o.art };
-      s.stats.baeume++;
-      erg.gefallen = o.art || 'eiche';
-    }
-    return true;
-  },
-});
-
-objektTyp('stumpf', {
-  blockiert: true,
-  axt({ s, ort, x, y, kk, o, erg, r, kraft }) {
-    o.hp -= kraft;
-    erg.treffer = 'holz';
-    if (o.hp <= 0) {
-      delete ort.welt.objekte[kk];
-      L.geben(s, ort, x, y, { id: 'holz', n: ganz(r, 3, 5) }, erg);
-      L.xpGeben(s, 'sammeln', 2, erg);
-    }
-    return true;
-  },
-});
+// (Bäume { t: 'baum', art, hp } und Stümpfe: Bereich „pflanzen".)
 
 objektTyp('ast', {
   blockiert: true,
@@ -213,12 +186,17 @@ objektTyp('sammel', {
   hinweis: ({ o }) => `${ITEMS[o.id].name} aufheben`,
 });
 
-// ─── Aufstellen aus der Hand ────────────────────────────────────────────────
+// ─── Aufstellen und Belag legen aus der Hand ────────────────────────────────
 
 itemBenutzen((c) => !!c.it.aufstellbar, (c) => {
   if (c.f.x === c.x && c.f.y === c.y) { meldung('Dort stehst du gerade selbst.'); return; }
   const r = L.aufstellen(c.s, c.ort, c.x, c.y, c.idx);
   if (r.ok) { ton('truhe'); staub(c.x, c.y, '#a8784a'); } else if (r.grund) meldung(r.grund);
+});
+/** Items mit `belag: 'typ'` legen einen Bodenbelag (Wege, Böden). */
+itemBenutzen((c) => !!c.it.belag, (c) => {
+  const r = L.belagLegen(c.s, c.ort, c.x, c.y, c.idx);
+  if (r.ok) { ton('hacken'); staub(c.x, c.y, '#a8a29a'); } else if (r.grund) meldung(r.grund);
 });
 
 // ─── Tipps (Fernseher) ──────────────────────────────────────────────────────

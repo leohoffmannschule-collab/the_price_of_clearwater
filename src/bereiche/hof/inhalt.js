@@ -1,9 +1,11 @@
-// Bereich „hof": die Hof-Karte und das Wohnhaus, das Verwildern zu Spielbeginn,
-// Unkraut und Steine, die über Nacht nachkommen, Bett, Fernseher, Versandkiste, Briefkasten.
+// Bereich „hof": die Hof-Karte, das Wohnhaus und das Gewächshaus (vorerst ein Platzhalter-
+// Innenraum), das Verwildern zu Spielbeginn, Unkraut und Steine, die über Nacht nachkommen,
+// Bett, Fernseher (mit Sendern anderer Bereiche über den Hook `fernsehen`), Versandkiste,
+// Briefkasten. Der Herd in der Küche hat die Aktion „kochen" (Bereich handwerk).
 
 import { TIPPS } from '../../daten.js';
 import { karte, boden } from '../../karten.js';
-import { system } from '../../system.js';
+import { system, sammle } from '../../system.js';
 import * as L from '../../logik.js';
 import { S, dekoAktion, frage, fenster, dialog, ton, schlafen, postZeigen } from '../../spiel.js';
 import { ganz } from '../../zufall.js';
@@ -98,7 +100,7 @@ karte({
     { typ: 'kamin', x: 7, y: 0, w: 2, h: 2, wand: true, licht: 3 },
     { typ: 'fenster', x: 3, y: 1, wand: true },
     { typ: 'bild', x: 5, y: 1, wand: true },
-    { typ: 'herd', x: 9, y: 2 },
+    { typ: 'herd', x: 9, y: 2, aktion: 'kochen' },
     { typ: 'pflanze', x: 10, y: 2 },
     { typ: 'tisch', x: 9, y: 6 },
     { typ: 'kiste', x: 10, y: 8 },
@@ -111,6 +113,24 @@ karte({
     kueche: [9, 3, 'oben'],
     partner: [7, 4, 'unten'],
   },
+});
+
+// Platzhalter: das Gewächshaus von innen (ganzjährig bebaubar). Noch ohne Tür auf dem Hof.
+karte({
+  id: 'gewaechshaus', name: 'Gewächshaus', aussen: false, farmbar: true, ganzjaehrig: true, npcWege: false,
+  grid: [
+    '############',
+    '############',
+    '#::::::::::#',
+    '#::::::::::#',
+    '#::::::::::#',
+    '#::::::::::#',
+    '#__________#',
+    '#####_######',
+  ],
+  deko: [{ typ: 'fenster', x: 3, y: 1, wand: true }, { typ: 'fenster', x: 8, y: 1, wand: true }],
+  warps: [{ x: 5, y: 7, w: 1, h: 1, karte: 'hof', punkt: 'vorGewaechshaus' }],
+  punkte: { eingang: [5, 6, 'oben'] },
 });
 
 // ─── Verwildern und Nachwachsen ─────────────────────────────────────────────
@@ -170,7 +190,14 @@ system({
 
 // ─── Möbel und Kisten ───────────────────────────────────────────────────────
 
+/** Fernseher: Wetter und Tipp; andere Bereiche hängen eigene Sender an (Hook fernsehen → [[name, fn]…]). */
 function fernsehen() {
+  const sender = sammle('fernsehen', S.s);
+  if (!sender.length) { wetterbericht(); return; }
+  frage('Was läuft heute?', [['Wetter und Tipp', wetterbericht], ...sender, ['Ausschalten', null]]);
+}
+
+function wetterbericht() {
   const s = S.s;
   const vorhersage = {
     sonne: 'Morgen scheint die Sonne. Gießkanne bereithalten!',

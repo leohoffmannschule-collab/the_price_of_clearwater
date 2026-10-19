@@ -10,20 +10,33 @@
 // Systeme laufen in der Reihenfolge, in der die Bereiche geladen werden
 // (siehe bereiche/inhalt.js). Dort ist sie fest, damit Ergebnisse reproduzierbar bleiben.
 
-/** Hooks, die der Kern aufruft. Neue Namen hier eintragen, sonst schlägt der Test an. */
+/**
+ * Bekannte Hook-Namen. Die ersten ruft der Kern auf; die letzten sind zwischen Bereichen
+ * vereinbart (ein Bereich ruft, andere hören zu). Ein System mit einem Hook, der hier fehlt,
+ * lässt den Test anschlagen. Eigene neue Namen meldet ein Bereich mit hookBekannt() an.
+ */
 export const BEKANNTE_HOOKS = [
   'neuesSpiel', 'ergaenzen', 'tagEnde', 'morgen', 'minuten', 'fertig',
-  'karteBetreten', 'karteVerlassen', 'update',
+  'karteBetreten', 'karteVerlassen', 'update', 'eingabe',
   'interagieren', 'hinweis', 'schwung',
   'npcAnsprechen', 'npcOptionen', 'npcPlan', 'gespraech', 'gegessen',
   'gebaeude', 'deko', 'objekteDynamisch',
+  'ladenWare', 'ladenKauft', 'zuhause',
+  // zwischen Bereichen vereinbart (Aufrufer in Klammern)
+  'fernsehen', // (hof) sammle: Sender [name, fn] für den Fernseher
+  'grasGemaeht', // (pflanzen) alle: hohes Gras wurde gemäht
 ];
+
+/** Neue Hook-Namen eines Bereichs anmelden (aus dessen inhalt.js, beim Laden). */
+export function hookBekannt(...namen) {
+  for (const n of namen) if (!BEKANNTE_HOOKS.includes(n)) BEKANNTE_HOOKS.push(n);
+}
 
 /** Modifikatoren, an die der Kern seine Rechnungen hängt. */
 export const BEKANNTE_MODIFIKATOREN = [
   'energieKosten', 'laufTempo', 'verkaufspreis', 'xp', 'ernteQualitaet', 'wachstum',
   'fangBalken', 'bissZeit', 'schaden', 'verteidigung', 'maxEnergie', 'maxGesundheit',
-  'glueck', 'erzMenge',
+  'glueck', 'erzMenge', 'stufe', 'sammelRadius',
 ];
 
 export const SYSTEME = [];

@@ -1,7 +1,9 @@
 // Bereich „tiere": der Hühnerstall (von Bruno gebaut, steht im Hof-Bereich „stall"),
-// Küken aus dem Krämerladen, Hühner im Auslauf, Streicheln, Eier am Morgen.
+// Küken aus dem Krämerladen (Hook ladenWare), Hühner im Auslauf, Streicheln, Eier am Morgen.
+// Dazu Greta (Zimmerei am Berg) und Wilma (Ranch im Wald) als schlichte Platzhalter samt Läden;
+// die Räume dafür bauen „berg" und „wildnis".
 
-import { T, item, kategorie, spezialWare, bedingung } from '../../daten.js';
+import { T, item, kategorie, spezialWare, bedingung, npc, laden } from '../../daten.js';
 import { bereichVon } from '../../karten.js';
 import { system } from '../../system.js';
 import * as L from '../../logik.js';
@@ -40,6 +42,12 @@ spezialWare('stall', {
   },
 });
 
+/** Was dieser Bereich in fremden Läden anbietet (Hook ladenWare). */
+const LADEN_WARE = {
+  laden: [{ spezial: 'kueken', reihe: 30 }],
+  schmiede: [{ spezial: 'stall', reihe: 60 }],
+};
+
 function stallGebaeude(def) {
   const b = bereichVon(def, 'stall');
   if (!b) return null;
@@ -51,6 +59,7 @@ function stallGebaeude(def) {
 function eierLegen(s, r, bericht) {
   const { def, welt: w } = L.ortVon(s, STALL_KARTE);
   const a = bereichVon(def, 'auslauf');
+  if (!a) return;
   let gelegt = 0;
   for (const h of s.stall.huehner) {
     h.freundschaft = Math.max(0, Math.min(1000, h.freundschaft + (h.gestreichelt ? 15 : -5)));
@@ -81,6 +90,7 @@ function huehnerAufstellen() {
   S.huehner = [];
   if (S.ort.def.id !== STALL_KARTE || !S.s.stall.gebaut) return;
   const a = bereichVon(S.ort.def, 'auslauf');
+  if (!a) return;
   S.s.stall.huehner.forEach((h, i) => {
     S.huehner.push({ i, x: (a.x + 1 + ((i * 3) % (a.w - 2))) * T + 8, y: (a.y + 1 + (i % 3)) * T + 12, zx: null, zy: null, t: Math.random() * 2, pick: 0, links: Math.random() < 0.5, anim: 0 });
   });
@@ -89,6 +99,7 @@ function huehnerAufstellen() {
 function huehnerUpdate(dt) {
   if (!huehnerDraussen()) return;
   const a = bereichVon(S.ort.def, 'auslauf');
+  if (!a) return;
   for (const h of S.huehner) {
     h.t -= dt;
     h.anim += dt;
@@ -142,11 +153,86 @@ gebaeudeAktion('stall', () => {
   }
 }, 'Hühnerstall');
 
+// ─── Greta und Wilma (Platzhalter) ──────────────────────────────────────────
+
+npc('greta', {
+  name: 'Greta', voll: 'Greta Zimmermann', rolle: 'Zimmerin',
+  aussehen: { haut: '#e8b48a', haare: '#b8542a', frisur: 'zopf', hemd: '#c87a3a', hose: '#4a3a2a', schuerze: '#8a6a4a' },
+  geburtstag: { jz: 'herbst', tag: 21 },
+  liebt: ['hartholz', 'kaffee'], mag: ['kat:ressource', 'brot'], magNicht: ['kat:fisch'], hasst: ['schleim', 'stiefel'],
+  heim: { karte: 'zimmerei', punkt: 'bett_greta' },
+  plan: { normal: [[600, null], [900, 'zimmerei', 'theke'], [1700, null]] },
+  zeilen: {
+    allgemein: [
+      'Holz, Stein, ein bisschen Geduld – mehr braucht ein gutes Haus nicht. Na gut, Nägel.',
+      'Wenn du einen Stall willst, komm vorbei. Ich messe zweimal und säge einmal.',
+      'Die Zimmerei riecht nach Harz. Ich finde, so sollte jeder Morgen riechen.',
+    ],
+    fruehling: ['Frühling heißt Dachrinnen. Alle wollen sie gleichzeitig.'],
+    sommer: ['Im Sommer trocknet das Holz am besten. Ich auch.'],
+    herbst: ['Herbststürme prüfen jedes Dach. Meine bestehen.'],
+    winter: ['Im Winter baue ich Möbel. Draußen friert der Leim.'],
+    regen: ['Regen ist gut. Da sieht man, welches Dach dicht ist.'],
+    herz: {
+      2: 'Du hast einen guten Blick für gerade Linien, {name}.',
+      4: 'Meine Mutter war auch Zimmerin. Sie hat mir den ersten Hobel geschenkt. Ich hab ihn noch.',
+      6: 'Ich wollte immer eine Brücke bauen. Eine richtig große. Vielleicht am Berg.',
+      8: 'Wenn dein Haus mal knarzt, sag Bescheid. Für dich komme ich auch sonntags.',
+      10: 'Du gehörst zu Klarwasser wie der Dachfirst zum Haus, {name}.',
+    },
+    geburtstag: 'Mein Geburtstag! Und du hast an mich gedacht. Das nagle ich mir an die Wand.',
+    wieder: ['Die Säge wartet.', 'Bis bald, {name}!'],
+  },
+  antwort: { liebt: 'Oh, das ist ja wunderbar! Danke!', mag: 'Schön, danke dir.', neutral: 'Danke.', magNicht: 'Hm. Na ja.', hasst: 'Was soll ich denn damit?' },
+});
+
+npc('wilma', {
+  name: 'Wilma', voll: 'Wilma Weidegrund', rolle: 'Rancherin',
+  aussehen: { haut: '#f0c8a0', haare: '#6a4428', frisur: 'lang', hemd: '#5a8a4a', hose: '#3a4a6a', muetze: '#c8a050' },
+  geburtstag: { jz: 'fruehling', tag: 18 },
+  liebt: ['grossesei', 'kuerbis'], mag: ['kat:tier', 'kat:ernte'], magNicht: ['kat:mineral'], hasst: ['schleim', 'fluegel'],
+  heim: { karte: 'ranch', punkt: 'bett_wilma' },
+  plan: { normal: [[600, null], [900, 'ranch', 'theke'], [1600, null]] },
+  zeilen: {
+    allgemein: [
+      'Tiere wissen, wer es gut mit ihnen meint. Hühner merken sich Gesichter. Und Krümel.',
+      'Ein Huhn, das gestreichelt wird, legt größere Eier. Das ist Wissenschaft. Fast.',
+      'Die Ranch liegt mitten im Wald. Die Füchse finden das auch gut. Ich weniger.',
+    ],
+    fruehling: ['Frühling! Die Küken schlüpfen, und alle wollen eins.'],
+    sommer: ['Im Sommer wollen die Tiere raus. Ich auch, ehrlich gesagt.'],
+    herbst: ['Im Herbst sammle ich Heu für den Winter. Viel Heu.'],
+    winter: ['Im Winter bleiben die Tiere drinnen. Dann ist es im Stall gemütlicher als bei mir.'],
+    regen: ['Bei Regen bleiben die Tiere im Stall. Nasse Hühner sind schlecht gelaunt.'],
+    herz: {
+      2: 'Du riechst ein bisschen nach Stall. Das ist ein Kompliment.',
+      4: 'Meine erste Kuh hieß Berta. Sie hat mich jeden Morgen geweckt. Um vier.',
+      6: 'Manchmal rede ich mit den Hühnern. Sie hören besser zu als die meisten Leute.',
+      8: 'Wenn du mal ein Tier brauchst, das besonders lieb ist, such ich dir eins aus.',
+      10: 'Du bist ein guter Mensch, {name}. Die Hühner sagen das auch.',
+    },
+    geburtstag: 'Mein Geburtstag? Wie lieb! Die Hühner haben es vergessen.',
+    wieder: ['Die Tiere warten.', 'Bis später!'],
+  },
+  antwort: { liebt: 'Wie schön! Danke!', mag: 'Oh, danke!', neutral: 'Danke dir.', magNicht: 'Hm, das brauche ich nicht.', hasst: 'Igitt! Nimm das weg.' },
+});
+
+laden('zimmerei', {
+  name: 'Zimmerei', npc: 'greta', ort: { karte: 'zimmerei', punkt: 'theke' },
+  ware: [{ id: 'holz', preis: 10 }, { id: 'stein', preis: 20 }],
+});
+
+laden('ranch', {
+  name: 'Ranch', npc: 'wilma', ort: { karte: 'ranch', punkt: 'theke' },
+  ware: [{ spezial: 'kueken' }],
+});
+
 system({
   name: 'tiere',
   ergaenzen(s) {
     s.stall ??= { gebaut: false, bauMorgen: false, huehner: [] };
   },
+  ladenWare: (ladenId) => LADEN_WARE[ladenId],
   tagEnde(s, bericht, r) {
     if (s.stall.bauMorgen) {
       s.stall.gebaut = true;

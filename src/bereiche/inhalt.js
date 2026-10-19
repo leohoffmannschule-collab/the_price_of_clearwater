@@ -6,6 +6,7 @@ import './basis/inhalt.js';
 import './hof/inhalt.js';
 import './dorf/inhalt.js';
 import './wildnis/inhalt.js';
+import './berg/inhalt.js';
 import './pflanzen/inhalt.js';
 import './angeln/inhalt.js';
 import './mine/inhalt.js';

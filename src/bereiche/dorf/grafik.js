@@ -1,14 +1,14 @@
 // Bereich „dorf" – Pixelkunst: Krämerladen, Rathaus, Gasthaus, Schmiede, Atelier, die
 // Innenraumfarben von Laden und Gasthaus, Dorf-Deko (Brunnen, Bänke, Blumen, Amboss, Fässer,
-// Regale, Theken) und das Essen aus dem Gasthaus.
+// Regale) und das Essen aus dem Gasthaus. (Die Theke ist geteilte Deko aus „basis".)
 
 import {
-  kunst, gebaeudeKunst, dekoKunst, INNEN_FARBEN, dach, fensterKasten, tuer, schrift, P, R, E, L, POLY, hell, BLATT_D,
+  kunst, gebaeudeKunst, dekoKunst, innenFarben, dach, fensterKasten, tuer, schrift, P, R, E, L, POLY, hell, BLATT_D,
 } from '../../sprites.js';
 import { hash } from '../../zufall.js';
 
-INNEN_FARBEN.laden = { tapete: '#b4c79a', streifen: '#a3b888', leiste: '#5d4630', teppich: '#4f7aa8', muster: '#d8e4f0' };
-INNEN_FARBEN.gasthaus = { tapete: '#a8744a', streifen: '#946238', leiste: '#4a2c18', teppich: '#7a3a5a', muster: '#e8b860' };
+innenFarben('laden', { tapete: '#b4c79a', streifen: '#a3b888', leiste: '#5d4630', teppich: '#4f7aa8', muster: '#d8e4f0' });
+innenFarben('gasthaus', { tapete: '#a8744a', streifen: '#946238', leiste: '#4a2c18', teppich: '#7a3a5a', muster: '#e8b860' });
 
 // ─── Essen aus dem Gasthaus ─────────────────────────────────────────────────
 
@@ -143,13 +143,6 @@ dekoKunst({
   fass(g) {
     E(g, 8, 9, 6, 6.5, '#8a5a32'); R(g, 2, 5, 12, 1, '#4a4a52'); R(g, 2, 12, 12, 1, '#4a4a52'); E(g, 8, 3.5, 5, 1.6, '#a87848');
     L(g, 5, 4, 5, 14, '#6a4426', 1); L(g, 11, 4, 11, 14, '#6a4426', 1);
-  },
-  /** Theke über die volle Breite; im Gasthaus mit Bierkrügen, sonst mit Kasse und Papier. */
-  theke(g, d, { w, innen }) {
-    R(g, 0, 3, w, 6, '#a8784a'); R(g, 0, 3, w, 1, '#c8986a'); R(g, 0, 9, w, 7, '#6a4426');
-    for (let x = 6; x < w; x += 16) R(g, x, 10, 1, 6, '#4e3018');
-    if (innen === 'gasthaus') { for (const x of [10, 30, 58]) if (x < w) { R(g, x, 0, 4, 4, '#e8c870'); R(g, x, 0, 4, 1, '#ffffff'); } }
-    else { R(g, 5, 0, 8, 4, '#4a4a54'); R(g, 6, 1, 6, 1, '#9ad070'); R(g, 30, 1, 6, 3, '#e8dcc0'); }
   },
   regal: {
     h: 24,

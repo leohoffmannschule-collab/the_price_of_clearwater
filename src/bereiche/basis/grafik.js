@@ -1,14 +1,12 @@
-// Bereich „basis" – Pixelkunst: Werkzeuge und Grundrohstoffe, Bäume, Steine, Äste, Unkraut,
-// liegende Funde, fallende Bäume und die Deko, die viele Karten teilen (Bäume, Büsche, Felsen,
-// Laternen, Schilder, Kisten, Fenster, Bilder, Kamine, Topfpflanzen, Tische).
+// Bereich „basis" – Pixelkunst: Werkzeuge und Grundrohstoffe, Steine, Äste, Unkraut, Felsen,
+// große Stümpfe, liegende Funde und die Deko, die viele Karten teilen (Bäume, Büsche, Felsen,
+// Laternen, Schilder, Kisten, Fenster, Bilder, Kamine, Topfpflanzen, Tische, Theken, Zäune).
+// Bäume selbst malt der Bereich „pflanzen" (Objektbild „baum"); die Deko „baum" holt sich dieses Bild.
 
 import {
-  kunst, objektKunst, dekoKunst, itemBild, gecacht, leinwand, umriss, P, R, E, L, POLY, kugel, hell, dunkel,
+  kunst, objektKunst, dekoKunst, objektBild, itemBild, gecacht, leinwand, umriss, P, R, E, L, POLY, kugel, hell, dunkel,
   HOLZ_D, BLATT, BLATT_D, BLATT_H, LAUB,
 } from '../../sprites.js';
-import { zeichner } from '../../render.js';
-import { S } from '../../spiel.js';
-import { T } from '../../daten.js';
 import { hash } from '../../zufall.js';
 
 // ─── Gegenstände ────────────────────────────────────────────────────────────
@@ -57,7 +55,7 @@ kunst({
     L(g, 4, 14, 6, 2, '#7aa84a', 1); L(g, 7, 14, 8, 2, '#8ab85a', 1); L(g, 10, 14, 11, 3, '#6a983a', 1); L(g, 12, 14, 13, 5, '#7aa84a', 1);
     R(g, 5, 9, 8, 2, '#c8b070');
   },
-  saft(g) {
+  harz(g) {
     E(g, 8, 10, 4, 4.5, '#d89a3a'); POLY(g, [[8, 2], [4.5, 8], [11.5, 8]], '#d89a3a');
     E(g, 6.5, 9, 1.2, 2, '#f2c870'); E(g, 9.5, 12, 1.6, 1, '#b8782a');
   },
@@ -80,75 +78,12 @@ kunst({
   },
 });
 
-// ─── Bäume ──────────────────────────────────────────────────────────────────
-
-/** Baum 32×44 (eiche, kiefer); der Stamm steht unten mittig auf seinem Feld. */
-function baumBild(art, jz) {
-  return gecacht(`baum:${art}:${jz}`, () => {
-    const [c, g] = leinwand(32, 44);
-    R(g, 13, 30, 6, 14, '#7a5232'); R(g, 17, 30, 2, 14, '#5a3a22'); R(g, 14, 30, 1, 14, '#9a6e44');
-    P(g, 12, 43, '#7a5232'); P(g, 19, 43, '#7a5232');
-    if (art === 'kiefer') {
-      const gruen = jz === 'herbst' ? ['#2a5a3a', '#3a6e48', '#4a8458'] : ['#24603e', '#2f7a4c', '#46945e'];
-      for (const [y, w] of [[30, 13], [21, 11], [12, 8]]) {
-        POLY(g, [[16, y - 13], [16 - w, y + 1], [16 + w, y + 1]], gruen[0]);
-        POLY(g, [[16, y - 12], [16 - w + 2, y], [16 + w - 4, y]], gruen[1]);
-        L(g, 16, y - 11, 16 - w + 4, y - 1, gruen[2], 1);
-        if (jz === 'winter') { L(g, 16, y - 12, 16 - w + 2, y, '#f4f8fb', 1); L(g, 16, y - 12, 16 + w - 3, y - 1, '#e4ecf2', 1); }
-      }
-    } else if (jz === 'winter') {
-      const ast = '#6a4a30';
-      L(g, 16, 30, 16, 8, ast, 2); L(g, 16, 22, 7, 12, ast, 2); L(g, 16, 18, 25, 9, ast, 2);
-      L(g, 10, 15, 6, 6, ast, 1); L(g, 22, 12, 27, 5, ast, 1); L(g, 16, 12, 13, 4, ast, 1); L(g, 16, 12, 20, 3, ast, 1);
-      for (const [x, y] of [[7, 11], [25, 8], [13, 4], [20, 3], [16, 8], [6, 6], [27, 5]]) { P(g, x, y - 1, '#ffffff'); P(g, x + 1, y - 1, '#f0f4f8'); }
-    } else {
-      const p = LAUB[jz];
-      E(g, 16, 17, 14, 13, p.d); E(g, 9, 20, 7, 6, p.d); E(g, 23, 20, 7, 6, p.d);
-      E(g, 16, 15, 12.5, 11, p.b); E(g, 9.5, 19, 6, 5, p.b); E(g, 22.5, 19, 6, 5, p.b);
-      E(g, 12, 10, 5, 4, p.h); E(g, 21, 13, 3, 2.5, p.h);
-      for (let i = 0; i < 18; i++) P(g, 4 + Math.floor(hash(i, 3, art.length) * 24), 4 + Math.floor(hash(i, 7, 2) * 22), i % 2 ? p.d : p.h);
-      if (p.bluete) for (let i = 0; i < 10; i++) P(g, 5 + Math.floor(hash(i, 11, 1) * 22), 4 + Math.floor(hash(i, 13, 1) * 20), p.bluete);
-    }
-    return umriss(c);
-  });
-}
-
+// Darstellung der Bäume (wie das Objektbild „baum" aus „pflanzen"): Schatten, durchsichtig von hinten
 const BAUM_DARSTELLUNG = { tiefe: 0, schatten: [7, 2.5, -2], durchsichtig: [30, 40] };
-
-/** Fallende Bäume (S.fallend, von der Axt angestoßen). */
-zeichner({
-  name: 'fallend', ebene: 'welt', reihe: 45,
-  sammeln(ort, v) {
-    const teile = [];
-    for (const f of S.fallend) {
-      const bx = f.x * T + 8;
-      const by = (f.y + 1) * T;
-      if (!v.imBild(bx - 48, by - 48, 96, 56)) continue;
-      const bild = baumBild(f.art, v.jz);
-      teile.push({ y: by, f: (g) => {
-        const w = Math.min(1, f.t / 0.75);
-        g.save();
-        g.globalAlpha = f.t > 0.75 ? Math.max(0, 1 - (f.t - 0.75) / 0.35) : 1;
-        g.translate(bx, by - 4);
-        g.rotate(f.richtung * w * w * 1.45);
-        g.drawImage(bild, -16, -40);
-        g.restore();
-      } });
-    }
-    return teile;
-  },
-});
 
 // ─── Objekte auf der Karte ──────────────────────────────────────────────────
 
 objektKunst({
-  baum: { bild: (o, k) => baumBild(o.art || 'eiche', k.jz), ...BAUM_DARSTELLUNG },
-  stumpf: {
-    malen(g) {
-      R(g, 4, 8, 8, 6, '#7a5232'); R(g, 10, 8, 2, 6, '#5a3a22'); E(g, 8, 8, 4, 2, '#c8a070'); E(g, 8, 8, 2, 1, '#a8804e');
-      P(g, 3, 13, '#7a5232'); P(g, 12, 13, '#7a5232');
-    },
-  },
   grossstumpf: {
     malen(g) {
       R(g, 2, 6, 12, 9, '#6a4428'); R(g, 11, 6, 3, 9, '#4e3018'); E(g, 8, 6, 6, 2.5, '#c09464'); E(g, 8, 6, 3.5, 1.4, '#9a7046'); E(g, 8, 6, 1.2, 0.6, '#c09464');
@@ -193,8 +128,47 @@ objektKunst({
 
 // ─── Deko, die viele Karten teilen ──────────────────────────────────────────
 
+/** Holzzaun als Deko: waagerecht über w Felder oder senkrecht über h Felder; im Winter mit Schnee. */
+function zaunBild(b, h, jz) {
+  return gecacht(`basis:zaun:${b}:${h}:${jz}`, () => {
+    const [c, g] = leinwand(b * 16, h * 16 + 6);
+    const holz = '#a8784a';
+    const licht = '#c8986a';
+    const schatten = '#6e4626';
+    const schnee = jz === 'winter';
+    const pfosten = (x, y) => {
+      R(g, x, y, 4, 16, holz); R(g, x, y, 4, 1, licht); R(g, x + 3, y + 1, 1, 15, schatten); R(g, x + 1, y - 1, 2, 1, holz);
+      if (schnee) R(g, x, y - 1, 4, 1, '#ffffff');
+    };
+    if (h > 1 && b === 1) {
+      // senkrechter Zaun: zwei Latten von oben gesehen, dazwischen kräftige Pfosten
+      const lang = h * 16 - 6;
+      for (const x of [5, 10]) { R(g, x, 8, 1, lang, holz); R(g, x + 1, 8, 1, lang, schatten); }
+      for (let i = 0; i < h; i++) {
+        const y = i * 16 + 10;
+        R(g, 4, y, 8, 8, holz); R(g, 4, y, 8, 2, schnee ? '#ffffff' : licht); R(g, 11, y + 2, 1, 6, schatten); R(g, 4, y + 7, 8, 1, schatten);
+      }
+    } else {
+      const w = b * 16;
+      for (const y of [11, 16]) { R(g, 0, y, w, 2, holz); R(g, 0, y, w, 1, schnee ? '#ffffff' : licht); R(g, 0, y + 2, w, 1, schatten); }
+      for (let x = 2; x < w; x += 16) pfosten(x, 6);
+      pfosten(w - 4, 6);
+    }
+    return umriss(c);
+  });
+}
+
 dekoKunst({
-  baum: { bild: (d, k) => baumBild(hash(d.x, d.y, 1) < 0.3 ? 'kiefer' : 'eiche', k.jz), ...BAUM_DARSTELLUNG },
+  /** Baum als Kulisse; `art` wählt die Baumart (sonst Eiche oder Kiefer nach Lage). */
+  baum: { bild: (d, k) => objektBild({ t: 'baum', art: d.art ?? (hash(d.x, d.y, 1) < 0.3 ? 'kiefer' : 'eiche') }, k), ...BAUM_DARSTELLUNG },
+  zaun: { bild: (d, k) => zaunBild(d.w || 1, d.h || 1, k.jz) },
+  /** Theke über die volle Breite; mit Bierkrügen (art: 'krug' oder im Gasthaus), sonst mit Kasse und Papier. */
+  theke(g, d, { w, innen }) {
+    R(g, 0, 3, w, 6, '#a8784a'); R(g, 0, 3, w, 1, '#c8986a'); R(g, 0, 9, w, 7, '#6a4426');
+    for (let x = 6; x < w; x += 16) R(g, x, 10, 1, 6, '#4e3018');
+    if (d.art === 'krug' || innen === 'gasthaus') { for (const x of [10, 30, 58]) if (x < w) { R(g, x, 0, 4, 4, '#e8c870'); R(g, x, 0, 4, 1, '#ffffff'); } }
+    else { R(g, 5, 0, 8, 4, '#4a4a54'); R(g, 6, 1, 6, 1, '#9ad070'); R(g, 30, 1, 6, 3, '#e8dcc0'); }
+  },
   busch: {
     b: 16, h: 18,
     malen(g, d, { jz }) {

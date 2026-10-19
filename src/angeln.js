@@ -1,11 +1,66 @@
 // Angeln: Auswerfen mit Kraftbalken, Warten, Anbiss, dann der Drill —
 // den grünen Balken über dem zappelnden Fisch halten, bis die Leiste voll ist.
 // Welche Fische wo beißen, steht im Register (daten.js: fisch); Köder sind Items mit `koeder`.
+//
+// Dieses Modul gehört (wie mine.js) dem Bereich „angeln": Der Kern ruft es nicht auf. Der Bereich
+// startet das Angeln (angelnStart) und lässt es über den Hook `eingabe` laufen (angelnUpdate).
 
-import { T, ITEMS } from './daten.js';
+import { T, ITEMS, FISCHE, MUELL } from './daten.js';
 import { istWasser, hatWasser, wasserArt } from './karten.js';
 import { mod } from './system.js';
 import * as L from './logik.js';
+import { waehle } from './zufall.js';
+
+// ─── Fang wählen und geben ──────────────────────────────────────────────────
+
+/** Fang, der kein Fisch ist, für diese Gewässerart (sonst aus allen). */
+export function muellFuer(art) {
+  return MUELL[art]?.length ? MUELL[art] : Object.values(MUELL).flat();
+}
+
+/** Was an diesem Gewässer gerade anbeißt: { fisch } oder { muell }. */
+export function fischWaehlen(s, wasserArt, r = Math.random) {
+  const jz = L.jahreszeit(s);
+  const m = s.zeit.minute;
+  const uhr = Math.floor(m / 60) * 100 + (m % 60);
+  const wetter = L.regnet(s) ? 'regen' : 'sonne';
+  const pool = FISCHE.filter((f) => {
+    const d = f.fisch;
+    return d.orte.includes(wasserArt) && d.jz.includes(jz) && uhr >= d.zeit[0] && uhr < d.zeit[1] && (!d.wetter || d.wetter === wetter);
+  });
+  if (!pool.length || r() < 0.08) return { muell: waehle(r, muellFuer(wasserArt)) };
+  const gewicht = pool.map((f) => 110 - f.fisch.schwierigkeit);
+  let z = r() * gewicht.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < pool.length; i++) {
+    z -= gewicht[i];
+    if (z <= 0) return { fisch: pool[i] };
+  }
+  return { fisch: pool[pool.length - 1] };
+}
+
+/** Den Fang in den Rucksack (Qualität nach Angelstufe, perfekter Fang besser) und Erfahrung geben. */
+export function fangGeben(s, ort, id, perfekt, r = Math.random) {
+  const it = ITEMS[id];
+  const erg = L.neuesErgebnis();
+  const x = s.spieler.x;
+  const y = s.spieler.y;
+  if (it.kat !== 'fisch') {
+    L.geben(s, ort, x, y, { id, n: 1 }, erg);
+    L.xpGeben(s, 'angeln', 3, erg);
+    return erg;
+  }
+  const lvl = L.stufeWirksam(s, 'angeln');
+  const z = r();
+  let q = z < 0.03 + lvl * 0.03 ? 2 : z < 0.15 + lvl * 0.06 ? 1 : 0;
+  if (perfekt && q < 2 && r() < 0.5) q++;
+  L.geben(s, ort, x, y, { id, n: 1, q }, erg);
+  L.xpGeben(s, 'angeln', ((q + 1) * 3 + it.fisch.schwierigkeit / 3) * (perfekt ? 2 : 1), erg);
+  s.stats.gefangen++;
+  erg.q = q;
+  return erg;
+}
+
+// ─── Ablauf ─────────────────────────────────────────────────────────────────
 
 const klemme = (v, a, b) => Math.max(a, Math.min(b, v));
 
@@ -90,10 +145,10 @@ function auswerfen(S, fx) {
 
 function haken(S, fx) {
   const a = S.angeln;
-  const wahl = L.fischWaehlen(S.s, a.wasser);
+  const wahl = fischWaehlen(S.s, a.wasser);
   if (wahl.muell) { fang(S, fx, wahl.muell, false); return; }
   const f = wahl.fisch;
-  const lvl = L.stufe(S.s, 'angeln');
+  const lvl = L.stufeWirksam(S.s, 'angeln');
   a.phase = 'drill';
   a.t = 0;
   a.drill = {
@@ -132,7 +187,7 @@ function drill(S, dt, E, fx) {
 }
 
 function fang(S, fx, id, perfekt) {
-  const erg = L.fangGeben(S.s, S.ort, id, perfekt);
+  const erg = fangGeben(S.s, S.ort, id, perfekt);
   S.angeln = { phase: 'fang', t: 0, id, q: erg.q || 0 };
   fx.ton('fang');
   fx.ergebnis(erg);

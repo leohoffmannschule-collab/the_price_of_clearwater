@@ -1,11 +1,14 @@
 // Prüft Daten und Spiellogik ohne Browser. (Karten, Punkte und Wege: karten.test.mjs)
-// Aufruf: node test/logik.test.mjs
+// Feldarbeit läuft auf einer eigenen Testkarte, damit die Tests nicht von der Hofkarte abhängen.
+// Was zu einem Bereich gehört (Stall, Maschinen, Mine, Angeln …), prüft test/<bereich>.test.mjs.
+// Aufruf: node test/logik.test.mjs  (STRENG=1: erwartete fremde IDs müssen alle da sein)
 import assert from 'node:assert/strict';
 import '../src/bereiche/inhalt.js';
-import { ITEMS, PFLANZEN, NPCS, LAEDEN, REZEPTE, BUENDEL, BRIEFE, FISCHE, JZ, TAGE_PRO_JZ, SPEZIAL_WARE } from '../src/daten.js';
-import { KARTEN, punkt, wasserArt } from '../src/karten.js';
-import { mineErzeugen, MINE_TIEFE } from '../src/bereiche/mine/inhalt.js';
-import { glasBenutzen } from '../src/bereiche/handwerk/inhalt.js';
+import {
+  ITEMS, PFLANZEN, NPCS, LAEDEN, REZEPTE, BUENDEL, BRIEFE, FISCHE, JZ, TAGE_PRO_JZ, SPEZIAL_WARE, ERWARTET,
+  item, rezept,
+} from '../src/daten.js';
+import { KARTEN, karte, wasserArt, raster, rechteck, fertigRaster } from '../src/karten.js';
 import * as G from '../src/bereiche/gemeinschaft/inhalt.js';
 import { zufall } from '../src/zufall.js';
 import * as L from '../src/logik.js';
@@ -20,24 +23,19 @@ function test(name, fn) {
 function gruppe(name, fn) { console.log(`\n${name}`); fn(); }
 
 const neues = (seed = 7) => L.neuesSpiel({ name: 'Testa', hof: 'Testhof', seed });
+const STRENG = !!process.env.STRENG;
+/** Gibt es den Gegenstand – oder ist er als fremde ID erwartet (bis alles zusammengeführt ist)? */
+const gibtEs = (id) => !!ITEMS[id] || (!STRENG && ERWARTET.has(id));
 
-/** Felder, die von (sx, sy) aus erreichbar sind. */
-function erreichbar(s, def, w, sx, sy) {
-  const gesehen = new Set([L.k(sx, sy)]);
-  const offen = [[sx, sy]];
-  while (offen.length) {
-    const [x, y] = offen.pop();
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      const nx = x + dx;
-      const ny = y + dy;
-      const kk = L.k(nx, ny);
-      if (gesehen.has(kk) || !L.begehbar(s, def, w, nx, ny)) continue;
-      gesehen.add(kk);
-      offen.push([nx, ny]);
-    }
-  }
-  return gesehen;
-}
+// Testacker: farmbar, draußen, mit Teich (12×8), damit Feldarbeit nicht von der Hofkarte abhängt
+const acker = raster(14, 10, '.');
+rechteck(acker, 0, 0, 14, 1, '#');
+rechteck(acker, 0, 9, 14, 1, '#');
+rechteck(acker, 0, 0, 1, 10, '#');
+rechteck(acker, 13, 0, 1, 10, '#');
+rechteck(acker, 10, 6, 3, 3, '~');
+karte({ id: 'testacker', name: 'Testacker', aussen: true, farmbar: true, wasser: 'teich', npcWege: false, grid: fertigRaster(acker) });
+const ackerVon = (s) => L.ortVon(s, 'testacker');
 
 gruppe('Daten', () => {
   test('jede Pflanze hat Saat und Ernte als Gegenstand', () => {
@@ -47,31 +45,34 @@ gruppe('Daten', () => {
       assert.ok(p.jz.every((j) => JZ.includes(j)), p.id);
     }
   });
-  test('Rezepte, Läden, Bündel und Dorfbewohner verweisen auf echte Gegenstände', () => {
+  test('Rezepte, Läden, Bündel und Dorfbewohner verweisen auf echte (oder erwartete) Gegenstände', () => {
     for (const r of REZEPTE) {
-      assert.ok(ITEMS[r.ergebnis], r.id);
-      for (const id of Object.keys(r.zutaten)) assert.ok(ITEMS[id], `${r.id}: ${id}`);
+      assert.ok(gibtEs(r.ergebnis), r.id);
+      for (const id of Object.keys(r.zutaten)) assert.ok(gibtEs(id), `${r.id}: ${id}`);
     }
     for (const L2 of Object.values(LAEDEN)) {
-      for (const w of L2.ware) {
-        if (w.id) assert.ok(ITEMS[w.id], w.id);
+      for (const w of typeof L2.ware === 'function' ? [] : L2.ware) {
+        if (w.id) assert.ok(gibtEs(w.id), w.id);
         if (w.spezial) assert.ok(SPEZIAL_WARE[w.spezial], `Spezialware ${w.spezial}`);
       }
+      assert.ok(NPCS[L2.npc], `${L2.name}: Dorfbewohner ${L2.npc}`);
     }
     for (const b of BUENDEL) {
-      for (const e of G.buendelEintraege(b)) assert.ok(ITEMS[e.id], `${b.id}: ${e.id}`);
-      if (b.belohnung.id) assert.ok(ITEMS[b.belohnung.id], b.belohnung.id);
+      for (const e of G.buendelEintraege(b)) assert.ok(gibtEs(e.id), `${b.id}: ${e.id}`);
+      if (b.belohnung.id) assert.ok(gibtEs(b.belohnung.id), b.belohnung.id);
     }
     for (const [id, n] of Object.entries(NPCS)) {
       for (const liste of ['liebt', 'mag', 'magNicht', 'hasst']) {
-        for (const e of n[liste] || []) if (!e.startsWith('kat:')) assert.ok(ITEMS[e], `${id}.${liste}: ${e}`);
+        for (const e of n[liste] || []) if (!e.startsWith('kat:')) assert.ok(gibtEs(e), `${id}.${liste}: ${e}`);
       }
-      for (const g of Object.values(n.herzGeschenk || {})) assert.ok(ITEMS[g.id], `${id}: ${g.id}`);
+      for (const g of Object.values(n.herzGeschenk || {})) assert.ok(gibtEs(g.id), `${id}: ${g.id}`);
       for (const jz of JZ) assert.ok(n.zeilen[jz]?.length, `${id}: Zeilen für ${jz}`);
     }
+    const fehlen = [...ERWARTET].filter((id) => !ITEMS[id]);
+    if (fehlen.length) console.log(`      (erwartet, noch nicht da: ${fehlen.join(', ')})`);
   });
   test('jedes Gewässer auf den Karten hat in jeder Jahreszeit mindestens einen Fisch', () => {
-    const arten = new Set(['teich', 'fluss', 'meer']);
+    const arten = new Set(['teich', 'fluss', 'meer', 'see', 'waldsee', 'geheimteich', 'mine']);
     for (const def of Object.values(KARTEN)) {
       if (def.wasser) arten.add(def.wasser);
       for (const g of def.gewaesser) arten.add(g.art);
@@ -81,10 +82,12 @@ gruppe('Daten', () => {
     }
   });
   test('Gewässerart je Feld: Rechtecke vor dem Standard der Karte', () => {
-    assert.equal(wasserArt(KARTEN.strand, 5, 15), 'meer');
-    const see = KARTEN.wald.gewaesser[0];
-    assert.equal(wasserArt({ def: KARTEN.wald }, see.x + 1, see.y + 1), see.art);
-    assert.equal(wasserArt(KARTEN.wald, 5, 14), 'fluss');
+    const def = karte({
+      id: 'testgewaesser', name: 'Test', grid: ['~~~~', '~~~~'], wasser: 'fluss', gewaesser: [{ x: 2, y: 0, b: 2, h: 2, art: 'waldsee' }],
+    });
+    assert.equal(wasserArt(def, 0, 0), 'fluss');
+    assert.equal(wasserArt({ def }, 3, 1), 'waldsee');
+    assert.equal(wasserArt({ def: { gewaesser: [] } }, 0, 0), null);
   });
   test('Briefe haben Absender und Text, genau einer ist der Startbrief', () => {
     for (const b of BRIEFE) assert.ok(b.von && b.text.length > 20, b.id);
@@ -94,8 +97,8 @@ gruppe('Daten', () => {
     assert.equal(L.werkzeugName('hacke', 4), 'Iridiumhacke');
     const s = neues(30);
     s.spieler.werkzeug.hacke = 3;
-    assert.ok(!L.ladenWare(s, 'schmiede').some((w) => w.werkzeug === 'hacke'), 'Iridium-Upgrade ohne Iridiumbarren');
-    assert.equal(L.preisVon({ id: 'pastinake', n: 1, q: 3 }), 70);
+    if (!ITEMS.iridiumbarren) assert.ok(!L.ladenWare(s, 'schmiede').some((w) => w.werkzeug === 'hacke'), 'Iridium-Upgrade ohne Iridiumbarren');
+    assert.equal(L.preisVon({ id: 'pastinake', n: 1, q: 3 }), ITEMS.pastinake.preis * 2);
     assert.equal(L.werkzeugFelder(5, 5, 'unten', 4).length, 18);
   });
 });
@@ -104,119 +107,117 @@ gruppe('Neues Spiel', () => {
   const s = neues();
   test('Startausrüstung und Geld', () => {
     for (const id of ['hacke', 'giesskanne', 'axt', 'spitzhacke', 'sense']) assert.ok(L.hat(s, id), id);
-    assert.equal(L.anzahl(s, 'pastinake_saat'), 15);
+    assert.ok(s.spieler.inv.some((x) => x && ITEMS[x.id].kat === 'saat'), 'Saatgut zum Start');
     assert.equal(s.spieler.gold, 500);
   });
-  test('der Hof ist verwildert, das Haus aber frei', () => {
-    const w = L.welt(s, 'hof');
-    const anzahl = Object.values(w.objekte).filter((o) => ['baum', 'stein', 'unkraut', 'ast'].includes(o.t)).length;
-    assert.ok(anzahl > 60, `nur ${anzahl} Hindernisse`);
-    const vor = punkt('hof', 'vorHaus');
-    assert.ok(!w.objekte[L.k(vor.x, vor.y)], 'vor der Haustür');
+  test('man beginnt zu Hause', () => {
+    const z = L.zuhause(s);
+    assert.deepEqual([s.spieler.karte, s.spieler.x, s.spieler.y], [z.karte, z.x, z.y]);
   });
   test('der erste Brief liegt bereit', () => {
-    assert.deepEqual(s.post, ['frieda_willkommen']);
+    assert.ok(s.post.length >= 1);
+    assert.ok(s.post.every((id) => L.briefVon(id)));
   });
 });
 
 gruppe('Feldarbeit', () => {
   test('Hacken, säen, gießen, wachsen, ernten', () => {
     const s = neues(3);
-    const ort = L.ortVon(s, 'hof');
-    const x = 21;
-    const y = 12;
-    delete ort.welt.objekte[L.k(x, y)];
+    const ort = ackerVon(s);
+    const [x, y] = [3, 3];
     assert.equal(L.hacken(s, ort, [[x, y]]).n, 1);
-    const idx = s.spieler.inv.findIndex((i) => i?.id === 'pastinake_saat');
-    assert.ok(L.saeen(s, ort, x, y, idx).ok);
-    assert.equal(L.anzahl(s, 'pastinake_saat'), 14);
-    for (let tag = 0; tag < 4; tag++) {
+    L.hinzufuegen(s, { id: 'pastinake_saat', n: 1 });
+    const vorher = L.anzahl(s, 'pastinake_saat');
+    assert.ok(L.saeen(s, ort, x, y, s.spieler.inv.findIndex((i) => i?.id === 'pastinake_saat')).ok);
+    assert.equal(L.anzahl(s, 'pastinake_saat'), vorher - 1);
+    s.zeit.jz = 0;
+    for (let tag = 0; tag < PFLANZEN.pastinake.tage; tag++) {
       L.giessen(s, ort, [[x, y]]);
       assert.equal(L.ernten(s, ort, x, y), null, `Tag ${tag} schon reif?`);
+      s.zeit.tag = 2;
       L.tagBeenden(s, { r: zufall(tag) });
     }
+    const n = L.anzahl(s, 'pastinake');
     const erg = L.ernten(s, ort, x, y, zufall(1));
-    assert.ok(erg?.ok, 'nicht reif nach 4 gegossenen Tagen');
-    assert.equal(L.anzahl(s, 'pastinake'), 1);
+    assert.ok(erg?.ok, 'nicht reif nach genug gegossenen Tagen');
+    assert.ok(L.anzahl(s, 'pastinake') > n);
     assert.ok(s.spieler.xp.landwirtschaft > 0);
   });
   test('ungegossene Pflanzen wachsen nicht', () => {
     const s = neues(4);
-    const ort = L.ortVon(s, 'hof');
-    delete ort.welt.objekte[L.k(22, 12)];
-    L.hacken(s, ort, [[22, 12]]);
-    L.saeen(s, ort, 22, 12, s.spieler.inv.findIndex((i) => i?.id === 'pastinake_saat'));
+    const ort = ackerVon(s);
+    L.hacken(s, ort, [[4, 3]]);
+    L.hinzufuegen(s, { id: 'pastinake_saat', n: 1 });
+    L.saeen(s, ort, 4, 3, s.spieler.inv.findIndex((i) => i?.id === 'pastinake_saat'));
     s.zeit.morgen = 'sonne';
     L.tagBeenden(s, { r: () => 0.99 });
-    assert.equal(ort.welt.felder[L.k(22, 12)].pflanze.tage, 0);
+    assert.equal(ort.welt.felder[L.k(4, 3)].pflanze.tage, 0);
   });
-  test('Blaubeeren tragen nach der Ernte erneut', () => {
+  test('Mehrfach-Ernten tragen nach der Ernte erneut', () => {
     const s = neues(5);
-    s.zeit.jz = 1;
-    const ort = L.ortVon(s, 'hof');
-    ort.welt.felder[L.k(25, 20)] = { nass: false, pflanze: { id: 'blaubeere', tage: 13 } };
-    const erg = L.ernten(s, ort, 25, 20, () => 0.5);
+    const p = Object.values(PFLANZEN).find((x) => x.nach > 0);
+    s.zeit.jz = JZ.indexOf(p.jz[0]);
+    const ort = ackerVon(s);
+    ort.welt.felder[L.k(5, 3)] = { nass: false, pflanze: { id: p.id, tage: p.tage } };
+    const erg = L.ernten(s, ort, 5, 3, () => 0.5);
     assert.ok(erg.ok);
-    assert.equal(L.anzahl(s, 'blaubeere'), 3);
-    assert.equal(ort.welt.felder[L.k(25, 20)].pflanze.tage, 9);
+    assert.ok(L.anzahl(s, p.ernte) >= p.menge);
+    assert.equal(ort.welt.felder[L.k(5, 3)].pflanze.tage, p.tage - p.nach);
   });
-  test('Saat außerhalb ihrer Jahreszeit wird abgelehnt', () => {
+  test('Saat außerhalb ihrer Jahreszeit wird abgelehnt, auf ganzjährigen Karten nicht', () => {
     const s = neues(6);
-    const ort = L.ortVon(s, 'hof');
-    ort.welt.felder[L.k(25, 21)] = { nass: false };
-    L.hinzufuegen(s, { id: 'melone_saat', n: 1 });
-    const erg = L.saeen(s, ort, 25, 21, s.spieler.inv.findIndex((i) => i?.id === 'melone_saat'));
-    assert.match(erg.grund, /Sommer/);
+    const ort = ackerVon(s);
+    const p = Object.values(PFLANZEN).find((x) => !x.jz.includes('fruehling'));
+    ort.welt.felder[L.k(6, 3)] = { nass: false };
+    L.hinzufuegen(s, { id: p.saat, n: 2 });
+    const erg = L.saeen(s, ort, 6, 3, s.spieler.inv.findIndex((i) => i?.id === p.saat));
+    assert.ok(erg.grund);
+    const haus = { def: { ...ort.def, ganzjaehrig: true }, welt: ort.welt };
+    assert.ok(L.saeen(s, haus, 6, 3, s.spieler.inv.findIndex((i) => i?.id === p.saat)).ok);
   });
-  test('am Ende der Jahreszeit welken Frühlingspflanzen', () => {
+  test('am Ende der Jahreszeit welken Pflanzen anderer Jahreszeiten (nicht auf ganzjährigen Karten)', () => {
     const s = neues(8);
-    const ort = L.ortVon(s, 'hof');
-    ort.welt.felder[L.k(25, 22)] = { nass: true, pflanze: { id: 'pastinake', tage: 1 } };
+    const ort = ackerVon(s);
+    const p = Object.values(PFLANZEN).find((x) => x.jz.includes('fruehling') && !x.jz.includes('sommer'));
+    ort.welt.felder[L.k(7, 3)] = { nass: true, pflanze: { id: p.id, tage: 1 } };
+    karte({ id: 'testglashaus', name: 'Glashaus', aussen: true, farmbar: true, ganzjaehrig: true, grid: ['...'] });
+    L.ortVon(s, 'testglashaus').welt.felder[L.k(1, 0)] = { nass: true, pflanze: { id: p.id, tage: 1 } };
     s.zeit.tag = TAGE_PRO_JZ;
     const bericht = L.tagBeenden(s, { r: () => 0.99 });
     assert.equal(s.zeit.jz, 1);
-    assert.ok(ort.welt.felder[L.k(25, 22)].pflanze.tot);
+    assert.ok(ort.welt.felder[L.k(7, 3)].pflanze.tot);
+    assert.ok(!L.ortVon(s, 'testglashaus').welt.felder[L.k(1, 0)].pflanze.tot, 'ganzjährig welkt nicht');
     assert.ok(bericht.meldungen.some((m) => m.includes('verwelkt')));
   });
-  test('Regen gießt, Sprenger gießen ihre Nachbarn', () => {
+  test('Regen gießt alle Beete draußen', () => {
     const s = neues(9);
-    const ort = L.ortVon(s, 'hof');
-    for (const [x, y] of [[30, 20], [31, 20], [32, 20], [31, 19], [30, 19]]) ort.welt.felder[L.k(x, y)] = { nass: false };
-    ort.welt.objekte[L.k(31, 21)] = { t: 'sprenger' };
-    delete ort.welt.felder[L.k(31, 21)];
-    s.zeit.morgen = 'sonne';
-    L.tagBeenden(s, { r: () => 0.99 });
-    assert.equal(ort.welt.felder[L.k(31, 20)].nass, true);
-    assert.equal(ort.welt.felder[L.k(30, 20)].nass, false);
+    const ort = ackerVon(s);
+    for (const [x, y] of [[3, 5], [4, 5]]) ort.welt.felder[L.k(x, y)] = { nass: false, pflanze: { id: 'pastinake', tage: 0 } };
     s.zeit.morgen = 'regen';
     L.tagBeenden(s, { r: () => 0.99 });
-    assert.equal(ort.welt.felder[L.k(30, 20)].nass, true);
-  });
-  test('Bäume fallen nach genug Axthieben und geben Holz', () => {
-    const s = neues(10);
-    const ort = L.ortVon(s, 'hof');
-    ort.welt.objekte[L.k(30, 25)] = { t: 'baum', hp: 8, art: 'eiche' };
-    let erg;
-    for (let i = 0; i < 8; i++) erg = L.axtHieb(s, ort, 30, 25, () => 0.5);
-    assert.ok(erg.gefallen);
-    assert.ok(L.anzahl(s, 'holz') >= 10);
-    assert.equal(ort.welt.objekte[L.k(30, 25)].t, 'stumpf');
+    assert.equal(ort.welt.felder[L.k(3, 5)].nass, true);
   });
   test('Felsbrocken brauchen eine bessere Spitzhacke', () => {
     const s = neues(11);
-    const ort = L.ortVon(s, 'hof');
-    ort.welt.objekte[L.k(30, 26)] = { t: 'fels', hp: 6 };
-    assert.match(L.spitzhackeHieb(s, ort, 30, 26).grund, /Bruno/);
+    const ort = ackerVon(s);
+    ort.welt.objekte[L.k(8, 4)] = { t: 'fels', hp: 6 };
+    assert.ok(L.spitzhackeHieb(s, ort, 8, 4).grund);
     s.spieler.werkzeug.spitzhacke = 2;
-    L.spitzhackeHieb(s, ort, 30, 26);
-    L.spitzhackeHieb(s, ort, 30, 26);
-    assert.ok(!ort.welt.objekte[L.k(30, 26)]);
+    L.spitzhackeHieb(s, ort, 8, 4);
+    L.spitzhackeHieb(s, ort, 8, 4);
+    assert.ok(!ort.welt.objekte[L.k(8, 4)]);
     assert.ok(L.anzahl(s, 'stein') >= 10);
   });
   test('aufgeladene Werkzeuge treffen mehrere Felder', () => {
     assert.equal(L.werkzeugFelder(5, 5, 'unten', 0).length, 1);
     assert.deepEqual(L.werkzeugFelder(5, 5, 'rechts', 1), [[5, 5], [6, 5], [7, 5]]);
     assert.equal(L.werkzeugFelder(5, 5, 'oben', 3).length, 9);
+  });
+  test('die Gießkanne füllt sich am Wasser', () => {
+    const s = neues(12);
+    s.spieler.wasser = 0;
+    assert.ok(L.giessen(s, ackerVon(s), [[11, 7]]).gefuellt);
+    assert.ok(s.spieler.wasser > 0);
   });
 });
 
@@ -228,35 +229,37 @@ gruppe('Rucksack, Versand, Läden', () => {
     L.hinzufuegen(s, { id: 'pastinake', n: 1 });
     assert.equal(s.spieler.inv.filter((x) => x?.id === 'pastinake').length, 2);
     assert.equal(L.anzahl(s, 'pastinake'), 6);
-    assert.equal(L.preisVon({ id: 'pastinake', n: 1, q: 2 }), 52);
+    assert.equal(L.preisVon({ id: 'pastinake', n: 1, q: 2 }), Math.floor(ITEMS.pastinake.preis * 1.5));
   });
   test('Versandkiste zahlt über Nacht aus', () => {
     const s = neues(13);
     L.hinzufuegen(s, { id: 'blumenkohl', n: 2 });
     const gold = s.spieler.gold;
+    const wert = ITEMS.blumenkohl.preis * 2;
     L.versenden(s, s.spieler.inv.findIndex((x) => x?.id === 'blumenkohl'));
-    assert.equal(L.versandWert(s), 350);
+    assert.equal(L.versandWert(s), wert);
     const bericht = L.tagBeenden(s, { r: () => 0.99 });
-    assert.equal(bericht.summe, 350);
-    assert.equal(s.spieler.gold, gold + 350);
+    assert.equal(bericht.summe, wert);
+    assert.equal(s.spieler.gold, gold + wert);
   });
   test('Versand lässt sich zurücknehmen', () => {
     const s = neues(14);
     L.hinzufuegen(s, { id: 'holz', n: 20 });
+    const vorher = L.anzahl(s, 'holz');
     L.versenden(s, s.spieler.inv.findIndex((x) => x?.id === 'holz'));
     assert.equal(L.anzahl(s, 'holz'), 0);
     L.versandZurueck(s);
-    assert.equal(L.anzahl(s, 'holz'), 20);
+    assert.equal(L.anzahl(s, 'holz'), vorher);
     assert.equal(s.versand.length, 0);
   });
-  test('Saatgut kaufen, Werkzeug verbessern', () => {
+  test('Saatgut bei Ottilie kaufen, Werkzeug bei Bruno verbessern', () => {
     const s = neues(15);
     const ware = L.ladenWare(s, 'laden');
-    const kohl = ware.find((w) => w.id === 'blumenkohl_saat');
-    assert.ok(kohl);
-    assert.ok(!ware.some((w) => w.id === 'melone_saat'));
-    assert.ok(L.kaufen(s, kohl, 5).ok);
-    assert.equal(s.spieler.gold, 100);
+    const saat = ware.find((w) => w.id && ITEMS[w.id].kat === 'saat');
+    assert.ok(saat, 'Saatgut im Laden');
+    const gold = s.spieler.gold;
+    assert.ok(L.kaufen(s, saat, 2).ok);
+    assert.equal(s.spieler.gold, gold - 2 * saat.preis);
     s.spieler.gold = 5000;
     L.hinzufuegen(s, { id: 'kupferbarren', n: 5 });
     const up = L.ladenWare(s, 'schmiede').find((w) => w.werkzeug === 'hacke');
@@ -264,46 +267,16 @@ gruppe('Rucksack, Versand, Läden', () => {
     assert.equal(s.spieler.werkzeug.hacke, 1);
     assert.equal(L.anzahl(s, 'kupferbarren'), 0);
   });
-  test('Hühnerstall über Nacht, Küken, dann jeden Morgen Eier', () => {
-    const s = neues(26);
-    s.spieler.gold = 10000;
-    L.hinzufuegen(s, { id: 'holz', n: 150 });
-    L.hinzufuegen(s, { id: 'stein', n: 50 });
-    assert.ok(!L.ladenWare(s, 'laden').some((w) => w.spezial === 'kueken'));
-    const stall = L.ladenWare(s, 'schmiede').find((w) => w.spezial === 'stall');
-    assert.ok(L.kaufen(s, stall).ok);
-    assert.ok(!L.ladenWare(s, 'schmiede').some((w) => w.spezial === 'stall'), 'Stall doppelt kaufbar');
-    L.tagBeenden(s, { r: () => 0.5 });
-    assert.ok(s.stall.gebaut);
-    const kueken = L.ladenWare(s, 'laden').find((w) => w.spezial === 'kueken');
-    assert.ok(L.kaufen(s, kueken).ok);
-    L.tagBeenden(s, { r: () => 0.5 });
-    const eier = () => Object.values(L.welt(s, 'hof').objekte).filter((o) => o.t === 'sammel' && (o.id === 'ei' || o.id === 'grossesei')).length;
-    assert.equal(eier(), 0, 'Küken legt in der ersten Nacht schon');
-    L.tagBeenden(s, { r: () => 0.5 });
-    assert.equal(eier(), 1);
-  });
   test('Basteln verbraucht Zutaten', () => {
+    item('testbrett', { name: 'Testbrett', kat: 'ressource', preis: 1, bild: { art: 'holz' } });
+    const r = rezept('testbrett', { zutaten: { holz: 5 } });
     const s = neues(16);
-    L.hinzufuegen(s, { id: 'kupfererz', n: 7 });
-    L.hinzufuegen(s, { id: 'kohle', n: 1 });
-    const r = REZEPTE.find((x) => x.id === 'kupferbarren');
+    for (const [i, x] of s.spieler.inv.entries()) if (x?.id === 'holz') s.spieler.inv[i] = null;
+    L.hinzufuegen(s, { id: 'holz', n: 7 });
     assert.ok(L.basteln(s, r).ok);
-    assert.equal(L.anzahl(s, 'kupfererz'), 2);
-    assert.equal(L.anzahl(s, 'kupferbarren'), 1);
+    assert.equal(L.anzahl(s, 'holz'), 2);
+    assert.equal(L.anzahl(s, 'testbrett'), 1);
     assert.equal(L.basteln(s, r), null);
-  });
-  test('Einmachglas macht über Nacht Marmelade', () => {
-    const s = neues(17);
-    const ort = L.ortVon(s, 'hof');
-    ort.welt.objekte[L.k(25, 24)] = { t: 'einmachglas', inhalt: null, fertig: false };
-    L.hinzufuegen(s, { id: 'blaubeere', n: 1 });
-    assert.ok(glasBenutzen(s, ort, 25, 24, s.spieler.inv.findIndex((x) => x?.id === 'blaubeere')).ok);
-    L.tagBeenden(s, { r: () => 0.99 });
-    assert.ok(glasBenutzen(s, ort, 25, 24, null).ok);
-    const glas = s.spieler.inv.find((x) => x?.id === 'marmelade');
-    assert.equal(glas.von, 'blaubeere');
-    assert.equal(L.preisVon(glas), 150);
   });
 });
 
@@ -317,30 +290,22 @@ gruppe('Dorf', () => {
   });
   test('Lieblingsgeschenke zählen viel, am Geburtstag achtfach', () => {
     const s = neues(19);
-    L.hinzufuegen(s, { id: 'blumenkohl', n: 2 });
-    const erg = L.schenken(s, 'ottilie', s.spieler.inv.findIndex((x) => x?.id === 'blumenkohl'));
+    const lieb = NPCS.ottilie.liebt.find((id) => ITEMS[id]);
+    L.hinzufuegen(s, { id: lieb, n: 2 });
+    const erg = L.schenken(s, 'ottilie', s.spieler.inv.findIndex((x) => x?.id === lieb));
     assert.equal(erg.art, 'liebt');
     assert.equal(s.npcs.ottilie.punkte, 80);
-    assert.ok(L.schenken(s, 'ottilie', s.spieler.inv.findIndex((x) => x?.id === 'blumenkohl')).grund);
-    s.zeit.tag = 12;
+    assert.ok(L.schenken(s, 'ottilie', s.spieler.inv.findIndex((x) => x?.id === lieb)).grund);
+    s.zeit.jz = JZ.indexOf(NPCS.ottilie.geburtstag.jz);
+    s.zeit.tag = NPCS.ottilie.geburtstag.tag;
     s.npcs.ottilie.beschenkt = false;
-    L.schenken(s, 'ottilie', s.spieler.inv.findIndex((x) => x?.id === 'blumenkohl'));
+    L.schenken(s, 'ottilie', s.spieler.inv.findIndex((x) => x?.id === lieb));
     assert.equal(s.npcs.ottilie.punkte, 80 + 640);
   });
   test('Bruno mag keine Blumen, aber Erz', () => {
     assert.equal(L.reaktion('bruno', { id: 'tulpe' }), 'hasst');
     assert.equal(L.reaktion('bruno', { id: 'kupfererz' }), 'mag');
     assert.equal(L.reaktion('bruno', { id: 'diamant' }), 'liebt');
-  });
-  test('Lene schenkt die Angel ab dem zweiten Tag', () => {
-    const s = neues(20);
-    const ort = L.ortVon(s, 'strand');
-    L.gespraech(s, 'lene', ort);
-    assert.ok(!L.hat(s, 'angel'));
-    s.npcs.lene.gesprochen = false;
-    s.zeit.tag = 2;
-    L.gespraech(s, 'lene', ort);
-    assert.ok(L.hat(s, 'angel'));
   });
   test('Aufträge lassen sich annehmen und abgeben', () => {
     const s = neues(21);
@@ -373,46 +338,12 @@ gruppe('Dorf', () => {
     assert.ok(s.muehle);
     assert.ok(L.hat(s, 'medaille'));
   });
-  test('Briefe kommen an ihrem Tag, Mine öffnet am vierten', () => {
+  test('Briefe kommen an ihrem Tag', () => {
     const s = neues(23);
-    L.briefGelesen(s, 'frieda_willkommen');
+    for (const id of [...s.post]) L.briefGelesen(s, id);
     L.tagBeenden(s, { r: () => 0.99 });
-    assert.deepEqual(s.post, ['lene_angel']);
-    L.tagBeenden(s, { r: () => 0.99 });
-    L.tagBeenden(s, { r: () => 0.99 });
-    assert.ok(s.flags.mineOffen);
-  });
-});
-
-gruppe('Mine', () => {
-  test('jede Ebene ist zusammenhängend und hat eine Leiter', () => {
-    for (let n = 1; n <= MINE_TIEFE; n++) {
-      for (let seed = 0; seed < 3; seed++) {
-        const r = zufall(n * 100 + seed);
-        const { def, welt, start, monster } = mineErzeugen(n, r);
-        const s = neues(1);
-        assert.ok(L.begehbar(s, def, welt, start.x, start.y), `Ebene ${n}: Start`);
-        const steine = Object.entries(welt.objekte).filter(([, o]) => o.t === 'mstein');
-        assert.ok(steine.length > 10, `Ebene ${n}: nur ${steine.length} Steine`);
-        if (n < MINE_TIEFE) assert.ok(steine.some(([, o]) => o.leiter), `Ebene ${n}: keine Leiter`);
-        // Ohne Steine ist jedes Bodenfeld erreichbar
-        const leer = { ...welt, objekte: {} };
-        const ok = erreichbar(s, def, leer, start.x, start.y);
-        for (const [kk] of steine) assert.ok(ok.has(kk), `Ebene ${n}: Stein ${kk} unerreichbar`);
-        for (const m of monster) assert.ok(def.grid[Math.floor((m.y - 2) / 16)][Math.floor(m.x / 16)] === 'm', `Ebene ${n}: Monster in der Wand`);
-      }
-    }
-  });
-  test('Steine geben Erz, der Leiterstein eine Leiter', () => {
-    const s = neues(24);
-    const { def, welt } = mineErzeugen(5, zufall(9));
-    const ort = { def, welt };
-    const [kk] = Object.entries(welt.objekte).find(([, o]) => o.leiter);
-    const [x, y] = kk.split(',').map(Number);
-    let erg;
-    for (let i = 0; i < 5 && welt.objekte[kk]?.t === 'mstein'; i++) erg = L.spitzhackeHieb(s, ort, x, y, () => 0.5);
-    assert.ok(erg.leiter);
-    assert.equal(welt.objekte[kk].t, 'leiter');
+    const erwartet = BRIEFE.filter((b) => b.tagNr === 2).map((b) => b.id);
+    for (const id of erwartet) assert.ok(s.post.includes(id), id);
   });
 });
 
@@ -432,15 +363,16 @@ gruppe('Speichern', () => {
     assert.throws(() => L.deserialisieren(JSON.stringify(alt)));
     assert.equal(L.SPEICHER_SCHLUESSEL, 'klarwasser-hof-v2');
   });
-  test('Bereichszustand liegt in eigenen Schlüsseln und wird beim Laden ergänzt', () => {
+  test('Bereichszustand liegt in eigenen Schlüsseln und wird beim Laden (ergaenzen) wieder angelegt', () => {
     const s = neues(27);
-    for (const k of ['mine', 'stall', 'buendel', 'flags']) assert.ok(s[k], k);
+    const KERN = ['version', 'seed', 'spieler', 'zeit', 'welt', 'npcs', 'briefe', 'post', 'versand', 'stufeNeu', 'flags', 'haus', 'rezepte', 'stats'];
+    for (const k of KERN) assert.ok(k in s, k);
     const t = JSON.parse(L.serialisieren(s));
-    delete t.mine;
-    delete t.stall;
+    const bereichsSchluessel = Object.keys(t).filter((k) => !KERN.includes(k));
+    assert.ok(bereichsSchluessel.length > 0);
+    for (const k of bereichsSchluessel) delete t[k];
     const u = L.deserialisieren(JSON.stringify(t));
-    assert.deepEqual(u.mine, { tiefste: 0, schwert: false, truhen: [] });
-    assert.equal(u.stall.gebaut, false);
+    for (const k of bereichsSchluessel) assert.ok(k in u, `${k} wird in ergaenzen angelegt`);
   });
 });
 

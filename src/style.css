@@ -305,6 +305,9 @@ body.touch #touch { display: block; }
   overflow: hidden;
 }
 .tknopf.gross { width: 94px; height: 94px; background: linear-gradient(var(--messing-hell), var(--messing)); color: var(--tinte); font-weight: 700; font-size: 15px; }
+/* Lange Hinweise: der runde Knopf wird zur Pille und bricht zwischen Wörtern um */
+.tknopf.lang { width: auto; min-width: 76px; max-width: 136px; border-radius: 38px; padding: 4px 12px; }
+.tknopf.sehrlang { font-size: 11px; }
 .tknopf.klein { grid-column: 1 / -1; justify-self: end; width: 72px; height: 40px; border-radius: 20px; }
 body.touch #hotbar { bottom: calc(env(safe-area-inset-bottom, 0px) + 158px); }
 body.touch #hinweis { bottom: calc(env(safe-area-inset-bottom, 0px) + 170px + var(--slot)); }
@@ -319,6 +322,7 @@ body.touch .slot .taste { display: none; }
   body.touch #funde { bottom: calc(var(--unten) + var(--slot) + 64px); left: calc(var(--rand) + 140px); }
   #stick { width: 110px; height: 110px; }
   .tknopf { width: 66px; height: 66px; }
+  .tknopf.lang { width: auto; min-width: 66px; border-radius: 33px; }
   .tknopf.gross { width: 82px; height: 82px; }
   .leiste { height: 110px; }
 }
@@ -459,8 +463,6 @@ body.touch .slot .taste { display: none; }
 .zutat.ok { color: var(--gut); }
 .zutat img { width: 18px; height: 18px; image-rendering: pixelated; }
 .preis { font-family: var(--etikett); font-size: 13px; color: var(--messing-hell); white-space: nowrap; min-width: 64px; text-align: right; }
-.menge { display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; min-width: 92px; justify-content: center; }
-.menge span { min-width: 2ch; text-align: center; }
 .stufe-zahl {
   width: 44px;
   height: 44px;
@@ -489,31 +491,17 @@ body.touch .slot .taste { display: none; }
 .portraet-klein { width: 56px; height: 56px; flex: none; background: var(--mulde); border-radius: 4px; }
 .freund .herzen { justify-content: flex-start; margin: 4px 0; }
 .auftrag img { width: 32px; height: 32px; image-rendering: pixelated; }
-.buendel-mini { display: flex; flex-wrap: wrap; gap: 4px; }
 
-.laden-kopf { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
 .umschalter { display: inline-flex; align-items: center; gap: 8px; margin: 4px 0 10px; cursor: pointer; }
 .umschalter input { width: 18px; height: 18px; accent-color: var(--messing); }
 
 .zweispaltig { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 16px; align-items: start; }
 @media (max-width: 720px) { .zweispaltig { grid-template-columns: 1fr; } }
-.versand-liste { padding: 12px; display: flex; flex-direction: column; gap: 6px; }
-.versand-liste h3 { margin-top: 0; }
 .versand-zeile { display: flex; align-items: center; gap: 8px; }
 .versand-zeile img { width: 24px; height: 24px; image-rendering: pixelated; }
 .versand-zeile span:nth-child(2) { flex: 1; min-width: 0; }
 .summe { margin-top: 6px; padding-top: 6px; border-top: 2px solid var(--holz-dunkel); font-variant-numeric: tabular-nums; }
 
-.buendel-gitter { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 8px; margin: 10px 0; }
-.buendel { padding: 10px; display: flex; flex-direction: column; gap: 6px; }
-.buendel.fertig { border-color: #4a8a4a; background: #2a4a3a; }
-.buendel-kopf { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.buendel-items { display: flex; flex-wrap: wrap; gap: 4px; }
-.buendel-item { position: relative; width: 34px; height: 34px; display: grid; place-items: center; background: var(--mulde); border: 2px solid var(--holz-dunkel); border-radius: 4px; }
-.buendel-item img { width: 26px; height: 26px; opacity: .3; filter: grayscale(1); image-rendering: pixelated; }
-.buendel-item.da { border-color: var(--gut); }
-.buendel-item.da img { opacity: 1; filter: none; }
-.buendel-item .anzahl { position: absolute; right: 1px; bottom: -2px; font-size: 11px; text-shadow: 1px 1px 0 #000; }
 
 .papier {
   background: var(--papier);

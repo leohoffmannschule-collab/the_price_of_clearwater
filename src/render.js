@@ -8,7 +8,7 @@
 // fügen in grafik.js weitere hinzu (Hühner, Monster, Angeln …). Gezeichnet wird nur, was im
 // Bild liegt (Kulling).
 
-import { T, NPCS, PFLANZEN, OBJEKT_TYPEN } from './daten.js';
+import { T, NPCS, PFLANZEN, OBJEKT_TYPEN, ITEMS, WERKZEUG_ARTEN } from './daten.js';
 import * as L from './logik.js';
 import * as SP from './sprites.js';
 import { S } from './spiel.js';
@@ -50,6 +50,18 @@ export function zeichner(def) {
 /** Zusätzliche Lichtquellen: fn(ort, sicht) → [{ x, y, r (Felder), warm }] in Weltpixeln. */
 export const LICHT_QUELLEN = [];
 export function lichtQuelle(fn) { LICHT_QUELLEN.push(fn); }
+
+/**
+ * Eigener Schwung einer Werkzeugart (Dolch-Stoß, Melkeimer …): schwungKunst(art, (g, aktion, sp, bild) => …).
+ * g steht in Weltkoordinaten; aktion = S.sp.aktion ({ id, t, dauer, ladung, felder }), sp = S.sp,
+ * bild = Item-Bild 16×16 in der Werkzeugstufe. Ohne Eintrag zeichnet der Kern einen Bogen
+ * (bzw. Gießen bei werkzeugArt `haltung: 'giessen'`).
+ */
+export const SCHWUNG = {};
+export function schwungKunst(art, fn, opt = {}) {
+  if (SCHWUNG[art] && !opt.ersetzen) throw new Error(`Schwung „${art}" gibt es schon.`);
+  SCHWUNG[art] = fn;
+}
 
 // ─── Helfer für Zeichner ────────────────────────────────────────────────────
 
@@ -144,8 +156,10 @@ export function zeichnen() {
     cx = ((Math.sin(S.t * 0.04) + 1) / 2) * Math.max(0, mw - vw);
     cy = Math.max(0, Math.min(mh - vh, 6 * T));
   } else {
-    cx = S.sp.x - vw / 2;
-    cy = S.sp.y - 10 - vh / 2;
+    // Die Kamera folgt der Spielerin, oder S.kameraFokus ({ x, y } in Weltpixeln, z. B. im Baumodus)
+    const fokus = S.kameraFokus ?? S.sp;
+    cx = fokus.x - vw / 2;
+    cy = fokus.y - 10 - vh / 2;
   }
   cx = mw <= vw ? (mw - vw) / 2 : klemme(cx, 0, mw - vw);
   cy = mh <= vh ? (mh - vh) / 2 : klemme(cy, 0, mh - vh);
@@ -245,6 +259,27 @@ zeichner({
   },
 });
 
+// Bodenbeläge (Wege, Böden) aus welt.belag – nach Nachbarn verbunden
+zeichner({
+  name: 'belag', ebene: 'boden', reihe: 25,
+  zeichnen(g, k, ort, v) {
+    const belag = ort.welt.belag;
+    if (!belag) return;
+    let leer = true;
+    for (const _ in belag) { leer = false; break; }
+    if (leer) return;
+    for (let ty = v.y0; ty <= v.y1; ty++) {
+      for (let tx = v.x0; tx <= v.x1; tx++) {
+        const b = belag[L.k(tx, ty)];
+        if (!b) continue;
+        const gleich = (x, y) => belag[L.k(x, y)]?.t === b.t;
+        const maske = (gleich(tx, ty - 1) ? 1 : 0) | (gleich(tx + 1, ty) ? 2 : 0) | (gleich(tx, ty + 1) ? 4 : 0) | (gleich(tx - 1, ty) ? 8 : 0);
+        g.drawImage(SP.belagBild(b.t, maske, v.jz), tx * T, ty * T);
+      }
+    }
+  },
+});
+
 /** Grob: liegt die Deko (samt Bild, das bis zu 6 Felder nach oben ragen darf) im Sichtbereich? */
 const dekoGrobSichtbar = (d, v) => d.x + (d.w || 1) - 1 >= v.x0 && d.x <= v.x1 && d.y + (d.h || 1) - 1 >= v.y0 && d.y - 6 <= v.y1;
 
@@ -282,25 +317,39 @@ zeichner({
   sammeln(ort, v) {
     const teile = [];
     const gespeichert = ort.welt.objekte;
-    const k = { jz: v.jz, band: ort.def.band, nacht: v.nacht, s: v.s, t: v.t, tx: 0, ty: 0 };
+    const k = { jz: v.jz, band: ort.def.band, nacht: v.nacht, s: v.s, t: v.t, tx: 0, ty: 0, ort };
+    let grosse = null;
     const dazu = (o, tx, ty, kk) => {
       const a = SP.objektArt(o.t);
+      // Große Objekte (Fläche b×h ab oben links) stehen unten mittig auf ihrer Fläche
+      const [fb, fh] = L.flaecheVon(o);
       k.tx = tx;
       k.ty = ty;
       const bild = SP.objektBild(o, k);
       const wackel = a.wackeln && S.wackel[kk] ? Math.sin(S.wackel[kk] * 60) * 1.2 : 0;
       const [dx, dy] = a.versatz ? a.versatz(o, k) : [0, 0];
-      const bx = tx * T + 8;
-      const by = (ty + 1) * T;
+      const bx = tx * T + (fb * T) / 2;
+      const by = (ty + fh) * T;
       const kd = a.danach ? { ...k } : null;
       const danach = kd ? ((g, lage) => a.danach(g, o, lage, kd)) : null;
-      teile.push(stueck(a, bild, tx * T + (T - bild.width) / 2 + wackel + dx, by - bild.height + dy, bx, by, by + a.tiefe, danach));
+      teile.push(stueck(a, bild, bx - bild.width / 2 + wackel + dx, by - bild.height + dy, bx, by, by + a.tiefe, danach));
     };
     for (let ty = v.y0; ty <= v.y1; ty++) {
       for (let tx = v.x0; tx <= v.x1; tx++) {
         const kk = L.k(tx, ty);
         const o = gespeichert[kk];
-        if (o) dazu(o, tx, ty, kk);
+        if (!o) continue;
+        if (o.t === 'teil') {
+          // Das große Objekt einmal zeichnen, auch wenn sein Hauptfeld außerhalb des Bilds liegt
+          if (grosse?.has(o.haupt)) continue;
+          (grosse ??= new Set()).add(o.haupt);
+          const h = L.hauptVon(ort, tx, ty, o);
+          if (h.o && !v.sichtbar(h.x, h.y)) dazu(h.o, h.x, h.y, h.kk);
+          continue;
+        }
+        if (grosse?.has(kk)) continue;
+        if (L.flaecheVon(o)[0] > 1 || L.flaecheVon(o)[1] > 1) (grosse ??= new Set()).add(kk);
+        dazu(o, tx, ty, kk);
       }
     }
     const dyn = L.kartenStand(v.s, ort.def).objekte;
@@ -433,11 +482,14 @@ function werkzeugZeichnen(g, a) {
   const s = S.s;
   const p = Math.min(1, a.t / a.dauer);
   const bild = SP.itemBild({ id: a.id }, s.spieler.werkzeug[a.id] || 0);
+  const art = WERKZEUG_ARTEN[ITEMS[a.id]?.werkzeug];
+  const eigen = SCHWUNG[art?.art];
+  if (eigen) { g.save(); eigen(g, a, sp, bild); g.restore(); return; }
   let winkel;
   let hx = sp.x;
   let hy = sp.y - 11;
   let spiegeln = false;
-  const kanne = a.id === 'giesskanne';
+  const kanne = art?.haltung === 'giessen';
   switch (sp.blick) {
     case 'rechts': winkel = kanne ? 0.5 * p : -1.9 + p * 2.7; hx += 3; break;
     case 'links': winkel = kanne ? 0.5 * p : -1.9 + p * 2.7; hx -= 3; spiegeln = true; break;
@@ -458,7 +510,7 @@ zeichner({
   name: 'ziel', ebene: 'ueber', reihe: 10,
   zeichnen(g) {
     const s = S.s;
-    if (S.demo || S.angeln || S.pause) return;
+    if (S.demo || S.angeln || S.modus || S.pause) return;
     const slot = s.spieler.inv[s.spieler.wahl];
     const lw = 1 / S.kamera.zoom;
     g.lineWidth = Math.max(lw, 0.5);

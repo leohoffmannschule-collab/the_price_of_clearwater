@@ -4,9 +4,10 @@ import assert from 'node:assert/strict';
 import '../src/bereiche/inhalt.js';
 import { NPCS, LAEDEN } from '../src/daten.js';
 import {
-  KARTEN, BODEN, boden, punkt, bereichVon, verbindungen, warpZiel, zielVon, karteHolen, karte,
-  raster, rechteck, ellipse, pfad, rahmen, fertigRaster,
+  KARTEN, BODEN, boden, punkt, bereichVon, verbindungen, warpZiel, zielVon, karteHolen, karte, kartenAnbieter, karteVergessen,
+  raster, rechteck, ellipse, pfad, rahmen, raum, fertigRaster,
 } from '../src/karten.js';
+import { system } from '../src/system.js';
 import * as L from '../src/logik.js';
 
 let bestanden = 0;
@@ -19,13 +20,16 @@ function test(name, fn) {
 function gruppe(name, fn) { console.log(`\n${name}`); fn(); }
 
 const neues = (seed = 7) => L.neuesSpiel({ name: 'Testa', hof: 'Testhof', seed });
-/** Spielstände, mit denen Karten geprüft werden: frisch, und mit offener Mine und gebautem Stall. */
+/** Spielstände, mit denen Karten geprüft werden: frisch, und einige Tage später mit offener Mine. */
 function zustaende() {
   const frisch = neues(7);
   const spaeter = neues(8);
+  for (let i = 0; i < 6; i++) L.tagBeenden(spaeter, { r: () => 0.5 });
   spaeter.flags.mineOffen = true;
-  spaeter.stall.gebaut = true;
-  spaeter.mine.schwert = true;
+  // Bereichszustand, der zusätzliche Gebäude zeigt (fehlt der Schlüssel, bleibt der Stand, wie er ist)
+  if (spaeter.stall) spaeter.stall.gebaut = true;
+  if (spaeter.mine) spaeter.mine.schwert = true;
+  L.kartenGeaendert();
   return [frisch, spaeter];
 }
 const leer = { objekte: {}, felder: {}, funde: [] };
@@ -76,8 +80,9 @@ const VERTRAG = {
   gilde: ['eingang', 'theke', 'bett_alrik'],
   mine0: ['eingang'],
 };
-const VERTRAG_BEREICHE = { hof: ['bauland'], dorf: ['fest'], strand: ['fest'], wald: ['fest'] };
-const PFLICHT_KARTEN = ['hof', 'haus', 'dorf', 'laden', 'gasthaus', 'strand', 'wald', 'berg', 'mine0'];
+const VERTRAG_BEREICHE = { hof: ['bauland', 'stall', 'auslauf'], dorf: ['fest'], strand: ['fest'], wald: ['fest'] };
+/** Alle Karten des Vertrags gibt es (bis ein Bereich sie ausbaut, als Platzhalter). */
+const PFLICHT_KARTEN = Object.keys(VERTRAG);
 
 // Weltgraph: [von, Rand, nach, Ankunftspunkt drüben, Rückweg landet auf]
 const KANTEN = [
@@ -123,6 +128,8 @@ gruppe('Raster', () => {
     assert.deepEqual(fertigRaster(g), ['########', '#ss....#', '#..::::#', '#.....:#', '#.~...:#', '########']);
     const breit = fertigRaster(pfad(raster(4, 3, '.'), [[0, 0], [2, 0]], 2, ':'));
     assert.deepEqual(breit, ['::::', '::::', '....']);
+    assert.deepEqual(fertigRaster(raum(6, 5)), ['######', '######', '#____#', '#____#', '##_###']);
+    assert.deepEqual(fertigRaster(raum(5, 4, { tuerX: 3, boden: 't' })), ['#####', '#####', '#ttt#', '###t#']);
   });
 });
 
@@ -295,7 +302,8 @@ gruppe('Dorfbewohner', () => {
       }
     }
     assert.equal(L.kartenWeg(s, 'dorf', 'haus'), null, 'ins Haus geht niemand');
-    assert.ok(!L.wegPlanen(s, { karte: 'dorf', x: 1, y: 15 }, { karte: 'strand', x: 5, y: 17 }).ok, 'Ziel im Meer');
+    karte({ id: 'testinsel', name: 'Insel', grid: ['#####', '#.#.#', '#####'] });
+    assert.ok(!L.wegPlanen(s, { karte: 'testinsel', x: 1, y: 1 }, { karte: 'testinsel', x: 3, y: 1 }).ok, 'Ziel hinter der Wand');
   });
   test('Ladenstände stehen dort, wo ihre Leute arbeiten', () => {
     for (const [id, l] of Object.entries(LAEDEN)) {
@@ -308,28 +316,58 @@ gruppe('Dorfbewohner', () => {
 });
 
 gruppe('Dynamische Karten und Caches', () => {
-  test('Minenebenen kommen vom Kartenanbieter und sind flüchtig', () => {
-    const s = neues();
-    const d = karteHolen('mine3', s);
-    assert.ok(d?.fluechtig && d.ebene === 3, 'mine3');
-    assert.ok(!KARTEN.mine3, 'nicht in KARTEN');
-    const st = punkt(d, 'start');
-    assert.ok(L.begehbar(s, d, d.weltStart, st.x, st.y), 'Start begehbar');
-    assert.equal(karteHolen('mine99', s), null);
-    assert.equal(karteHolen('gibtsnicht'), null);
+  // Ein Testbereich mit dynamischen Karten (Innenraum je Stufe) und einem dynamischen Gebäude
+  let erzeugt = 0;
+  kartenAnbieter((id) => /^teststall\d$/.test(id), (id, s) => {
+    erzeugt++;
+    const breite = 6 + (s?.flags.testStufe ?? 0) * 2;
+    return { name: 'Teststall', grid: fertigRaster(raum(breite, 5)), punkte: { eingang: [2, 3, 'oben'] }, stufe: s?.flags.testStufe ?? 0 };
   });
-  test('der Kartenstand wird gecacht und erkennt Änderungen', () => {
+  karte({ id: 'testhof', name: 'Testhof', aussen: true, grid: fertigRaster(raster(12, 8, '.')), punkte: { mitte: [6, 6] } });
+  system({
+    name: 'test-dynamisch',
+    gebaeude: (ort, s) => (ort.def.id === 'testhof' && s.flags.testGebaeude
+      ? [{ typ: 'stall', x: 2, y: 1, w: 3, h: 2, tuer: { x: 3, y: 2 }, ziel: { karte: 'teststall1', punkt: 'eingang' }, nurWenn: s.flags.testNurWenn }]
+      : undefined),
+  });
+  test('Kartenanbieter: erzeugt mit Spielstand, gecacht nach ID, vergessen bei Änderung', () => {
     const s = neues();
-    const a = L.kartenStand(s, KARTEN.hof);
-    assert.equal(L.kartenStand(s, KARTEN.hof), a, 'zweimal derselbe Stand');
-    assert.ok(!a.gebaeude.some((g) => g.typ === 'stall'));
-    s.stall.gebaut = true;
+    s.flags.testStufe = 1;
+    const d = karteHolen('teststall1', s);
+    assert.ok(d?.dynamisch && !KARTEN.teststall1);
+    assert.equal(d.stufe, 1, 'erzeugen bekommt den Spielstand');
+    assert.equal(karteHolen('teststall1', s), d, 'gecacht');
+    assert.deepEqual(zielVon({ karte: 'teststall1', punkt: 'eingang' }, s), { karte: 'teststall1', x: 2, y: 3, blick: 'oben' });
+    s.flags.testStufe = 2;
+    karteVergessen('teststall1');
+    assert.equal(punkt('teststall1', 'eingang', s).x, 2);
+    assert.equal(karteHolen('teststall1', s).w, 10, 'neu erzeugt mit Stufe 2');
+    assert.equal(karteHolen('teststall9x', s), null);
+    assert.equal(karteHolen('gibtsnicht'), null);
+    assert.ok(erzeugt >= 2);
+  });
+  test('der Kartenstand wird gecacht und erkennt Änderungen, auch an Bedingungen dynamischer Gebäude', () => {
+    const s = neues();
+    const def = KARTEN.testhof;
+    const a = L.kartenStand(s, def);
+    assert.equal(L.kartenStand(s, def), a, 'zweimal derselbe Stand');
+    assert.ok(!a.gebaeude.length);
+    s.flags.testGebaeude = true;
     L.kartenGeaendert();
-    const b = L.kartenStand(s, KARTEN.hof);
+    const b = L.kartenStand(s, def);
     assert.notEqual(b, a);
-    assert.ok(b.gebaeude.some((g) => g.typ === 'stall'), 'Stall als dynamisches Gebäude');
-    const st = b.gebaeude.find((g) => g.typ === 'stall');
-    assert.ok(!L.begehbar(s, KARTEN.hof, leer, st.x, st.y), 'Stall blockiert');
+    assert.ok(b.gebaeude.some((g) => g.typ === 'stall'), 'dynamisches Gebäude');
+    assert.ok(!L.begehbar(s, def, leer, 2, 1), 'Gebäude blockiert');
+    assert.ok(L.tuerAn(s, def, 3, 2), 'Tür offen');
+    // Bedingung am dynamischen Gebäude: ändert sie sich, gilt der neue Stand ohne kartenGeaendert()
+    s.flags.testNurWenn = (st) => !st.flags.testAus;
+    L.kartenGeaendert();
+    assert.ok(L.gebaeudeListe(s, def).length);
+    s.flags.testAus = true;
+    assert.ok(!L.gebaeudeListe(s, def).length, 'Bedingung des dynamischen Gebäudes wird beachtet');
+    s.flags.testAus = false;
+    assert.ok(L.gebaeudeListe(s, def).length);
+    delete s.flags.testNurWenn;
   });
   test('Wege auf einer 100×72-Karte bleiben schnell', () => {
     const g = raster(100, 72, '.');

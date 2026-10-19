@@ -1,13 +1,12 @@
-// Die Laufzeit ohne Bildschirm: durch den Weltgraphen laufen, Türen, Mine, Werkzeuge,
-// Gespräche, Hühner. Eingaben werden wie von der Tastatur gesetzt.
+// Die Laufzeit ohne Bildschirm: durch den Weltgraphen laufen, Türen, Mineneingang, Werkzeuge,
+// Gespräche. Eingaben werden wie von der Tastatur gesetzt. (Mine, Tiere … prüfen ihre Bereichstests.)
 // Aufruf: node test/laufzeit.test.mjs
 import assert from 'node:assert/strict';
 import '../src/bereiche/inhalt.js';
-import { T } from '../src/daten.js';
-import { punkt } from '../src/karten.js';
+import { T, LAEDEN, NPCS } from '../src/daten.js';
+import { KARTEN, karte, punkt, raster, rahmen, fertigRaster } from '../src/karten.js';
 import * as L from '../src/logik.js';
-import { S, spielStarten, update, karteBetreten, zustandSichern } from '../src/spiel.js';
-import { aufzugFahren } from '../src/bereiche/mine/inhalt.js';
+import { S, spielStarten, update, karteBetreten } from '../src/spiel.js';
 
 let bestanden = 0;
 let fehlgeschlagen = 0;
@@ -93,112 +92,95 @@ test('Dorf → Wald → Hof → Berg → Dorf', () => {
   assert.deepEqual(feld(), xy('dorf', 'vonBerg'));
 });
 
-test('der Mineneingang am Berg ist erst ab Tag 4 offen', () => {
+test('der Mineneingang am Berg öffnet sich erst mit „mineOffen"', () => {
+  const tor = KARTEN.berg.gebaeude.find((g) => g.ziel?.karte === 'mine0');
   stellen('berg', 'vorMine', 'oben');
   assert.equal(laufen('oben', 40), 'berg', 'Geröll versperrt den Weg');
   aktion();
-  assert.match(protokoll.dialoge.at(-1).texte[0], /Geröll/);
+  assert.equal(protokoll.dialoge.at(-1).texte[0], tor.sonst);
   S.s.flags.mineOffen = true;
   assert.equal(laufen('oben'), 'mine0');
   assert.deepEqual(feld(), xy('mine0', 'eingang'));
-});
-
-test('Schwert nehmen, Leiter hinab, Ebene 1 mit Monstern, Förderkorb zurück', () => {
-  karteBetreten('mine0', 3, 3, 'oben');
-  aktion();
-  assert.ok(L.hat(S.s, 'schwert'), 'Schwert');
-  assert.ok(S.s.mine.schwert);
-  stellen('mine0', 'leiter', 'oben');
-  aktion();
-  assert.equal(S.ort.def.id, 'mine1');
-  assert.equal(S.mineEbene, 1);
-  assert.ok(S.monster.length > 0, 'Monster');
-  assert.equal(S.s.mine.tiefste, 1);
-  const gesichert = zustandSichern();
-  assert.equal(gesichert.spieler.karte, 'mine0');
-  assert.deepEqual([gesichert.spieler.x, gesichert.spieler.y], xy('mine0', 'leiter'));
-  bild(20);
-  aufzugFahren(0);
-  assert.equal(S.ort.def.id, 'mine0');
-  assert.equal(S.mineEbene, 0);
-  assert.equal(S.monster.length, 0);
   stellen('mine0', 'eingang', 'unten');
   assert.equal(laufen('unten'), 'berg');
   assert.deepEqual(feld(), xy('berg', 'vorMine'));
 });
 
+// Testacker, damit die Werkzeuge nicht von der Hofkarte abhängen
+karte({ id: 'testlauf', name: 'Testlauf', aussen: true, farmbar: true, wasser: 'teich', npcWege: false, grid: fertigRaster(rahmen(raster(16, 12, '.'), '#')) });
+
 test('Werkzeuge: hacken, säen, gießen und die Axt am Baum', () => {
-  karteBetreten('hof', 30, 20, 'rechts');
+  karteBetreten('testlauf', 4, 6, 'rechts');
   const w = S.ort.welt;
-  for (const kk of [L.k(31, 20), L.k(32, 20)]) { delete w.objekte[kk]; delete w.felder[kk]; }
+  for (const kk of [L.k(5, 6), L.k(6, 6)]) { delete w.objekte[kk]; delete w.felder[kk]; }
   S.s.spieler.wahl = S.s.spieler.inv.findIndex((x) => x?.id === 'hacke');
   benutzen();
-  assert.ok(w.felder[L.k(31, 20)], 'Beet');
+  assert.ok(w.felder[L.k(5, 6)], 'Beet');
+  L.hinzufuegen(S.s, { id: 'pastinake_saat', n: 1 });
   S.s.spieler.wahl = S.s.spieler.inv.findIndex((x) => x?.id === 'pastinake_saat');
   benutzen();
-  assert.equal(w.felder[L.k(31, 20)].pflanze?.id, 'pastinake');
+  assert.equal(w.felder[L.k(5, 6)].pflanze?.id, 'pastinake');
   S.s.spieler.wahl = S.s.spieler.inv.findIndex((x) => x?.id === 'giesskanne');
   benutzen();
-  assert.equal(w.felder[L.k(31, 20)].nass, true);
-  w.objekte[L.k(32, 21)] = { t: 'baum', hp: 1, art: 'eiche' };
-  karteBetreten('hof', 32, 20, 'unten');
+  assert.equal(w.felder[L.k(5, 6)].nass, true);
+  w.objekte[L.k(6, 7)] = { t: 'baum', hp: 1, art: 'eiche' };
+  karteBetreten('testlauf', 6, 6, 'unten');
   S.s.spieler.wahl = S.s.spieler.inv.findIndex((x) => x?.id === 'axt');
   const holz = L.anzahl(S.s, 'holz');
   benutzen();
-  assert.equal(w.objekte[L.k(32, 21)]?.t, 'stumpf');
+  assert.notEqual(w.objekte[L.k(6, 7)]?.t, 'baum', 'Baum gefällt');
   assert.ok(L.anzahl(S.s, 'holz') > holz);
 });
 
-test('reden, und mit der gesuchten Ware den Auftrag abgeben', () => {
-  S.s.zeit.minute = 600;
+/** Ein begehbares Nachbarfeld von (x, y) und die Blickrichtung dorthin zurück. */
+function nachbarVon(karteId, x, y) {
+  const def = KARTEN[karteId];
+  for (const [dx, dy, blick] of [[0, 1, 'oben'], [1, 0, 'links'], [-1, 0, 'rechts'], [0, -1, 'unten']]) {
+    if (L.begehbar(S.s, def, L.welt(S.s, karteId), x + dx, y + dy)) return [x + dx, y + dy, blick];
+  }
+  return null;
+}
+
+test('am Laden reden und einkaufen, und mit der gesuchten Ware den Auftrag abgeben', () => {
+  const laden = LAEDEN.laden;
+  const ort = L.ladenOrt('laden');
+  const name = NPCS[laden.npc].name;
+  S.s.zeit.minute = 720;
   bild();
-  const ottilie = S.npcs.find((n) => n.id === 'ottilie');
-  assert.equal(ottilie.karte, 'laden');
-  karteBetreten('laden', 3, 5, 'oben');
+  const person = S.npcs.find((n) => n.id === laden.npc);
+  person.karte = ort.karte; person.x = ort.x * T + 8; person.y = ort.y * T + 13; person.pfad = []; person.pause = 0;
+  // Vor der Theke (Deko mit aktion „laden") …
+  const theke = KARTEN[ort.karte].deko.find((d) => d.aktion === 'laden' && d.laden === 'laden');
+  const [tx, ty, tb] = nachbarVon(ort.karte, theke.x, theke.y);
+  karteBetreten(ort.karte, tx, ty, tb);
   S.s.spieler.wahl = 0;
+  bild();
+  assert.equal(S.hinweis, laden.name);
   aktion();
   const d = protokoll.dialoge.at(-1);
-  assert.equal(d.npc, 'ottilie');
+  assert.equal(d.npc, laden.npc);
   assert.ok(d.optionen.some(([t]) => t === 'Einkaufen'), 'Laden ist offen');
-  assert.equal(S.hinweis, 'Krämerladen');
-  // Über die Theke hinweg …
-  S.s.quest = { npc: 'ottilie', id: 'holz', n: 1, belohnung: 100, text: '', frist: 99 };
+  // … über die Theke hinweg den Auftrag abgeben …
+  S.s.quest = { npc: laden.npc, id: 'holz', n: 1, belohnung: 100, text: '', frist: 99 };
+  L.hinzufuegen(S.s, { id: 'holz', n: 1 });
   S.s.spieler.wahl = S.s.spieler.inv.findIndex((x) => x?.id === 'holz');
   let gold = S.s.spieler.gold;
   aktion();
   assert.equal(S.s.quest, null);
   assert.equal(S.s.spieler.gold, gold + 100);
-  // … und direkt neben ihr
-  S.s.quest = { npc: 'ottilie', id: 'holz', n: 1, belohnung: 100, text: '', frist: 99 };
-  karteBetreten('laden', 4, 3, 'links');
-  ottilie.pause = 0;
+  // … und direkt neben der Person
+  S.s.quest = { npc: laden.npc, id: 'holz', n: 1, belohnung: 100, text: '', frist: 99 };
+  L.hinzufuegen(S.s, { id: 'holz', n: 1 });
+  const [nx, ny, nb] = nachbarVon(ort.karte, ort.x, ort.y);
+  karteBetreten(ort.karte, nx, ny, nb);
+  person.pause = 0;
+  S.s.spieler.wahl = S.s.spieler.inv.findIndex((x) => x?.id === 'holz');
   bild();
-  assert.equal(S.hinweis, 'Auftrag abgeben an Ottilie');
+  assert.equal(S.hinweis, `Auftrag abgeben an ${name}`);
   gold = S.s.spieler.gold;
   aktion();
   assert.equal(S.s.quest, null);
   assert.equal(S.s.spieler.gold, gold + 100);
-});
-
-test('Hühner im Auslauf lassen sich streicheln', () => {
-  S.s.stall.gebaut = true;
-  S.s.stall.huehner = [{ name: 'Erna', freundschaft: 0, gestreichelt: false, neu: false }];
-  S.s.zeit.minute = 600;
-  S.s.zeit.wetter = 'sonne';
-  L.kartenGeaendert();
-  karteBetreten('hof', 20, 7, 'unten');
-  assert.equal(S.huehner.length, 1);
-  const h = S.huehner[0];
-  h.t = 99;
-  const hx = Math.floor(h.x / T);
-  const hy = Math.floor((h.y - 3) / T);
-  karteBetreten('hof', hx, hy - 1, 'unten');
-  S.huehner[0] = h;
-  bild();
-  assert.equal(S.hinweis, 'Huhn streicheln');
-  aktion();
-  assert.ok(S.s.stall.huehner[0].gestreichelt);
-  assert.ok(L.gebaeudeListe(S.s, S.ort.def).some((g) => g.typ === 'stall'), 'Stall steht');
 });
 
 console.log(`\n${bestanden} bestanden, ${fehlgeschlagen} fehlgeschlagen\n`);

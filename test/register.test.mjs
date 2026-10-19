@@ -2,13 +2,13 @@
 // Aufruf: node test/register.test.mjs
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import '../src/bereiche/inhalt.js';
 import * as D from '../src/daten.js';
-import { KARTEN, bodenTyp, karte } from '../src/karten.js';
-import { SYSTEME, BEKANNTE_HOOKS, BEKANNTE_MODIFIKATOREN, system, modifikator, mod, alle, erster, sammle } from '../src/system.js';
+import { KARTEN, bodenTyp, karte, karteHolen } from '../src/karten.js';
+import { SYSTEME, BEKANNTE_HOOKS, BEKANNTE_MODIFIKATOREN, system, modifikator, mod, alle, erster, sammle, hookBekannt } from '../src/system.js';
 import { MONSTER, monster } from '../src/mine.js';
-import { mineErzeugen } from '../src/bereiche/mine/inhalt.js';
 import { DEKO_AKTIONEN, GEBAEUDE_AKTIONEN, dekoAktion, gebaeudeAktion } from '../src/spiel.js';
 import * as L from '../src/logik.js';
 import { zufall } from '../src/zufall.js';
@@ -23,7 +23,7 @@ function test(name, fn) {
 function gruppe(name, fn) { console.log(`\n${name}`); fn(); }
 
 const wurzel = fileURLToPath(new URL('../src/', import.meta.url));
-const BEREICHE = ['basis', 'hof', 'dorf', 'wildnis', 'pflanzen', 'angeln', 'mine', 'handwerk', 'tiere', 'npcs', 'npcs2', 'feste', 'gemeinschaft'];
+const BEREICHE = ['basis', 'hof', 'dorf', 'wildnis', 'berg', 'pflanzen', 'angeln', 'mine', 'handwerk', 'tiere', 'npcs', 'npcs2', 'feste', 'gemeinschaft'];
 const neues = (seed = 7) => L.neuesSpiel({ name: 'Testa', hof: 'Testhof', seed });
 
 gruppe('Doppelte IDs', () => {
@@ -44,6 +44,7 @@ gruppe('Doppelte IDs', () => {
     assert.throws(() => D.bedingung('mineOffen', () => true), doppelt);
     assert.throws(() => D.werkzeugArt('axt', {}), doppelt);
     assert.throws(() => D.kategorie('fisch', 'Fisch'), doppelt);
+    assert.throws(() => D.baumArt('eiche', {}), doppelt);
     assert.throws(() => karte({ id: 'hof', name: 'Hof', grid: ['.'] }), doppelt);
     assert.throws(() => bodenTyp('.', { name: 'gras' }), doppelt);
     assert.throws(() => monster('schleim', {}), doppelt);
@@ -113,10 +114,16 @@ gruppe('Inhalte vollständig', () => {
       const s = neues(seed);
       for (let tag = 0; tag < 5; tag++) L.tagBeenden(s, { r: zufall(seed * 10 + tag) });
       for (const w of Object.values(s.welt)) for (const o of Object.values(w.objekte)) typen.add(o.t);
+      // auch flüchtige Karten (Minenebenen …), die ein Kartenanbieter für Punkte-Ziele erzeugt
+      s.flags.mineOffen = true;
+      for (const def of Object.values(KARTEN)) {
+        for (const g of L.gebaeudeListe(s, def)) {
+          const z = g.ziel && karteHolen(g.ziel.karte, s);
+          if (z?.fluechtig) for (const o of Object.values(z.weltStart?.objekte || {})) typen.add(o.t);
+        }
+      }
     }
-    for (const n of [1, 10, 25]) for (const o of Object.values(mineErzeugen(n, zufall(n)).welt.objekte)) typen.add(o.t);
-    for (const id of Object.keys(D.ITEMS)) if (D.ITEMS[id].aufstellbar) typen.add(id);
-    typen.add('leiter');
+    for (const id of Object.keys(D.ITEMS)) if (D.ITEMS[id].aufstellbar) typen.add(typeof D.ITEMS[id].aufstellbar === 'string' ? D.ITEMS[id].aufstellbar : id);
     for (const t of typen) assert.ok(D.OBJEKT_TYPEN[t], `Objekttyp ${t}`);
   });
   test('Werkzeuge: alle Arten haben Wirkung oder Benutzen', () => {
@@ -135,6 +142,14 @@ gruppe('Hooks und Modifikatoren', () => {
         assert.ok(BEKANNTE_HOOKS.includes(k), `${sy.name}: unbekannter Hook ${k}`);
       }
     }
+  });
+  test('hookBekannt meldet neue Hook-Namen an; vereinbarte Namen stehen in der Liste', () => {
+    hookBekannt('testNeuerHook');
+    assert.ok(BEKANNTE_HOOKS.includes('testNeuerHook'));
+    hookBekannt('testNeuerHook');
+    assert.equal(BEKANNTE_HOOKS.filter((h) => h === 'testNeuerHook').length, 1);
+    for (const h of ['eingabe', 'ladenWare', 'ladenKauft', 'zuhause', 'fernsehen', 'grasGemaeht']) assert.ok(BEKANNTE_HOOKS.includes(h), h);
+    for (const m of ['stufe', 'sammelRadius']) assert.ok(BEKANNTE_MODIFIKATOREN.includes(m), m);
   });
   test('der Kern ruft neuesSpiel, ergaenzen, tagEnde, morgen, minuten und fertig', () => {
     const gerufen = {};
@@ -191,6 +206,24 @@ gruppe('Hooks und Modifikatoren', () => {
   });
 });
 
+const importeVon = (pfad) => [...readFileSync(pfad, 'utf8').matchAll(/^\s*(?:import|export)\s+(?:[^'";]*?\sfrom\s+)?['"]([^'"]+)['"]/gm)].map((m) => m[1]);
+/**
+ * Was eine Bereichsdatei einbindet: Dateien im eigenen Ordner (auch Unterordner) werden
+ * verfolgt, alles andere kommt als { datei, i, ziel } zurück (ziel = absoluter Pfad).
+ */
+function fremdeImporte(pfad, ordner, gesehen = new Set()) {
+  if (gesehen.has(pfad)) return [];
+  gesehen.add(pfad);
+  const liste = [];
+  for (const i of importeVon(pfad)) {
+    const ziel = resolve(dirname(pfad), i);
+    if (ziel.startsWith(ordner)) liste.push(...fremdeImporte(ziel, ordner, gesehen));
+    else liste.push({ datei: pfad, i, ziel });
+  }
+  return liste;
+}
+const KERN_DOMFREI = ['daten', 'karten', 'system', 'logik', 'spiel', 'mine', 'angeln', 'zufall'];
+
 gruppe('Bereiche', () => {
   test('jeder Bereich hat inhalt.js, grafik.js und oberflaeche.js', () => {
     for (const b of BEREICHE) for (const f of ['inhalt.js', 'grafik.js', 'oberflaeche.js']) assert.ok(existsSync(`${wurzel}bereiche/${b}/${f}`), `${b}/${f}`);
@@ -205,12 +238,19 @@ gruppe('Bereiche', () => {
       assert.ok(importe.every((m) => m[2] === f), `${f}: falsche Datei`);
     }
   });
-  const importeVon = (pfad) => [...readFileSync(pfad, 'utf8').matchAll(/^import [^'"]*['"]([^'"]+)['"]/gm)].map((m) => m[1]);
-  test('inhalt.js importiert nur DOM-freie Kernmodule', () => {
-    const erlaubt = ['daten', 'karten', 'system', 'logik', 'spiel', 'mine', 'angeln', 'zufall'].map((m) => `../../${m}.js`);
+  test('inhalt.js samt seinen Dateien im eigenen Ordner importiert nur DOM-freie Kernmodule', () => {
+    const erlaubt = KERN_DOMFREI.map((m) => `${wurzel}${m}.js`);
     for (const b of BEREICHE) {
-      for (const i of importeVon(`${wurzel}bereiche/${b}/inhalt.js`)) assert.ok(erlaubt.includes(i), `${b}/inhalt.js importiert ${i}`);
+      for (const { datei, i, ziel } of fremdeImporte(`${wurzel}bereiche/${b}/inhalt.js`, `${wurzel}bereiche/${b}/`)) {
+        assert.ok(erlaubt.includes(ziel), `${datei.slice(wurzel.length)} importiert ${i}`);
+      }
     }
+  });
+  test('die Importprüfung folgt Dateien im eigenen Ordner, auch in Unterordnern', () => {
+    const liste = fremdeImporte(`${wurzel}bereiche/basis/grafik.js`, `${wurzel}bereiche/basis/`);
+    assert.ok(liste.some((x) => x.ziel === `${wurzel}sprites.js`));
+    assert.ok(importeVon(`${wurzel}bereiche/inhalt.js`).includes('./berg/inhalt.js'));
+    assert.deepEqual(importeVon(`${wurzel}../test/register.test.mjs`).filter((i) => i === 'node:path'), ['node:path']);
   });
   test('der DOM-freie Kern importiert keine Bereiche', () => {
     for (const m of ['daten', 'karten', 'system', 'logik', 'spiel', 'mine', 'angeln', 'zufall']) {

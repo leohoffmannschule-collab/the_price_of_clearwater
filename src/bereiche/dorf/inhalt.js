@@ -1,8 +1,10 @@
 // Bereich „dorf": die Dorfkarte mit Krämerladen und Gasthaus als Innenräume, die Mühle als
 // Gebäude, die Läden von Ottilie, Bruno und Hannes, Rucksack und Werkzeug-Upgrades.
+// Platzhalter-Innenräume (noch ohne Tür): schmiede, rathaus, arzt, museum, hausRosa, muehle.
+// Ware anderer Bereiche in diesen Läden (Saatgut, Küken, Stall …) kommt über den Hook ladenWare.
 
 import { ITEMS, WERKZEUG_STUFEN, AUFRUESTBAR, KANNE_INHALT, WERKZEUG_ARTEN, item, kategorie, laden, spezialWare } from '../../daten.js';
-import { karte } from '../../karten.js';
+import { karte, raum, fertigRaster } from '../../karten.js';
 import * as L from '../../logik.js';
 
 karte({
@@ -197,6 +199,27 @@ karte({
   },
 });
 
+// ─── Platzhalter-Innenräume ─────────────────────────────────────────────────
+// Kleine Räume mit allen Pflicht-Punkten des Punkte-Vertrags, noch ohne Tür im Dorf; der Ausgang
+// führt vor das Gebäude. Der Bereich baut sie in Welle 1 aus.
+
+function platzhalterRaum(id, name, vor, punkte, b = 12, h = 9) {
+  const tx = Math.floor(b / 2) - 1;
+  karte({
+    id, name, aussen: false,
+    grid: fertigRaster(raum(b, h)),
+    deko: [{ typ: 'fenster', x: 2, y: 1, wand: true }, { typ: 'pflanze', x: b - 2, y: 2 }],
+    warps: [{ x: tx, y: h - 1, w: 1, h: 1, karte: 'dorf', punkt: vor }],
+    punkte: { eingang: [tx, h - 2, 'oben'], ...punkte },
+  });
+}
+platzhalterRaum('schmiede', 'Schmiede', 'vorSchmiede', { theke: [3, 3, 'unten'], amboss: [7, 3], bett_bruno: [9, 5] });
+platzhalterRaum('rathaus', 'Rathaus', 'vorRathaus', { schreibtisch: [3, 3], bett_frieda: [9, 5] });
+platzhalterRaum('arzt', 'Arztpraxis', 'vorArzt', { theke: [3, 3, 'unten'], bett_theo: [9, 5] });
+platzhalterRaum('museum', 'Museum', 'vorMuseum', { theke: [3, 3, 'unten'], lesesaal: [7, 4], bett_mira: [9, 5] });
+platzhalterRaum('hausRosa', 'Haus Rosa', 'vorHausRosa', { kueche: [3, 3], bett_rosa: [8, 4], bett_pia: [9, 6] });
+platzhalterRaum('muehle', 'Mühle', 'vorMuehle', {});
+
 // ─── Gasthaus-Küche ─────────────────────────────────────────────────────────
 
 kategorie('essen', 'Essen');
@@ -211,10 +234,7 @@ laden('laden', {
   name: 'Krämerladen', npc: 'ottilie', ort: { karte: 'laden', punkt: 'theke' },
   kauft: ['ernte', 'sammel', 'artisan', 'tier'],
   ware: [
-    { spezial: 'saatgut' },
-    { id: 'duenger', preis: 100 },
-    { spezial: 'kueken' },
-    { spezial: 'rucksack' },
+    { spezial: 'rucksack', reihe: 90 },
   ],
 });
 
@@ -227,7 +247,6 @@ laden('schmiede', {
     { id: 'eisenerz', preis: 150 },
     { id: 'golderz', preis: 400 },
     { spezial: 'upgrade' },
-    { spezial: 'stall' },
   ],
 });
 

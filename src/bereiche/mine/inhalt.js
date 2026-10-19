@@ -1,7 +1,8 @@
 // Bereich „mine": Mineneingang (Karte mine0), die Ebenen als Kartenanbieter, Gestein, Erze,
-// Barren, Edelsteine, Monster, Schatztruhen, das rostige Schwert und der Förderkorb.
+// Barren, Edelsteine, Monster, Schatztruhen, das rostige Schwert und der Förderkorb. Dazu Alrik
+// (Abenteurergilde am Berg) als schlichter Platzhalter samt Laden; den Raum baut „berg".
 
-import { T, ITEMS, WERKZEUG_ARTEN, item, kategorie, objektTyp, bedingung, werkzeugArt } from '../../daten.js';
+import { T, ITEMS, WERKZEUG_ARTEN, item, kategorie, objektTyp, bedingung, werkzeugArt, npc, laden } from '../../daten.js';
 import { karte, karteVorbereiten, kartenAnbieter, bodenVon } from '../../karten.js';
 import { system, mod } from '../../system.js';
 import * as L from '../../logik.js';
@@ -223,7 +224,7 @@ objektTyp('mstein', {
     erg.treffer = 'stein';
     if (o.hp <= 0) {
       const ebene = ort.def.ebene || 1;
-      const ertrag = steinErtrag(o.art, ebene, r, L.stufe(s, 'bergbau'), s);
+      const ertrag = steinErtrag(o.art, ebene, r, L.stufeWirksam(s, 'bergbau'), s);
       delete ort.welt.objekte[kk];
       for (const it of ertrag.items) L.geben(s, ort, x, y, it, erg);
       L.xpGeben(s, 'bergbau', ertrag.xp, erg);
@@ -388,6 +389,44 @@ function monsterBesiegt(m) {
   ergebnisZeigen(erg);
 }
 
+// ─── Alrik und die Abenteurergilde (Platzhalter) ────────────────────────────
+
+npc('alrik', {
+  name: 'Alrik', voll: 'Alrik Steinhauer', rolle: 'Abenteurer',
+  aussehen: { haut: '#d8a070', haare: '#2a2a30', frisur: 'kurz', hemd: '#5a5a6a', hose: '#2a2a30', bart: '#2a2a30' },
+  geburtstag: { jz: 'winter', tag: 7 },
+  liebt: ['diamant', 'rubin'], mag: ['kat:mineral', 'kat:barren', 'fluegel'], magNicht: ['kat:ernte'], hasst: ['tulpe', 'narzisse'],
+  heim: { karte: 'gilde', punkt: 'bett_alrik' },
+  plan: { normal: [[600, null], [1200, 'gilde', 'theke'], [2200, null]] },
+  zeilen: {
+    allgemein: [
+      'Die Mine hat mehr Ebenen, als du denkst. Ich hab bei dreißig aufgehört zu zählen. Und bei dreißig umgedreht.',
+      'Schleime sind nicht böse. Nur klebrig und hungrig. Wie Leute vor dem Frühstück.',
+      'Die Gilde ist noch im Aufbau. Aber die Schwerter an der Wand sind echt.',
+    ],
+    fruehling: ['Frühling. Die Fledermäuse sind wieder wach. Leider.'],
+    sommer: ['Im Sommer ist es in der Mine angenehm kühl. Ein Grund mehr.'],
+    herbst: ['Herbst ist Abenteuerzeit. Eigentlich ist immer Abenteuerzeit.'],
+    winter: ['Im Winter bin ich am liebsten unter der Erde. Da schneit es nie.'],
+    regen: ['Regen? Unten in der Mine merkt man davon nichts.'],
+    herz: {
+      2: 'Du hast Mut, {name}. Das sieht man an den Kratzern.',
+      4: 'Ich hab mal einen Schleim gezähmt. Er hieß Klebi. Er ist dann weggeschleimt.',
+      6: 'Mein Knie knackt, wenn ich die Leiter runtersteige. Erzähl das niemandem.',
+      8: 'Wenn du tief genug kommst, zeig ich dir meinen alten Lagerplatz.',
+      10: 'Niemand in Klarwasser ist so mutig wie du, {name}. Abgesehen von mir. Knapp.',
+    },
+    geburtstag: 'Mein Geburtstag! Ein Geschenk? Für mich? Ich bin gerührt. Kurz.',
+    wieder: ['Pass auf dich auf da unten.', 'Bis zum nächsten Abenteuer!'],
+  },
+  antwort: { liebt: 'Ein Prachtstück! Danke!', mag: 'Gutes Zeug. Danke.', neutral: 'Danke.', magNicht: 'Hm. Brauch ich nicht.', hasst: 'Damit kann ich nichts anfangen.' },
+});
+
+laden('gilde', {
+  name: 'Abenteurergilde', npc: 'alrik', ort: { karte: 'gilde', punkt: 'theke' },
+  ware: [{ id: 'kohle', preis: 80 }],
+});
+
 system({
   name: 'mine',
   ergaenzen(s) {
@@ -409,6 +448,6 @@ system({
   schwung(ctx) {
     const schaden = ITEMS[ctx.id]?.waffe?.schaden ?? WERKZEUG_ARTEN[ctx.art]?.schaden;
     if (!schaden || (ctx.art !== 'waffe' && !S.mineEbene)) return;
-    monsterTreffen(ctx.id, schaden, ctx.art === 'waffe' ? L.stufe(S.s, 'kampf') : 0);
+    monsterTreffen(ctx.id, schaden, ctx.art === 'waffe' ? L.stufeWirksam(S.s, 'kampf') : 0);
   },
 });

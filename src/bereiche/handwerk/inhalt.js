@@ -1,9 +1,10 @@
 // Bereich „handwerk": Bastelrezepte, Aufstellbares (Truhe, Vogelscheuche, Sprenger,
-// Einmachglas) und was es auf der Karte tut, Handwerkswaren aus dem Einmachglas.
+// Einmachglas) und was es auf der Karte tut, Handwerkswaren aus dem Einmachglas, der Herd
+// (Deko-Aktion „kochen"; die Herd-Deko stellt „hof" in die Küche).
 
 import { ITEMS, item, kategorie, rezept, objektTyp } from '../../daten.js';
 import * as L from '../../logik.js';
-import { ton, fenster, ergebnisZeigen } from '../../spiel.js';
+import { ton, fenster, dialog, dekoAktion, ergebnisZeigen } from '../../spiel.js';
 
 kategorie('artisan', 'Handwerksware');
 kategorie('platz', 'Aufstellbar');
@@ -100,10 +101,15 @@ rezept('truhe', { zutaten: { holz: 50 } });
 rezept('kupferbarren', { zutaten: { kupfererz: 5, kohle: 1 } });
 rezept('eisenbarren', { zutaten: { eisenerz: 5, kohle: 1 } });
 rezept('goldbarren', { zutaten: { golderz: 5, kohle: 1 } });
-rezept('duenger', { menge: 2, zutaten: { saft: 2 }, stufe: ['landwirtschaft', 1] });
+rezept('duenger', { menge: 2, zutaten: { harz: 2 }, stufe: ['landwirtschaft', 1] });
 rezept('vogelscheuche', { zutaten: { holz: 50, kohle: 1, faser: 20 }, stufe: ['landwirtschaft', 1] });
 rezept('sprenger', { zutaten: { kupferbarren: 1, eisenbarren: 1 }, stufe: ['landwirtschaft', 2] });
 rezept('koeder', { menge: 5, zutaten: { faser: 3, schleim: 1 }, stufe: ['angeln', 2] });
 rezept('einmachglas', { zutaten: { holz: 50, stein: 40, kohle: 8 }, stufe: ['landwirtschaft', 4] });
 rezept('qsprenger', { zutaten: { eisenbarren: 1, goldbarren: 1, quarz: 1 }, stufe: ['landwirtschaft', 6] });
 
+
+// ─── Kochen (Platzhalter) ───────────────────────────────────────────────────
+
+/** Der Herd in der Küche (Deko mit aktion 'kochen'). Kochfenster und Rezepte folgen. */
+dekoAktion('kochen', () => dialog(null, ['Der Herd ist noch kalt. Was man darauf kochen kann, lernst du bald.']), 'Kochen');

@@ -1,17 +1,20 @@
 // Oberfläche aus DOM: Anzeige, Werkzeugleiste, Gespräche, Fenster, Titel.
 //
 // Register für die Bereiche (src/bereiche/*/oberflaeche.js):
-//   FENSTER        Name → bau(daten) → Element      (fensterArt)
+//   FENSTER        Name → bau(daten) → Element      (fensterArt; Optionen in FENSTER_OPT)
 //   MENUE_REITER   [{ id, name, bauen(d), reihe }]  (menueReiter)
 //   HUD_ELEMENTE   [{ id, bauen(), aktualisieren(el, s), reihe }]  (hudElement)
 //   WARE_BILD      Spezialware → (ware) → Element   (wareBild)
 //   STATISTIK      [{ id, name, wert(s), reihe }]   (statistik)
+//   RUCKSACK_TEILE [{ id, bauen(d, auswahl), reihe }]  (rucksackTeil: Ringplätze, Ausrüstung …)
+//   RUCKSACK_AKTIONEN [{ id, name, wenn(slot, s), tun(d, auswahl), reihe }]  (rucksackAktion)
+//   STILE          Bereichs-CSS                     (stil)
 // Dazu die Bau-Helfer (el, bild, itemIcon, slotKnopf, invGitter, portraet, fensterRahmen …).
 // Kern-Fenster: menue, brief, tagEnde. Kern-Reiter: Rucksack, Basteln, Fähigkeiten, Freunde, Optionen.
 
 import {
-  ITEMS, NPCS, REZEPTE, BRIEFE, FAEHIGKEITEN, XP_STUFEN, JZ_NAME, WERKZEUG_STUFEN,
-  AUFRUESTBAR, KANNE_INHALT, KATEGORIE_NAME, MAX_HERZEN, JZ,
+  ITEMS, NPCS, REZEPTE, BRIEFE, FAEHIGKEITEN, XP_STUFEN, JZ_NAME, WERKZEUG_STUFEN, WERKZEUG_ARTEN,
+  AUFRUESTBAR, KATEGORIE_NAME, MAX_HERZEN, JZ,
 } from './daten.js';
 import * as L from './logik.js';
 import * as SP from './sprites.js';
@@ -31,9 +34,17 @@ export { ton };
 
 /** Name → bau(daten) → Element (meist fensterRahmen(…)). */
 export const FENSTER = {};
+/** Name → { fest, beispiele } aus fensterArt. */
+export const FENSTER_OPT = {};
+/**
+ * fensterArt(name, bau, { fest, beispiele, ersetzen })
+ * fest: Esc und ein Klick daneben schließen nicht (Wahlfenster, Tagesabschluss).
+ * beispiele: () => [daten…] – Beispieldaten, mit denen der Browser-Rauchtest das Fenster öffnet.
+ */
 export function fensterArt(name, bau, opt = {}) {
   if (FENSTER[name] && !opt.ersetzen) throw new Error(`Fenster „${name}" gibt es schon.`);
   FENSTER[name] = bau;
+  FENSTER_OPT[name] = { fest: !!opt.fest, beispiele: opt.beispiele };
 }
 
 /** Reiter im Menü, sortiert nach `reihe` (Kern: 10 Rucksack … 40 Freunde, 90 Optionen). */
@@ -74,6 +85,36 @@ export function statistik(def) {
   if (STATISTIK.some((z) => z.id === def.id)) throw new Error(`Statistik „${def.id}" gibt es schon.`);
   STATISTIK.push({ reihe: 50, ...def });
   STATISTIK.sort((a, b) => a.reihe - b.reihe);
+}
+
+/**
+ * Zusätzliche Teile in der Rucksack-Ansicht (rechte Spalte, unter der Info zum gewählten Platz):
+ * rucksackTeil({ id, reihe, bauen(d, { slot, idx }) → Element | null }) – Ringplätze, Stiefel …
+ */
+export const RUCKSACK_TEILE = [];
+export function rucksackTeil(def) {
+  if (RUCKSACK_TEILE.some((z) => z.id === def.id)) throw new Error(`Rucksackteil „${def.id}" gibt es schon.`);
+  RUCKSACK_TEILE.push({ reihe: 50, ...def });
+  RUCKSACK_TEILE.sort((a, b) => a.reihe - b.reihe);
+}
+/** Knöpfe für den gewählten Platz: rucksackAktion({ id, name, wenn(slot, s), tun(d, { slot, idx }), reihe }). */
+export const RUCKSACK_AKTIONEN = [];
+export function rucksackAktion(def) {
+  if (RUCKSACK_AKTIONEN.some((z) => z.id === def.id)) throw new Error(`Rucksackaktion „${def.id}" gibt es schon.`);
+  RUCKSACK_AKTIONEN.push({ reihe: 50, ...def });
+  RUCKSACK_AKTIONEN.sort((a, b) => a.reihe - b.reihe);
+}
+
+/** CSS eines Bereichs: stil('dorf-laden', '.laden-kopf { … }'). Hängt einmal ein <style> an (in Node: nichts). */
+export const STILE = {};
+export function stil(id, css) {
+  if (STILE[id] != null) throw new Error(`Stil „${id}" gibt es schon.`);
+  STILE[id] = css;
+  if (typeof document === 'undefined') return;
+  const e = document.createElement('style');
+  e.dataset.stil = id;
+  e.textContent = css;
+  document.head.append(e);
 }
 
 // ─── Bau-Helfer ─────────────────────────────────────────────────────────────
@@ -143,7 +184,7 @@ export function uiStarten() {
     dialog: dialogZeigen,
     frage,
     fenster: fensterOeffnen,
-    tagEnde: (bericht, ohnmacht) => fensterOeffnen('tagEnde', { bericht, ohnmacht }),
+    tagEnde: (bericht, ohnmacht) => { meldungenLeeren(); fensterOeffnen('tagEnde', { bericht, ohnmacht }); },
     stufe: stufeZeigen,
     ueberblende,
     karteGewechselt: (def) => ortZeigen(def.name),
@@ -220,13 +261,21 @@ export function hudAktualisieren() {
   if (S.hinweis) hinweis = touch ? S.hinweis : `E / Rechtsklick · ${S.hinweis}`;
   else if (slot) {
     hinweis = L.nameVon(slot, s);
-    if (slot.id === 'giesskanne') hinweis += ` · Wasser ${sp.wasser}/${KANNE_INHALT[sp.werkzeug.giesskanne]}`;
+    const anzeige = WERKZEUG_ARTEN[ITEMS[slot.id]?.werkzeug]?.anzeige?.(s, slot);
+    if (anzeige) hinweis += ` · ${anzeige}`;
     if (L.essbar(slot) && !touch) hinweis += ' · F zum Essen';
   }
   const h = $('#hinweis');
   if (h.textContent !== hinweis) h.textContent = hinweis;
   h.hidden = !hinweis || S.pause;
-  $('#tAktion').textContent = S.hinweis || 'Aktion';
+  // Der runde Knopf zeigt den ganzen Hinweis; lange Texte kleiner und umbrochen
+  const tA = $('#tAktion');
+  const knopfText = S.hinweis || 'Aktion';
+  if (tA.textContent !== knopfText) {
+    tA.textContent = knopfText;
+    tA.classList.toggle('lang', knopfText.length > 9);
+    tA.classList.toggle('sehrlang', knopfText.length > 16);
+  }
   $('#tEssen').hidden = !L.essbar(slot);
 
   for (const e of HUD_ELEMENTE) if (e.el && e.aktualisieren) e.aktualisieren(e.el, s);
@@ -262,9 +311,20 @@ function hotbarZeichnen() {
 }
 
 let meldungTimer = null;
+let meldungJetzt = null;
 const meldungsSchlange = [];
-/** Kurze Meldung oben; art: '' | 'gut' | 'warn'. */
+const meldungDauer = (text) => Math.min(4200, 1600 + text.length * 35);
+/**
+ * Kurze Meldung oben; art: '' | 'gut' | 'warn'. Eine Meldung, die gerade steht oder schon
+ * als letzte wartet, wird nicht noch einmal eingereiht (die gezeigte bleibt dann länger).
+ */
 export function meldungZeigen(text, art = '') {
+  if (meldungsSchlange.at(-1)?.text === text) return;
+  if (meldungJetzt?.text === text && !meldungsSchlange.length) {
+    clearTimeout(meldungTimer);
+    meldungTimer = setTimeout(naechsteMeldung, meldungDauer(text));
+    return;
+  }
   meldungsSchlange.push({ text, art });
   if (!meldungTimer) naechsteMeldung();
 }
@@ -272,10 +332,19 @@ export const meldung = meldungZeigen;
 function naechsteMeldung() {
   const box = $('#meldungen');
   const m = meldungsSchlange.shift();
+  meldungJetzt = m || null;
   if (!m) { box.classList.remove('sichtbar'); meldungTimer = null; return; }
   box.textContent = m.text;
   box.className = `sichtbar ${m.art}`;
-  meldungTimer = setTimeout(naechsteMeldung, Math.min(4200, 1600 + m.text.length * 35));
+  meldungTimer = setTimeout(naechsteMeldung, meldungDauer(m.text));
+}
+/** Alle wartenden Meldungen verwerfen (beim Tagesabschluss). */
+export function meldungenLeeren() {
+  meldungsSchlange.length = 0;
+  clearTimeout(meldungTimer);
+  meldungTimer = null;
+  meldungJetzt = null;
+  $('#meldungen')?.classList.remove('sichtbar');
 }
 
 const fundZeilen = new Map();
@@ -301,10 +370,12 @@ export function fundeZeigen(items) {
 }
 
 const rezeptName = (r) => ITEMS[r.ergebnis ?? r.id]?.name ?? r.id;
+/** Wird dieses Rezept mit dieser Fähigkeitsstufe frei? */
+const neuMitStufe = (r, skill, stufe) => !!r.stufe && !r.lernen && r.stufe[0] === skill && r.stufe[1] === stufe && L.rezeptVollstaendig(r);
 
 function stufeZeigen({ skill, stufe }) {
   meldungZeigen(`${FAEHIGKEITEN[skill]}: Stufe ${stufe}!`, 'gut');
-  for (const r of REZEPTE) if (r.stufe && r.stufe[0] === skill && r.stufe[1] === stufe) meldungZeigen(`Neues Rezept: ${rezeptName(r)}`, 'gut');
+  for (const r of REZEPTE) if (neuMitStufe(r, skill, stufe)) meldungZeigen(`Neues Rezept: ${rezeptName(r)}`, 'gut');
 }
 
 let ortTimer = null;
@@ -346,13 +417,14 @@ export function eingabeVerarbeiten() {
     return;
   }
   if (offen) {
-    const fest = offen.name === 'tagEnde';
+    const fest = !!FENSTER_OPT[offen.name]?.fest;
     if (!fest && (E.esc || (E.inventar && offen.name === 'menue') || (E.basteln && offen.name === 'menue'))) fensterSchliessen();
     else if (offen?.name === 'brief' && (E.aktion.gedrueckt || E.benutzen.gedrueckt)) fensterSchliessen();
     verbrauchen();
     return;
   }
-  if (S.pause) return;
+  // Pause, oder ein Bereich hat die Steuerung (S.modus): Menütasten gehen an ihn
+  if (S.pause || S.modus) return;
   if (E.esc || E.inventar) { menueOeffnen('rucksack'); verbrauchen(); }
   else if (E.basteln) { menueOeffnen('basteln'); verbrauchen(); }
 }
@@ -453,7 +525,7 @@ export function fensterOeffnen(name, daten = {}) {
   const root = $('#fenster');
   root.hidden = false;
   fensterNeu();
-  if (name !== 'tagEnde') root.onclick = (e) => { if (e.target === root) fensterSchliessen(); };
+  if (!FENSTER_OPT[name]?.fest) root.onclick = (e) => { if (e.target === root) fensterSchliessen(); };
   else root.onclick = null;
 }
 
@@ -528,7 +600,7 @@ fensterArt('menue', (d) => {
     onclick: () => { d.reiter = id; ton('menue'); fensterNeu(); },
   }, name)));
   return fensterRahmen(`${S.s.spieler.name} · ${S.s.spieler.hof}`, el('div', {}, reiter, aktiv.bauen(d)), { klasse: 'breit', kopfExtra: goldAnzeige() });
-});
+}, { beispiele: () => MENUE_REITER.map((r) => ({ reiter: r.id, auswahl: 0 })) });
 
 menueReiter({ id: 'rucksack', name: 'Rucksack', reihe: 10, bauen: rucksackReiter });
 menueReiter({ id: 'basteln', name: 'Basteln', reihe: 20, bauen: bastelReiter });
@@ -554,8 +626,12 @@ function rucksackReiter(d) {
     fensterNeu();
   };
   const slot = d.auswahl != null ? sp.inv[d.auswahl] : null;
+  const auswahl = { slot, idx: d.auswahl };
   const aktionen = [];
   if (slot && L.essbar(slot)) aktionen.push(el('button', { type: 'button', class: 'knopf', onclick: () => { essenAus(d.auswahl); d.aufgenommen = null; fensterNeu(); } }, 'Essen'));
+  for (const a of RUCKSACK_AKTIONEN) {
+    if (slot && a.wenn(slot, s)) aktionen.push(el('button', { type: 'button', class: 'knopf', onclick: () => { a.tun(d, auswahl); fensterNeu(); } }, a.name));
+  }
   if (slot && d.auswahl >= 12) {
     aktionen.push(el('button', { type: 'button', class: 'knopf', onclick: () => { L.tauschen(s, d.auswahl, sp.wahl); d.auswahl = sp.wahl; d.aufgenommen = null; fensterNeu(); } }, 'In die Hand nehmen'));
   } else if (slot && d.auswahl < 12) {
@@ -569,6 +645,7 @@ function rucksackReiter(d) {
     el('aside', { class: 'spalte-info' },
       itemInfo(slot),
       aktionen.length ? el('div', { class: 'knopf-reihe' }, aktionen) : null,
+      RUCKSACK_TEILE.map((teil) => teil.bauen(d, auswahl)),
       el('div', { class: 'figur-karte' }, bild(figur, 'pixel figur-gross'),
         el('div', {}, el('strong', {}, sp.name), el('div', { class: 'leise' }, sp.hof), el('div', { class: 'leise' }, `Jahr ${s.zeit.jahr}`)))));
 }
@@ -576,7 +653,7 @@ function rucksackReiter(d) {
 /** Bastelrezepte (art 'basteln'); Kochrezepte zeigt der Bereich, der die Küche baut. */
 function bastelReiter() {
   const s = S.s;
-  return el('div', { class: 'liste' }, REZEPTE.filter((r) => (r.art ?? 'basteln') === 'basteln').map((r) => {
+  return el('div', { class: 'liste' }, L.rezepteVon('basteln').map((r) => {
     const frei = L.rezeptFrei(s, r);
     const kann = L.kannBasteln(s, r);
     const id = r.ergebnis ?? r.id;
@@ -590,7 +667,7 @@ function bastelReiter() {
             const hat = L.anzahl(s, zid);
             return el('span', { class: `zutat${hat >= n ? ' ok' : ''}` }, itemIcon({ id: zid }), `${Math.min(hat, n)}/${n} ${ITEMS[zid].name}`);
           })
-          : el('span', { class: 'leise' }, r.stufe ? `Ab ${FAEHIGKEITEN[r.stufe[0]]} Stufe ${r.stufe[1]}` : 'Noch nicht gelernt')),
+          : el('span', { class: 'leise' }, r.stufe && !r.lernen ? `Ab ${FAEHIGKEITEN[r.stufe[0]]} Stufe ${r.stufe[1]}` : 'Noch nicht gelernt')),
         frei ? el('div', { class: 'leise klein' }, it.text) : null),
       el('button', {
         type: 'button', class: 'knopf', disabled: !kann,
@@ -700,9 +777,25 @@ fensterArt('brief', (d) => {
   return fensterRahmen('Post', el('div', { class: 'papier brief' }, ersetzt.split('\n\n').map((abs) => el('p', {}, abs.split('\n').flatMap((z, i) => (i ? [el('br'), z] : [z])))),
     el('p', { class: 'unterschrift' }, von),
     el('button', { type: 'button', class: 'knopf', onclick: fensterSchliessen }, 'Weiter')));
-});
+}, { beispiele: () => [{ text: 'Hallo {name}', von: 'Test' }] });
 
 // ─── Tagesende ──────────────────────────────────────────────────────────────
+
+/**
+ * Nach dem Tagesabschluss gehen die Wahlfenster aus bericht.wahlen nacheinander auf
+ * ({ fenster, daten }; jedes bekommt `danach`, das beim Schließen das nächste öffnet), dann der Morgen.
+ */
+function morgenNachWahlen(b) {
+  const weiter = () => {
+    const w = b.wahlen?.shift();
+    if (w) fensterOeffnen(w.fenster, { ...w.daten, danach: weiter });
+    else neuerMorgen();
+  };
+  offen = null;
+  $('#fenster').hidden = true;
+  $('#fenster').replaceChildren();
+  weiter();
+}
 
 fensterArt('tagEnde', (d) => {
   const s = S.s;
@@ -718,7 +811,7 @@ fensterArt('tagEnde', (d) => {
   if (b.stufen.length) {
     teile.push(el('h3', {}, 'Gelernt'));
     for (const st of b.stufen) {
-      const rezepte = REZEPTE.filter((r) => r.stufe && r.stufe[0] === st.skill && r.stufe[1] === st.stufe).map(rezeptName);
+      const rezepte = REZEPTE.filter((r) => neuMitStufe(r, st.skill, st.stufe)).map(rezeptName);
       teile.push(el('p', {}, `${FAEHIGKEITEN[st.skill]}: Stufe ${st.stufe}${rezepte.length ? ` · Neues Rezept: ${rezepte.join(', ')}` : ''}`));
     }
   }
@@ -726,8 +819,8 @@ fensterArt('tagEnde', (d) => {
   const wetter = { sonne: 'Sonnig', regen: 'Regen', sturm: 'Gewitter', schnee: 'Schnee' }[z.wetter];
   teile.push(el('p', { class: 'morgen' }, symbol(z.wetter), `${L.wochentag(z)}, ${z.tag}. ${JZ_NAME[JZ[z.jz]]}, Jahr ${z.jahr} · ${wetter}`));
   return fensterRahmen('Gute Nacht', el('div', { class: 'tag-ende' }, teile,
-    el('button', { type: 'button', class: 'knopf gross', autofocus: true, onclick: () => { offen = null; $('#fenster').hidden = true; $('#fenster').replaceChildren(); neuerMorgen(); } }, 'Guten Morgen!')), { schliessbar: false });
-});
+    el('button', { type: 'button', class: 'knopf gross', autofocus: true, onclick: () => morgenNachWahlen(b) }, 'Guten Morgen!')), { schliessbar: false });
+}, { fest: true, beispiele: () => [{ bericht: { verkauf: [], summe: 0, stufen: [], meldungen: ['Test'], wahlen: [], ohnmacht: null } }] });
 
 // ─── Titel und neues Spiel ──────────────────────────────────────────────────
 

@@ -2,11 +2,10 @@
 // Uhr, Dorfbewohner mit Tagesplan. Die Oberfläche hängt sich über `S.hooks` an, die Bereiche
 // über Hooks (system.js), Deko-/Gebäudeaktionen und die exportierten Helfer.
 
-import { T, ITEMS, NPCS, LAEDEN, TAG_ENDE, MS_PRO_MINUTE, PFLANZEN, OBJEKT_TYPEN, WERKZEUG_ARTEN, ITEM_BENUTZEN } from './daten.js';
+import { T, ITEMS, NPCS, LAEDEN, TAG_ENDE, MS_PRO_MINUTE, PFLANZEN, OBJEKT_TYPEN, WERKZEUG_ARTEN, ITEM_BENUTZEN, BELAG_TYPEN } from './daten.js';
 import { karteHolen, karteVergessen, punkt, zielVon, warpZiel } from './karten.js';
 import { alle, erster, sammle, mod } from './system.js';
 import * as L from './logik.js';
-import { angelnUpdate } from './angeln.js';
 
 export const S = {
   s: null,
@@ -22,6 +21,8 @@ export const S = {
   fallend: [],
   wackel: {},
   angeln: null,
+  modus: null,
+  kameraFokus: null,
   ziel: { x: 0, y: 0 },
   kamera: { x: 0, y: 0, zoom: 3, dpr: 1 },
   akku: 0,
@@ -40,14 +41,17 @@ export const S = {
 export const DEKO_AKTIONEN = {};
 export const GEBAEUDE_AKTIONEN = {};
 
-/** dekoAktion('bett', (d, ctx) => …, 'Schlafen' | (d, s) => Text) – Deko mit `aktion: 'bett'`. */
-export function dekoAktion(name, fn, hinweis = '') {
-  if (DEKO_AKTIONEN[name]) throw new Error(`Deko-Aktion „${name}" gibt es schon.`);
+/**
+ * dekoAktion('bett', (d, ctx) => …, 'Schlafen' | (d, s) => Text, { ersetzen }) – Deko mit `aktion: 'bett'`.
+ * Mit { ersetzen: true } übernimmt ein Bereich eine Aktion, die ein anderer als Platzhalter angelegt hat.
+ */
+export function dekoAktion(name, fn, hinweis = '', opt = {}) {
+  if (DEKO_AKTIONEN[name] && !opt.ersetzen) throw new Error(`Deko-Aktion „${name}" gibt es schon.`);
   DEKO_AKTIONEN[name] = { fn, hinweis };
 }
-/** gebaeudeAktion('muehle', (g, ctx) => …, 'Die alte Mühle') – Gebäude mit `aktion: 'muehle'`. */
-export function gebaeudeAktion(name, fn, hinweis = '') {
-  if (GEBAEUDE_AKTIONEN[name]) throw new Error(`Gebäude-Aktion „${name}" gibt es schon.`);
+/** gebaeudeAktion('muehle', (g, ctx) => …, 'Die alte Mühle', { ersetzen }) – Gebäude mit `aktion: 'muehle'`. */
+export function gebaeudeAktion(name, fn, hinweis = '', opt = {}) {
+  if (GEBAEUDE_AKTIONEN[name] && !opt.ersetzen) throw new Error(`Gebäude-Aktion „${name}" gibt es schon.`);
   GEBAEUDE_AKTIONEN[name] = { fn, hinweis };
 }
 
@@ -68,6 +72,11 @@ export const fundeAnzeigen = fundeZeigen;
 
 export function spielerFeld() {
   return { x: Math.floor(S.sp.x / T), y: Math.floor((S.sp.y - 3) / T) };
+}
+/** Feld unter einem Zeiger (Bildschirmpunkt in CSS-Pixeln, z. B. E.maus oder E.tippen). */
+export function feldUnterZeiger(px, py) {
+  const k = S.kamera;
+  return { x: Math.floor(((px * k.dpr) / k.zoom + k.x) / T), y: Math.floor(((py * k.dpr) / k.zoom + k.y) / T) };
 }
 export function schwebeText(t, x, y, f = '#ffffff') { S.texte.push({ text: t, x, y, t: 0, f }); }
 export function partikel(x, y, n, o) {
@@ -124,19 +133,22 @@ export function spielStarten(state, hooks, { demo = false } = {}) {
   S.pause = false;
   S.uebergang = false;
   S.angeln = null;
+  S.modus = null;
+  S.kameraFokus = null;
   S.akku = 0;
   S.ort = null;
   S.npcs = Object.keys(NPCS).map((id) => ({ id, karte: null, x: 0, y: 0, blick: 'unten', pfad: null, ziel: null, eintrag: -1, anim: 0, pause: 0, laeuft: false }));
   const sp = state.spieler;
   const def = karteHolen(sp.karte, state);
   if (def && !def.fluechtig) karteBetreten(sp.karte, sp.x, sp.y, sp.blick);
-  else { const b = L.bettPunkt(); karteBetreten('haus', b.x, b.y, 'unten'); }
+  else { const z = L.zuhause(state); karteBetreten(z.karte, z.x, z.y, z.blick); }
   npcsPlatzieren();
 }
 
 /**
  * Karte betreten. Ohne Koordinaten gilt ihr Punkt „start". Flüchtige Karten (Minenebenen)
- * entstehen dabei neu; gespeichert wird stattdessen ihr `speicherOrt`.
+ * entstehen dabei neu; gespeichert wird stattdessen ihr `speicherOrt`. Ein laufender Modus
+ * (S.modus, S.angeln) und die Kameraführung (S.kameraFokus) enden.
  */
 export function karteBetreten(id, tx, ty, blick = 'unten') {
   const s = S.s;
@@ -145,6 +157,8 @@ export function karteBetreten(id, tx, ty, blick = 'unten') {
   S.partikel = [];
   S.fallend = [];
   S.angeln = null;
+  S.modus = null;
+  S.kameraFokus = null;
   S.sp.aktion = null;
   S.sp.laden = null;
   S.sp.stoss = null;
@@ -152,13 +166,13 @@ export function karteBetreten(id, tx, ty, blick = 'unten') {
   if (def?.fluechtig) { karteVergessen(id); def = karteHolen(id, s); }
   if (!def) throw new Error(`Unbekannte Karte „${id}".`);
   if (tx == null) {
-    const p = punkt(def, 'start') || { x: Math.floor(def.w / 2), y: Math.floor(def.h / 2) };
+    const p = punkt(def, 'start', s) || { x: Math.floor(def.w / 2), y: Math.floor(def.h / 2) };
     tx = p.x;
     ty = p.y;
     blick = p.blick ?? blick;
   }
   S.ort = { def, welt: def.fluechtig ? def.weltStart : L.welt(s, id) };
-  s.spieler.karte = def.fluechtig ? (def.speicherOrt?.karte ?? 'haus') : id;
+  s.spieler.karte = def.fluechtig ? (def.speicherOrt?.karte ?? L.zuhause(s).karte) : id;
   S.sp.x = tx * T + 8;
   S.sp.y = ty * T + 13;
   S.sp.blick = blick;
@@ -178,7 +192,7 @@ export function wechseln(karte, x, y, blick) {
 }
 /** wechselnZu({ karte, punkt }) oder ({ karte, x, y, blick }). */
 export function wechselnZu(ziel) {
-  const z = zielVon(ziel);
+  const z = zielVon(ziel, S.s);
   wechseln(z.karte, z.x, z.y, z.blick);
 }
 
@@ -221,7 +235,7 @@ function zeitUpdate(dt) {
     if (z.minute === 1440) meldung('Mitternacht. Zeit fürs Bett.', 'warn');
     if (z.minute === 1500) meldung('Dir fallen fast die Augen zu…', 'warn');
     if (z.minute >= TAG_ENDE) {
-      const daheim = S.ort.def.id === 'haus';
+      const daheim = !!S.ort.def.zuhause || S.ort.def.id === L.zuhause(S.s).karte;
       meldung(daheim ? 'Du schläfst im Sitzen ein.' : 'Du bist vor Erschöpfung zusammengebrochen.', 'warn');
       schlafen(!daheim);
       return;
@@ -290,14 +304,11 @@ function spielerUpdate(dt, E) {
     sp.stoss.t -= dt;
     if (sp.stoss.t <= 0) sp.stoss = null;
   }
-  if (E.slot != null && E.slot < 12 && !S.angeln && !sp.laden) S.s.spieler.wahl = E.slot;
-  if (E.rad && !S.angeln && !sp.laden) S.s.spieler.wahl = (S.s.spieler.wahl + E.rad + 12) % 12;
+  // Ein Bereich hat die Steuerung übernommen (Angeln, Baumodus …)
+  if (erster('eingabe', { E, dt, S }) === true) { sp.bewegt = false; return; }
+  if (E.slot != null && E.slot < 12 && !sp.laden) S.s.spieler.wahl = E.slot;
+  if (E.rad && !sp.laden) S.s.spieler.wahl = (S.s.spieler.wahl + E.rad + 12) % 12;
 
-  if (S.angeln) {
-    sp.bewegt = false;
-    angelnUpdate(S, dt, E, { ton, meldung, ringe, ergebnis: ergebnisZeigen });
-    return;
-  }
   if (sp.aktion) { aktionUpdate(dt); return; }
   if (sp.laden) { ladenUpdate(dt, E); return; }
 
@@ -319,8 +330,10 @@ function bewegung(dt, E) {
   if (!sp.bewegt) { sp.lauf = 0; return; }
   if (Math.abs(dx) > Math.abs(dy) + 0.05) sp.blick = dx < 0 ? 'links' : 'rechts';
   else if (Math.abs(dy) > 0.05) sp.blick = dy < 0 ? 'oben' : 'unten';
-  const grund = 76 * (s.spieler.tempoBis > s.zeit.minute ? 1.3 : 1) * (s.spieler.energie <= 0 ? 0.7 : 1);
-  const tempo = mod('laufTempo', grund, { s });
+  const f = spielerFeld();
+  const belag = S.ort.welt.belag?.[L.k(f.x, f.y)] ?? null;
+  const grund = 76 * (s.spieler.tempoBis > s.zeit.minute ? 1.3 : 1) * (s.spieler.energie <= 0 ? 0.7 : 1) * (BELAG_TYPEN[belag?.t]?.tempo ?? 1);
+  const tempo = mod('laufTempo', grund, { s, belag });
   schieben(dx * tempo * dt, dy * tempo * dt);
   sp.lauf += dt;
   warpPruefen();
@@ -330,9 +343,9 @@ function warpPruefen() {
   const { x, y } = spielerFeld();
   const def = S.ort.def;
   const w = L.warpAn(def, x, y);
-  if (w) { const z = warpZiel(w); wechseln(z.karte, z.x, z.y, z.blick); return; }
+  if (w) { const z = warpZiel(w, S.s); wechseln(z.karte, z.x, z.y, z.blick); return; }
   const g = L.tuerAn(S.s, def, x, y);
-  if (g) { const z = zielVon(g.ziel); wechseln(z.karte, z.x, z.y, z.blick); }
+  if (g) { const z = zielVon(g.ziel, S.s); wechseln(z.karte, z.x, z.y, z.blick); }
 }
 
 function zielBerechnen(E) {
@@ -340,22 +353,18 @@ function zielBerechnen(E) {
   const [dx, dy] = L.RICHTUNG[S.sp.blick];
   let ziel = { x: f.x + dx, y: f.y + dy };
   if (E.maus.aktiv) {
-    const k = S.kamera;
-    const mx = Math.floor(((E.maus.x * k.dpr) / k.zoom + k.x) / T);
-    const my = Math.floor(((E.maus.y * k.dpr) / k.zoom + k.y) / T);
-    if (Math.max(Math.abs(mx - f.x), Math.abs(my - f.y)) <= 1) ziel = { x: mx, y: my };
+    const m = feldUnterZeiger(E.maus.x, E.maus.y);
+    if (Math.max(Math.abs(m.x - f.x), Math.abs(m.y - f.y)) <= 1) ziel = m;
   }
   S.ziel = ziel;
 }
 
 /** Tippen auf die Welt (Touch): auf ein Nachbarfeld zielen und dort handeln. */
 function tippen(p) {
-  const k = S.kamera;
-  const mx = Math.floor(((p.x * k.dpr) / k.zoom + k.x) / T);
-  const my = Math.floor(((p.y * k.dpr) / k.zoom + k.y) / T);
+  const m = feldUnterZeiger(p.x, p.y);
   const f = spielerFeld();
-  if (Math.max(Math.abs(mx - f.x), Math.abs(my - f.y)) > 1) return;
-  S.ziel = { x: mx, y: my };
+  if (Math.max(Math.abs(m.x - f.x), Math.abs(m.y - f.y)) > 1) return;
+  S.ziel = m;
   blickZu(S.ziel);
   interagieren();
 }
@@ -368,6 +377,12 @@ function wiederholbar() {
   if (!art) return false;
   if (art.wiederholbar) return true;
   return !!art.aufladbar && !S.s.spieler.werkzeug[slot.id];
+}
+
+/** Auf dem Teil eines großen Objekts: derselbe Kontext für das Hauptobjekt (x, y, kk, o). */
+function hauptKontext(c) {
+  const h = L.hauptVon(c.ort, c.x, c.y, c.o);
+  return { ...c, x: h.x, y: h.y, kk: h.kk, o: h.o };
 }
 
 /** Kontext für Handler, die auf das Zielfeld wirken. */
@@ -393,8 +408,9 @@ function benutzen() {
     return;
   }
   const c = zielKontext(slot, idx);
-  const typ = c.o && OBJEKT_TYPEN[c.o.t];
-  if (typ?.einlegen) { typ.einlegen(c); return; }
+  const haupt = c.o?.t === 'teil' ? hauptKontext(c) : c;
+  const typ = haupt.o && OBJEKT_TYPEN[haupt.o.t];
+  if (typ?.einlegen) { typ.einlegen(haupt); return; }
   for (const h of ITEM_BENUTZEN) if (h.pruefen(c)) { h.fn(c); return; }
 }
 
@@ -477,11 +493,11 @@ function interagieren() {
   if (erster('interagieren', ctx) !== undefined) return;
   if (n) { npcAnsprechen(n); return; }
   const kk = L.k(x, y);
-  const o = L.objektAn(s, ort, x, y);
-  const typ = o && OBJEKT_TYPEN[o.t];
-  if (typ?.interagieren) { typ.interagieren({ ...ctx, kk, o }); return; }
+  const oc = hauptKontext({ ...ctx, kk, o: L.objektAn(s, ort, x, y) });
+  const typ = oc.o && OBJEKT_TYPEN[oc.o.t];
+  if (typ?.interagieren) { typ.interagieren(oc); return; }
   if (typ?.aufnehmen) {
-    const erg = typ.aufnehmen({ ...ctx, kk, o });
+    const erg = typ.aufnehmen(oc);
     if (erg?.ok) ton('pflueck');
     ergebnisZeigen(erg);
     return;
@@ -530,7 +546,7 @@ function oeffnungszeiten(ladenId) {
   const l = LAEDEN[ladenId];
   const ruhe = l.ruhetag ? `, ${l.ruhetag} geschlossen` : '';
   if (l.zeiten) return `${L.uhrzeit(L.planMinute(l.zeiten[0]))} bis ${L.uhrzeit(L.planMinute(l.zeiten[1]))} Uhr${ruhe}`;
-  const plan = NPCS[l.npc].plan.normal;
+  const plan = L.npcTagesplan(S.s, l.npc);
   const o = L.ladenOrt(ladenId);
   const i = plan.findIndex((e) => { const z = L.planZiel(e); return z && z.karte === o.karte && z.x === o.x && z.y === o.y; });
   if (i < 0) return '';
@@ -603,6 +619,7 @@ dekoAktion('text', (d) => dialog(null, [d.text]), 'Lesen');
 export function schlafen(ohnmacht = false) {
   S.pause = true;
   S.angeln = null;
+  S.modus = null;
   S.sp.aktion = null;
   S.sp.laden = null;
   ton('schlafen');
@@ -612,8 +629,8 @@ export function schlafen(ohnmacht = false) {
 
 export function neuerMorgen() {
   for (const n of S.npcs) Object.assign(n, { karte: null, pfad: null, ziel: null, eintrag: -1, pause: 0 });
-  const b = L.bettPunkt();
-  karteBetreten('haus', b.x, b.y, 'unten');
+  const z = L.zuhause(S.s);
+  karteBetreten(z.karte, z.x, z.y, z.blick);
   S.akku = 0;
   S.pause = false;
   speichern();
@@ -635,7 +652,7 @@ export function zustandSichern() {
   if (!s || !S.ort) return s;
   const def = S.ort.def;
   if (def.fluechtig) {
-    const z = def.speicherOrt ? zielVon(def.speicherOrt) : { karte: 'haus', ...L.bettPunkt() };
+    const z = def.speicherOrt ? zielVon(def.speicherOrt, s) : L.zuhause(s);
     s.spieler.karte = z.karte;
     s.spieler.x = z.x;
     s.spieler.y = z.y;
@@ -662,10 +679,11 @@ function fundeEinsammeln() {
     if (erg?.ok) { ton('pflueck'); ergebnisZeigen(erg); }
   }
   if (!w.funde?.length) return;
+  const radius = mod('sammelRadius', 22, { s: S.s });
   for (const fund of [...w.funde]) {
     const fx = fund.x * T + 8;
     const fy = fund.y * T + 8;
-    if (Math.hypot(fx - S.sp.x, fy - (S.sp.y - 6)) >= 22) continue;
+    if (Math.hypot(fx - S.sp.x, fy - (S.sp.y - 6)) >= radius) continue;
     const rest = L.hinzufuegen(S.s, fund.slot);
     if (rest < fund.slot.n) { fundeZeigen([{ ...fund.slot, n: fund.slot.n - rest }]); ton('pop'); }
     if (rest <= 0) w.funde.splice(w.funde.indexOf(fund), 1);

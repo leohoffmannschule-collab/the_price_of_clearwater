@@ -4,6 +4,7 @@ import './basis/grafik.js';
 import './hof/grafik.js';
 import './dorf/grafik.js';
 import './wildnis/grafik.js';
+import './berg/grafik.js';
 import './pflanzen/grafik.js';
 import './angeln/grafik.js';
 import './mine/grafik.js';

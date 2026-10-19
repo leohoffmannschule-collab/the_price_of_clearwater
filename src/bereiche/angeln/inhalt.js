@@ -1,12 +1,13 @@
-// Bereich „angeln": die Angel, Fische und Köder, Lenes Fischstand am Strand und
-// Lenes Geschenk am zweiten Tag.
+// Bereich „angeln": die Angel, Fische und Köder, Lenes Laden im Fischladen am Strand und
+// Lenes Geschenk am zweiten Tag. Der Ablauf (Auswerfen, Drill, Fang) steht in src/angeln.js,
+// das in Welle 1 diesem Bereich gehört; er läuft über den Hook `eingabe`.
 
 import { item, kategorie, fisch, laden, bedingung, werkzeugArt } from '../../daten.js';
 import { hatWasser } from '../../karten.js';
 import { system } from '../../system.js';
 import * as L from '../../logik.js';
-import { S, meldung } from '../../spiel.js';
-import { angelnStart } from '../../angeln.js';
+import { S, meldung, ton, ringe, ergebnisZeigen } from '../../spiel.js';
+import { angelnStart, angelnUpdate } from '../../angeln.js';
 
 kategorie('fisch', 'Fisch');
 kategorie('koeder', 'Köder');
@@ -23,12 +24,14 @@ item('koeder', { name: 'Köder', kat: 'koeder', preis: 1, bild: { art: 'koeder' 
 
 // ─── Fische ─────────────────────────────────────────────────────────────────
 // schwierigkeit 0–100 · verhalten ruhig|gemischt|flink|sinker · orte: Gewässerarten · zeit: [von, bis) als Uhrzeit
+// Der Karpfen beißt vorerst in allen Gewässerarten aus dem Punkte-Vertrag (Platzhalter für see,
+// waldsee, geheimteich, mine), damit jede Karte in jeder Jahreszeit einen Fisch hat.
 
 const ALLE = ['fruehling', 'sommer', 'herbst', 'winter'];
 function f(id, name, preis, [schwierigkeit, verhalten, orte, jz, zeit, wetter], bild) {
   fisch(id, { name, preis, bild: { art: 'fisch', ...bild }, schwierigkeit, verhalten, orte, jz, zeit, wetter });
 }
-f('karpfen', 'Karpfen', 30, [15, 'ruhig', ['teich', 'fluss'], ALLE, [600, 2600]], { f: '#a89a5a', f2: '#e0d8a0' });
+f('karpfen', 'Karpfen', 30, [15, 'ruhig', ['teich', 'fluss', 'see', 'waldsee', 'geheimteich', 'mine'], ALLE, [600, 2600]], { f: '#a89a5a', f2: '#e0d8a0' });
 f('sonnenbarsch', 'Sonnenbarsch', 30, [30, 'gemischt', ['fluss', 'teich'], ['fruehling', 'sommer'], [600, 1900], 'sonne'], { f: '#e8b83a', f2: '#7ac0d8', form: 'hoch' });
 f('wels', 'Wels', 200, [75, 'gemischt', ['fluss', 'teich'], ['fruehling', 'herbst'], [600, 2400], 'regen'], { f: '#6a6a5a', f2: '#c8c0a0', form: 'wels' });
 f('doebel', 'Döbel', 50, [35, 'flink', ['fluss', 'teich'], ALLE, [600, 2600]], { f: '#8aa0a8', f2: '#e0e8e8' });
@@ -47,12 +50,12 @@ f('aal', 'Aal', 85, [70, 'ruhig', ['meer'], ['fruehling', 'herbst'], [1600, 2600
 f('tintenfisch', 'Tintenfisch', 80, [75, 'sinker', ['meer'], ['winter'], [1800, 2600]], { f: '#e8a0b0', f2: '#f8d8e0', form: 'tinte' });
 f('kugelfisch', 'Kugelfisch', 200, [80, 'flink', ['meer'], ['sommer'], [1200, 1600], 'sonne'], { f: '#e8d06a', f2: '#f8f0d0', form: 'kugel' });
 
-// ─── Lenes Fischstand ───────────────────────────────────────────────────────
+// ─── Lenes Laden im Fischladen ──────────────────────────────────────────────
 
 bedingung('keineAngel', (s) => !L.hat(s, 'angel'));
 
 laden('fischer', {
-  name: 'Lenes Fischstand', npc: 'lene', ort: { karte: 'strand', punkt: 'stand' },
+  name: 'Lenes Fischladen', npc: 'lene', ort: { karte: 'fischladen', punkt: 'theke' },
   kauft: ['fisch', 'muell'],
   ware: [
     { id: 'koeder', preis: 5 },
@@ -62,6 +65,12 @@ laden('fischer', {
 
 system({
   name: 'angeln',
+  /** Solange geangelt wird, steuert der Ablauf in angeln.js die Eingaben. */
+  eingabe({ E, dt }) {
+    if (!S.angeln) return undefined;
+    angelnUpdate(S, dt, E, { ton, meldung, ringe, ergebnis: ergebnisZeigen });
+    return true;
+  },
   /** Lene schenkt ab dem zweiten Tag die alte Angel. */
   gespraech({ s, id, ort }) {
     if (id !== 'lene' || L.hat(s, 'angel') || s.flags.angelBekommen || L.tagNr(s.zeit) < 2) return undefined;

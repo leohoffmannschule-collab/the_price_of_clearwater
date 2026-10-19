@@ -135,7 +135,7 @@ const FISCH_ID = new Set();
 export function fisch(id, def) {
   const [d, ersetzen] = ohneErsetzen(def);
   const { schwierigkeit, verhalten = 'gemischt', orte, jz, zeit = [600, 2600], wetter, ...rest } = d;
-  const it = item(id, { kat: 'fisch', ...rest, fisch: { schwierigkeit, verhalten, orte, jz, zeit, wetter }, ersetzen });
+  const it = item(id, { kat: 'fisch', sorte: 'fisch', ...rest, fisch: { schwierigkeit, verhalten, orte, jz, zeit, wetter }, ersetzen });
   return inListe(FISCHE, FISCH_ID, id, it, 'Fisch', ersetzen);
 }
 
@@ -150,7 +150,11 @@ export function muell(art, ids) {
 export const REZEPTE = [];
 const REZEPT_ID = new Set();
 
-/** rezept(id, { art: 'basteln'|'kochen', zutaten, ergebnis = id, menge, stufe: [skill, n], frei(s) }) */
+/**
+ * rezept(id, { art: 'basteln'|'kochen', zutaten, ergebnis = id, menge, stufe: [skill, n], frei(s), lernen })
+ * Frei ist ein Rezept, wenn es gelernt wurde (L.rezeptLernen), sonst nach frei(s) bzw. stufe;
+ * `lernen: true` heißt: nur durch Lernen (Fernsehen, Briefe).
+ */
 export function rezept(id, def) {
   const [d, ersetzen] = ohneErsetzen(def);
   return inListe(REZEPTE, REZEPT_ID, id, { id, art: 'basteln', ergebnis: id, zutaten: {}, ...d }, 'Rezept', ersetzen);
@@ -163,7 +167,8 @@ export const LAEDEN = {};
 /**
  * laden(id, { name, npc, ort: { karte, punkt }, kauft: [Kategorien], ware: [...] | (s) => [...],
  *             zeiten: [von, bis], ruhetag: 'Mittwoch' })
- * Ware: { id, preis, bedingung } · { spezial: 'name', … } (siehe spezialWare).
+ * Ware: { id, preis, bedingung, reihe } · { spezial: 'name', … } (siehe spezialWare).
+ * Andere Bereiche ergänzen Ware und Ankauf über die Hooks ladenWare/ladenKauft (logik.js).
  * Geöffnet ist, wenn die Person an der Theke steht (und es nicht Ruhetag ist).
  */
 export function laden(id, def) {
@@ -174,8 +179,8 @@ export function laden(id, def) {
 export const SPEZIAL_WARE = {};
 
 /**
- * spezialWare(id, { name, preis, text, zutaten, verfuegbar(s, ware), angebote(s, ware) → [ware…],
- *                   kaufen(s, { ware, n }) → { text } })
+ * spezialWare(id, { name, preis, text, zutaten, verfuegbar(s, ware, ladenId),
+ *                   angebote(s, ware, ladenId) → [ware…], kaufen(s, { ware, n }) → { text } })
  * `angebote` ersetzt den Eintrag durch mehrere Waren (Saatgut der Jahreszeit, Upgrades …).
  */
 export function spezialWare(id, def) {
@@ -230,9 +235,11 @@ export const OBJEKT_TYPEN = {};
  * Objekte auf der Karte (welt.objekte[x,y].t):
  * objektTyp(t, { blockiert, axt(ctx), spitzhacke(ctx), sense(ctx), hacke(ctx), waffe(ctx),
  *                interagieren(ctx), einlegen(ctx), aufnehmen(ctx) → erg, nacht(ctx), minuten(ctx, n),
- *                hinweis(ctx) → Text, licht, anlegen(o, slot), nichtLeer(o) → Grund, item })
+ *                hinweis(ctx) → Text, licht, anlegen(o, slot), nichtLeer(o) → Grund, item,
+ *                flaeche: [b, h], platz(ctx) → true | 'Grund' | undefined })
  * Werkzeug-Handler bekommen { s, ort, x, y, kk, o, erg, r, stufe, kraft } und geben true zurück,
- * wenn sie etwas getroffen haben.
+ * wenn sie etwas getroffen haben. `flaeche`: Objekt belegt b×h Felder ab (x, y) nach rechts/unten
+ * (L.objektSetzen); `platz`: eigene Platzregel beim Aufstellen aus der Hand (L.aufstellen).
  */
 export function objektTyp(t, def) {
   const [d, ersetzen] = ohneErsetzen(def);
@@ -254,6 +261,41 @@ export const WERKZEUG_ARTEN = {};
 export function werkzeugArt(art, def) {
   const [d, ersetzen] = ohneErsetzen(def);
   return eintragen(WERKZEUG_ARTEN, art, { art, dauer: 0.34, ...d }, 'Werkzeugart', ersetzen);
+}
+
+// ─── Bäume und Bodenbeläge ──────────────────────────────────────────────────
+
+export const BAUM_ARTEN = {};
+/**
+ * baumArt(id, { name, holz: [von, bis], beute: [[id, chance, von, bis]…], samen, zapfen: { item, tage },
+ *               stufen, … }) – Arten des Objekts { t: 'baum', art, hp }. Der Zapfhahn liest `zapfen`.
+ */
+export function baumArt(id, def) {
+  const [d, ersetzen] = ohneErsetzen(def);
+  return eintragen(BAUM_ARTEN, id, { id, holz: [10, 14], beute: [], ...d }, 'Baumart', ersetzen);
+}
+
+export const BELAG_TYPEN = {};
+/**
+ * belagTyp(id, { name, item, tempo }) – begehbarer Bodenbelag (Wege, Böden) in welt.belag[x,y] = { t }.
+ * Liegt unter Objekten, verhindert Beete, `tempo` ist ein Faktor fürs Laufen, `item` kommt beim
+ * Aufheben zurück (Spitzhacke). Gezeichnet über belagKunst (sprites.js).
+ */
+export function belagTyp(id, def) {
+  const [d, ersetzen] = ohneErsetzen(def);
+  return eintragen(BELAG_TYPEN, id, { id, tempo: 1, item: id, ...d }, 'Belag', ersetzen);
+}
+
+// ─── Erwartete fremde IDs ───────────────────────────────────────────────────
+
+/**
+ * IDs anderer Bereiche, auf die ein Bereich verweist, bevor sie zusammengeführt sind
+ * (Rezept-Zutaten, Geschenke, Ware). erwartet('milch', 'wein'). Fehlen sie, blendet der Kern
+ * Rezepte und Ware damit aus, und die Tests lassen sie gelten (außer mit STRENG=1).
+ */
+export const ERWARTET = new Set();
+export function erwartet(...ids) {
+  for (const id of ids.flat()) ERWARTET.add(id);
 }
 
 export const ITEM_BENUTZEN = [];

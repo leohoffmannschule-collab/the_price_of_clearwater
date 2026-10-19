@@ -16,6 +16,9 @@
 //   MONSTER_BILD[art]     Monster 16×16, auch je Monster-ID                      (monsterKunst)
 //   TIER_BILD[art]        Tier, nach links schauend                              (tierKunst)
 //   SYMBOL[art]           Symbole der Oberfläche 16×16                           (symbolKunst)
+//   BELAG_BILD[t]         Bodenbelag 16×16 (Wege, Böden), nach Nachbarn          (belagKunst)
+//   INNEN_FARBEN[name]    Farben eines Innenraums                                (innenFarben)
+//   WASSER_FARBE[art]     Wasserfarbe je Gewässerart                             (wasserFarbe)
 
 import { T, ITEMS, PFLANZEN, WERKZEUG_STUFEN } from './daten.js';
 import { hash } from './zufall.js';
@@ -170,8 +173,10 @@ export const LAUB = {
   herbst: { b: '#d07a2a', d: '#a0501e', h: '#eaa24a' },
   winter: null,
 };
-/** Wasserfarbe je Gewässerart der Karte (`def.wasser`); unbekannt → fluss. */
-export const WASSER_FARBE = { teich: '#4c97a6', fluss: '#4a89c2', meer: '#3d7dbf' };
+/** Wasserfarbe je Gewässerart der Karte (`def.wasser`); unbekannt → fluss. Alle Arten des Punkte-Vertrags sind da. */
+export const WASSER_FARBE = {
+  teich: '#4c97a6', fluss: '#4a89c2', meer: '#3d7dbf', see: '#4683b0', waldsee: '#3f8a86', geheimteich: '#3f8fa4', mine: '#2e5c78',
+};
 /** Farben eines Innenraums (`def.innen`): Tapete, Leiste, Teppich. Fehlt er, gilt `standard`. */
 export const INNEN_FARBEN = {
   standard: { tapete: '#d7b98c', streifen: '#c9a676', leiste: '#7a4e2c', teppich: '#a8453f', muster: '#e0b060' },
@@ -193,6 +198,7 @@ export const PFLANZEN_BILD = {};
 export const MONSTER_BILD = {};
 export const TIER_BILD = {};
 export const SYMBOL = {};
+export const BELAG_BILD = {};
 
 function eintragen(reg, art, name, wert, opt = {}) {
   if (!name) throw new Error(`${art} ohne Namen.`);
@@ -212,6 +218,11 @@ function registrierer(reg, art, form = (w) => w) {
 }
 const alsObjekt = (feld) => (w) => (typeof w === 'function' ? { [feld]: w } : w);
 
+/** innenFarben('zimmerei', { tapete, streifen, leiste, teppich, muster }) – Farben eines Innenraums (def.innen). */
+export function innenFarben(name, def, opt = {}) { return eintragen(INNEN_FARBEN, 'Innenraumfarben', name, def, opt); }
+/** wasserFarbe('see', '#4683b0') – Wasserfarbe einer Gewässerart (def.wasser der Karte). */
+export function wasserFarbe(art, farbe, opt = {}) { return eintragen(WASSER_FARBE, 'Wasserfarbe', art, farbe, opt); }
+
 /** kunst('hacke', (g, bild, metall) => …) oder kunst({ hacke(g, b, m) {…}, … }). Bild 16×16, Umriss macht der Kern. */
 export const kunst = registrierer(KUNST, 'Kunst');
 /**
@@ -219,21 +230,23 @@ export const kunst = registrierer(KUNST, 'Kunst');
  * { bild(o, k) → Leinwand } bzw. { b, h, schluessel(o, k), malen(g, o, k), umriss } und dazu:
  * tiefe (Sortier-y relativ zur Unterkante, Standard −1), schatten: [rx, ry, dy],
  * durchsichtig: [breite, hoehe] (halb durchsichtig, wenn die Spielerin dahinter steht),
- * versatz(o, k) → [dx, dy], wackeln (Standard true), danach(g, o, x, y, k).
- * k: { jz, band, nacht, s, t, tx, ty }.
+ * versatz(o, k) → [dx, dy], wackeln (Standard true), danach(g, o, lage, k) mit lage { x, y, bx, by, bild }.
+ * k: { jz, band, nacht, s, t, tx, ty, ort } (ort.welt.objekte für Nachbarn, z. B. Zäune).
+ * Große Objekte (Objekttyp `flaeche`) stehen unten mittig auf ihrer Fläche.
  */
 export const objektKunst = registrierer(OBJEKT_BILD, 'Objektbild', alsObjekt('bild'));
 /**
  * dekoKunst(typ, def) – Deko. def ist eine Funktion (g, d, k) (Leinwand w×16) oder
  * { b(d), h, malen(g, d, k), umriss (Standard true), zustand(d, k) → Objekt (geht in den Schlüssel) }
  * bzw. { bild(d, k) → Leinwand }; dazu flach (sortiert nach der Oberkante), schatten,
- * durchsichtig, danach(g, d, x, y, k) wie bei objektKunst.
+ * durchsichtig, danach(g, d, lage, k) wie bei objektKunst.
  * k: { jz, winter, nacht, innen, s, w, zustand }.
  */
 export const dekoKunst = registrierer(DEKO_BILD, 'Dekobild', alsObjekt('malen'));
 /**
- * gebaeudeKunst(typ, { b, h, malen(g, k), zustand(s) → Objekt, licht: [[px, py]…], umriss })
- * k: { jz, winter, nacht, zustand }. `licht` landet in GEBAEUDE_LICHT.
+ * gebaeudeKunst(typ, { b, h, malen(g, k), zustand(s, geb) → Objekt, licht: [[px, py]…], umriss })
+ * k: { jz, winter, nacht, zustand }. `licht` landet in GEBAEUDE_LICHT. `zustand` bekommt das
+ * Gebäude mit (Stufe, Bauzustand dynamischer Gebäude) und geht in den Zwischenspeicher-Schlüssel.
  */
 export function gebaeudeKunst(typ, def, opt) {
   if (def.licht) eintragen(GEBAEUDE_LICHT, 'Gebäudelicht', typ, def.licht, opt);
@@ -241,7 +254,10 @@ export function gebaeudeKunst(typ, def, opt) {
 }
 /** bodenKunst(z, (g, x0, y0, k) => …); `z:rand` gilt nur für Karten mit diesem `rand`. */
 export const bodenKunst = registrierer(BODEN_BILD, 'Bodenbild');
-/** pflanzenKunst(wuchs | pflanzenId, (g, k) => …) für Phase 2–4; k: { p, id, phase, f, fuss, gross }. */
+/**
+ * pflanzenKunst(wuchs | pflanzenId, (g, k) => …) für Phase 2–4; k: { p, id, phase, f, fuss, gross }.
+ * Als { alle: true, malen(g, k), umriss } malt der Eintrag auch Phase 0 und 1 (Rankhilfe ab Tag 1).
+ */
 export const pflanzenKunst = registrierer(PFLANZEN_BILD, 'Pflanzenbild');
 /** monsterKunst(art | monsterId, (g, farbe, phase) => …), 16×16. */
 export const monsterKunst = registrierer(MONSTER_BILD, 'Monsterbild');
@@ -249,6 +265,11 @@ export const monsterKunst = registrierer(MONSTER_BILD, 'Monsterbild');
 export const tierKunst = registrierer(TIER_BILD, 'Tierbild', alsObjekt('malen'));
 /** symbolKunst(art, (g) => …), 16×16, für die Oberfläche. */
 export const symbolKunst = registrierer(SYMBOL, 'Symbol');
+/**
+ * belagKunst(t, (g, k) => …) – Bodenbelag (belagTyp) 16×16 ohne Umriss; k: { maske, n, o, s, w, jz, winter },
+ * n/o/s/w: liegt derselbe Belag daneben (für verbundene Wege).
+ */
+export const belagKunst = registrierer(BELAG_BILD, 'Belagbild');
 
 // ─── Ersatzbild ─────────────────────────────────────────────────────────────
 
@@ -390,6 +411,17 @@ bodenKunst({
     for (let i = 0; i < 7; i++) P(g, x0 + Math.floor(hash(tx, ty, i) * 16), y0 + Math.floor(hash(tx, ty, i + 9) * 16), mf.d);
     for (let i = 0; i < 3; i++) P(g, x0 + Math.floor(hash(tx, ty, i + 20) * 16), y0 + Math.floor(hash(tx, ty, i + 30) * 16), mf.h);
     if (hash(tx, ty, 77) < 0.15) L(g, x0 + 3, y0 + 10, x0 + 9, y0 + 7, mf.d, 1);
+  },
+  /** Steintreppe in Klippen und Hängen; seitlich abgesetzt, im Winter mit Schnee auf den Stufen. */
+  T(g, x0, y0, { tx, ty, winter, nachbarn }) {
+    R(g, x0, y0, T, T, '#948a76');
+    for (let i = 0; i < 4; i++) {
+      R(g, x0, y0 + i * 4, T, 1, winter ? '#f4f8fb' : '#b4aa94');
+      R(g, x0, y0 + i * 4 + 3, T, 1, '#6e6454');
+      P(g, x0 + 2 + Math.floor(hash(tx, ty, i) * 12), y0 + i * 4 + 1, '#857b68');
+    }
+    if (nachbarn.w !== 'T') { R(g, x0, y0, 2, T, '#5e5444'); R(g, x0 + 2, y0, 1, T, '#7a705e'); }
+    if (nachbarn.o !== 'T') { R(g, x0 + 14, y0, 2, T, '#5e5444'); R(g, x0 + 13, y0, 1, T, '#7a705e'); }
   },
   X(g, x0, y0, { tx, ty, gras, nachbarn }) {
     R(g, x0, y0, T, T, '#8e7a62');
@@ -535,7 +567,10 @@ export function objektArt(t) {
   return a;
 }
 
-/** Bild eines Objekts (welt.objekte); k: { jz, band, nacht, s, t }. */
+// Teile großer Objekte (logik.js) zeichnet das Hauptobjekt mit; sie selbst sind unsichtbar.
+objektKunst('teil', { b: 16, h: 16, umriss: false, malen() {} });
+
+/** Bild eines Objekts (welt.objekte); k: { jz, band, nacht, s, t, tx, ty, ort }. */
 export function objektBild(o, k = {}) {
   const a = objektArt(o.t);
   if (a.bild) return a.bild(o, k);
@@ -566,18 +601,19 @@ export function pflanzeBild(id, phase, tot) {
       P(g, 4, fuss - 6, '#6a4a2a'); P(g, 12, fuss - 5, '#6a4a2a');
       return umriss(c);
     }
-    if (phase === 0) {
+    const roh = PFLANZEN_BILD[id] ?? PFLANZEN_BILD[p.wuchs];
+    const maler = typeof roh === 'function' ? { malen: roh } : roh;
+    if (phase === 0 && !maler?.alle) {
       P(g, 6, fuss - 1, '#5a3a20'); P(g, 9, fuss, '#5a3a20'); P(g, 8, fuss - 2, BLATT_H);
       return c;
     }
-    if (phase === 1) {
+    if (phase === 1 && !maler?.alle) {
       L(g, 8, fuss, 8, fuss - 3, BLATT_D, 1); E(g, 6, fuss - 4, 2, 1.2, BLATT); E(g, 10, fuss - 4, 2, 1.2, BLATT_H);
       return umriss(c);
     }
-    const maler = PFLANZEN_BILD[id] ?? PFLANZEN_BILD[p.wuchs];
-    if (!maler) return ersatz(16, 24, `Wuchsform „${p.wuchs}"`);
-    maler(g, { p, id, phase, f, fuss, gross: phase >= 3 });
-    return umriss(c);
+    if (!maler?.malen) return ersatz(16, 24, `Wuchsform „${p.wuchs}"`);
+    maler.malen(g, { p, id, phase, f, fuss, gross: phase >= 3 });
+    return maler.umriss === false ? c : umriss(c);
   });
 }
 
@@ -648,12 +684,25 @@ export function tuer(g, x, y, w, h, f) {
 export function gebaeudeBild(geb, k) {
   const def = GEBAEUDE_BILD[geb.typ];
   if (!def) return ersatz((geb.w || 2) * T, (geb.h || 2) * T, `Gebäude „${geb.typ}"`);
-  const zustand = def.zustand && k.s ? def.zustand(k.s) : {};
+  const zustand = def.zustand && k.s ? def.zustand(k.s, geb) : {};
   const key = `geb:${geb.typ}:${k.jz}:${k.nacht ? 1 : 0}:${JSON.stringify(zustand)}`;
   return gecacht(key, () => {
     const [c, g] = leinwand(def.b, def.h);
     def.malen(g, { jz: k.jz, winter: k.jz === 'winter', nacht: !!k.nacht, zustand });
     return def.umriss === false ? c : umriss(c);
+  });
+}
+
+// ─── Bodenbeläge ────────────────────────────────────────────────────────────
+
+/** Bild eines Bodenbelags; maske: 1 Nord, 2 Ost, 4 Süd, 8 West (gleicher Belag daneben). */
+export function belagBild(t, maske, jz) {
+  return gecacht(`belag:${t}:${maske}:${jz}`, () => {
+    const maler = BELAG_BILD[t];
+    if (!maler) return ersatz(16, 16, `Belag „${t}"`);
+    const [c, g] = leinwand(16, 16);
+    maler(g, { maske, jz, winter: jz === 'winter', n: !!(maske & 1), o: !!(maske & 2), s: !!(maske & 4), w: !!(maske & 8) });
+    return c;
   });
 }
 

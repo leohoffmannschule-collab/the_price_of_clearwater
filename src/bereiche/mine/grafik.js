@@ -1,9 +1,9 @@
 // Bereich „mine" – Pixelkunst und Zeichner: Erze, Barren, Mineralien, Schwert, die Farben der
-// Minen-Bänder, Gestein und Leitern, Schatztruhen, Förderkorb, Mineneingang am Berg (mit Geröll,
-// solange die Mine zu ist), Schleime und Fledermäuse samt Lebensbalken.
+// Minen-Bänder, Gestein und Leitern, Schatztruhen, Förderkorb, Schleime und Fledermäuse samt
+// Lebensbalken. (Den Mineneingang am Berg malt der Bereich „berg".)
 
 import {
-  kunst, objektKunst, dekoKunst, gebaeudeKunst, monsterKunst, MINE_FARBEN, mineFarben, objektBild, monsterBild, kunstMalen,
+  kunst, objektKunst, dekoKunst, monsterKunst, MINE_FARBEN, mineFarben, objektBild, monsterBild, kunstMalen,
   P, R, E, L, POLY, kugel, mische, hell, dunkel,
 } from '../../sprites.js';
 import { zeichner, schatten } from '../../render.js';
@@ -123,21 +123,6 @@ dekoKunst({
       R(g, 7, 8, 2, 6, '#5a3a24'); R(g, 5, 7, 6, 2, '#4a4a52');
       E(g, 8, 5, 2.4, 3, '#f2a03a'); E(g, 8, 5.5, 1.4, 2, '#fff3b0');
     },
-  },
-});
-
-// ─── Mineneingang am Berg ───────────────────────────────────────────────────
-
-gebaeudeKunst('hoehle', {
-  b: 48, h: 32,
-  zustand: (s) => ({ offen: !!s.flags.mineOffen }),
-  malen(g, { winter, zustand }) {
-    E(g, 24, 28, 10, 14, '#140e0c'); R(g, 14, 28, 20, 4, '#140e0c');
-    R(g, 12, 8, 4, 24, '#6a4a2a'); R(g, 32, 8, 4, 24, '#6a4a2a'); R(g, 10, 6, 28, 4, '#7a5a32'); R(g, 10, 6, 28, 1, '#9a7a4a');
-    if (!zustand.offen) {
-      for (const [x, y, r] of [[18, 26, 5], [27, 25, 6], [22, 20, 4], [31, 28, 4], [15, 29, 3]]) kugel(g, x, y, r, r * 0.8, '#8a847a');
-    }
-    if (winter) R(g, 10, 5, 28, 1, '#ffffff');
   },
 });
 

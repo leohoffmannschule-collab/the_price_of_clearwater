@@ -9,8 +9,8 @@
 import {
   ITEMS, PFLANZEN, SAAT_ZU_PFLANZE, JZ, JZ_NAME, TAGE_PRO_JZ, TAG_BEGINN, MAX_ENERGIE, MAX_HP,
   STAPEL_MAX, XP_STUFEN, QUALITAET, KANNE_INHALT, WERKZEUG_STUFEN, AUFRUESTBAR, LAEDEN, NPCS,
-  PUNKTE_PRO_HERZ, MAX_HERZEN, GESCHENK_PUNKTE, BRIEFE, FISCHE, MUELL, WOCHENTAGE, FAEHIGKEITEN,
-  OBJEKT_TYPEN, BEDINGUNGEN, WERKZEUG_ARTEN, SPEZIAL_WARE,
+  PUNKTE_PRO_HERZ, MAX_HERZEN, GESCHENK_PUNKTE, BRIEFE, WOCHENTAGE, FAEHIGKEITEN, REZEPTE,
+  OBJEKT_TYPEN, BEDINGUNGEN, WERKZEUG_ARTEN, SPEZIAL_WARE, BELAG_TYPEN, objektTyp,
 } from './daten.js';
 import {
   KARTEN, boden, bodenRaster, bodenFlag, B_BEGEHBAR, B_FARMBAR, istWasser, karteHolen, punkt, zielVon,
@@ -28,9 +28,19 @@ export const MAX_PUNKTE = MAX_HERZEN * PUNKTE_PRO_HERZ;
 
 // ─── Neues Spiel ────────────────────────────────────────────────────────────
 
-/** Wo man morgens aufwacht (Punkt „bett" im Haus). */
+/** Punkt „bett" im Haus (Standard für zuhause). */
 export function bettPunkt() {
   return punkt('haus', 'bett') || { x: 3, y: 4, blick: 'unten' };
+}
+
+/**
+ * Wo man wohnt und aufwacht: { karte, x, y, blick }. Der Hook `zuhause(s)` darf eine andere
+ * Karte liefern (Hausstufen); sonst Punkt „bett" der Karte „haus".
+ */
+export function zuhause(s) {
+  const z = erster('zuhause', s);
+  if (z) return { blick: 'unten', ...(z.punkt ? zielVon(z, s) : z) };
+  return { karte: 'haus', blick: 'unten', ...bettPunkt() };
 }
 
 export function neuesSpiel({ name = 'Liesel', hof = 'Sonnenhof', aussehen = {}, seed } = {}) {
@@ -58,10 +68,14 @@ export function neuesSpiel({ name = 'Liesel', hof = 'Sonnenhof', aussehen = {}, 
     versand: [],
     stufeNeu: [],
     flags: {},
+    haus: { stufe: 0 },
+    rezepte: [],
     stats: { verdient: 0, geerntet: 0, gefangen: 0, baeume: 0, auftraege: 0, tage: 1 },
   };
   ergaenzen(s);
   alle('neuesSpiel', s, r);
+  const z = zuhause(s);
+  Object.assign(s.spieler, { karte: z.karte, x: z.x, y: z.y, blick: z.blick });
   for (const def of Object.values(KARTEN)) if (def.sammel.length) sammelSpawnen(s, def.id, r, 3);
   s.post = postFuerHeute(s);
   return s;
@@ -86,6 +100,8 @@ export function ergaenzen(s) {
   for (const id of Object.keys(FAEHIGKEITEN)) sp.xp[id] ??= 0;
   s.stufeNeu ??= [];
   s.flags ??= {};
+  s.haus ??= { stufe: 0 };
+  s.rezepte ??= [];
   s.versand ??= [];
   s.post ??= [];
   s.briefe ??= [];
@@ -94,9 +110,10 @@ export function ergaenzen(s) {
 }
 
 export function welt(s, id) {
-  s.welt[id] ??= { objekte: {}, felder: {}, funde: [] };
+  s.welt[id] ??= { objekte: {}, felder: {}, funde: [], belag: {} };
   s.welt[id].funde ??= [];
   s.welt[id].felder ??= {};
+  s.welt[id].belag ??= {};
   return s.welt[id];
 }
 export const ortVon = (s, id) => ({ def: karteHolen(id, s), welt: welt(s, id) });
@@ -140,21 +157,35 @@ function bedingungenVon(def) {
 
 const standCache = new WeakMap();
 
+const bedSchluessel = (s, liste) => {
+  let t = '';
+  for (const b of liste) t += erfuellt(s, b) ? '1' : '0';
+  return t;
+};
+
 /**
  * Was auf einer Karte gerade steht: feste plus dynamische Gebäude/Deko (Hooks), Blockaden,
  * Feld-Index für Deko und Gebäude, offene Türen, dynamische Objekte. Neu berechnet, wenn sich
- * eine Bedingung, der Tag oder kartenGeaendert() ändert.
+ * eine Bedingung (auch die der zuletzt gelieferten dynamischen Gebäude/Deko), der Tag oder
+ * kartenGeaendert() ändert.
  */
 export function kartenStand(s, def) {
   const z = s.zeit;
-  let schluessel = `${aenderung}|${z.jahr}|${z.jz}|${z.tag}|`;
-  for (const b of bedingungenVon(def)) schluessel += erfuellt(s, b) ? '1' : '0';
+  const basis = `${aenderung}|${z.jahr}|${z.jz}|${z.tag}|${bedSchluessel(s, bedingungenVon(def))}|`;
   const c = standCache.get(def);
-  if (c && c.s === s && c.schluessel === schluessel) return c;
+  if (c && c.s === s && c.schluessel === basis + bedSchluessel(s, c.dynBed)) return c;
 
   const ort = { def, welt: s.welt?.[def.id] };
-  const gebaeude = [...def.gebaeude, ...sammle('gebaeude', ort, s)].filter((g) => erfuellt(s, g.nurWenn));
-  const deko = [...def.deko, ...sammle('deko', ort, s)].filter((d) => erfuellt(s, d.nurWenn));
+  const dynGeb = sammle('gebaeude', ort, s);
+  const dynDeko = sammle('deko', ort, s);
+  const dynBed = [];
+  for (const e of [...dynGeb, ...dynDeko]) {
+    if (e.nurWenn != null && !dynBed.includes(e.nurWenn)) dynBed.push(e.nurWenn);
+    if (e.tuerWenn != null && !dynBed.includes(e.tuerWenn)) dynBed.push(e.tuerWenn);
+  }
+  const schluessel = basis + bedSchluessel(s, dynBed);
+  const gebaeude = [...def.gebaeude, ...dynGeb].filter((g) => erfuellt(s, g.nurWenn));
+  const deko = [...def.deko, ...dynDeko].filter((d) => erfuellt(s, d.nurWenn));
   const W = def.w;
   const n = def.w * def.h;
   const blockiert = new Uint8Array(n);
@@ -186,7 +217,7 @@ export function kartenStand(s, def) {
   }
   const objekte = new Map();
   for (const o of sammle('objekteDynamisch', ort, s)) objekte.set(k(o.x, o.y), o);
-  const stand = { s, schluessel, gebaeude, deko, blockiert, dekoFeld, gebaeudeFeld, tuerFeld, objekte };
+  const stand = { s, schluessel, dynBed, gebaeude, deko, blockiert, dekoFeld, gebaeudeFeld, tuerFeld, objekte };
   standCache.set(def, stand);
   return stand;
 }
@@ -195,6 +226,8 @@ export const gebaeudeListe = (s, def) => kartenStand(s, def).gebaeude;
 export const dekoListe = (s, def) => kartenStand(s, def).deko;
 
 const objektBlockiert = (o) => !!(o && OBJEKT_TYPEN[o.t]?.blockiert);
+/** Pflanzen an einer Rankhilfe versperren ihr Beet. */
+const feldBlockiert = (f) => !!f?.pflanze && !f.pflanze.tot && !!PFLANZEN[f.pflanze.id]?.rankhilfe;
 
 export function begehbar(s, def, w, x, y) {
   if (x < 0 || y < 0 || x >= def.w || y >= def.h) return false;
@@ -203,6 +236,7 @@ export function begehbar(s, def, w, x, y) {
   const st = kartenStand(s, def);
   if (st.blockiert[i]) return false;
   const kk = k(x, y);
+  if (feldBlockiert(w?.felder?.[kk])) return false;
   return !objektBlockiert(w?.objekte[kk] ?? st.objekte.get(kk));
 }
 
@@ -211,14 +245,23 @@ export function begehbarPruefer(s, def, w) {
   const flags = bodenRaster(def);
   const st = kartenStand(s, def);
   const objekte = w?.objekte || {};
+  const felder = w?.felder || {};
   const W = def.w;
   return (x, y) => {
     if (x < 0 || y < 0 || x >= W || y >= def.h) return false;
     const i = y * W + x;
     if (!(flags[i] & B_BEGEHBAR) || st.blockiert[i]) return false;
     const kk = k(x, y);
+    if (feldBlockiert(felder[kk])) return false;
     return !objektBlockiert(objekte[kk] ?? st.objekte.get(kk));
   };
+}
+
+/** Frei für Neues (Sammelfund, Nachwuchs, Aufstellen): begehbar, ohne Objekt, Beet, Belag und Warp. */
+export function feldFrei(s, ort, x, y) {
+  const kk = k(x, y);
+  const w = ort.welt;
+  return !w.objekte[kk] && !w.felder[kk] && !w.belag?.[kk] && begehbar(s, ort.def, w, x, y) && !warpAn(ort.def, x, y);
 }
 
 const feldIndex = (def, x, y) => (x < 0 || y < 0 || x >= def.w || y >= def.h ? -1 : y * def.w + x);
@@ -238,11 +281,68 @@ export function tuerAn(s, def, x, y) {
 export function warpAn(def, x, y) {
   return def.warps.find((w) => imBereich(w, x, y));
 }
-/** Objekt auf einem Feld: gespeichert oder dynamisch (Hook objekteDynamisch). */
+/** Objekt auf einem Feld: gespeichert oder dynamisch (Hook objekteDynamisch); Teile großer Objekte roh. */
 export function objektAn(s, ort, x, y) {
   const kk = k(x, y);
   return ort.welt.objekte[kk] ?? kartenStand(s, ort.def).objekte.get(kk);
 }
+
+// ─── Große Objekte (Fläche b×h) ─────────────────────────────────────────────
+// Das Hauptobjekt liegt oben links bei (x, y); die anderen Felder tragen { t: 'teil', haupt: 'x,y' }.
+
+/** Hauptobjekt eines Felds: { x, y, kk, o } (bei einem Teil das große Objekt, zu dem es gehört). */
+export function hauptVon(ort, x, y, o = ort.welt.objekte[k(x, y)]) {
+  if (o?.t !== 'teil') return { x, y, kk: k(x, y), o };
+  const [hx, hy] = ausK(o.haupt);
+  return { x: hx, y: hy, kk: o.haupt, o: ort.welt.objekte[o.haupt] };
+}
+
+/** Fläche [b, h] eines Objekts (Objekttyp-Feld `flaeche`, sonst 1×1). */
+export const flaecheVon = (o) => (o && (o.flaeche ?? OBJEKT_TYPEN[o.t]?.flaeche)) || [1, 1];
+
+/** Legt ein Objekt ab, große über ihre ganze Fläche. Überschreibt, was dort liegt. */
+export function objektSetzen(ort, x, y, o) {
+  const [b, h] = flaecheVon(o);
+  const haupt = k(x, y);
+  for (let dy = 0; dy < h; dy++) for (let dx = 0; dx < b; dx++) {
+    ort.welt.objekte[k(x + dx, y + dy)] = dx || dy ? { t: 'teil', haupt } : o;
+  }
+  return o;
+}
+
+/** Entfernt ein Objekt samt aller Teile; (x, y) darf auch ein Teil sein. Gibt das Hauptobjekt zurück. */
+export function objektEntfernen(ort, x, y) {
+  const h = hauptVon(ort, x, y);
+  if (!h.o) { delete ort.welt.objekte[k(x, y)]; return null; }
+  const [b, hh] = flaecheVon(h.o);
+  for (let dy = 0; dy < hh; dy++) for (let dx = 0; dx < b; dx++) {
+    const kk = k(h.x + dx, h.y + dy);
+    const o = ort.welt.objekte[kk];
+    if (o === h.o || (o?.t === 'teil' && o.haupt === h.kk)) delete ort.welt.objekte[kk];
+  }
+  return h.o;
+}
+
+/** Ist die Fläche b×h ab (x, y) frei (feldFrei für jedes Feld)? */
+export function flaecheFrei(s, ort, x, y, b = 1, h = 1) {
+  for (let dy = 0; dy < h; dy++) for (let dx = 0; dx < b; dx++) if (!feldFrei(s, ort, x + dx, y + dy)) return false;
+  return true;
+}
+
+/** Teile reichen Aktionstaste, Hinweis und Benutzen an ihr großes Objekt weiter (Werkzeuge: werkzeugKontext). */
+const anHaupt = (name) => (c) => {
+  const h = hauptVon(c.ort, c.x, c.y, c.o);
+  const typ = h.o && OBJEKT_TYPEN[h.o.t];
+  const fn = typ?.[name];
+  if (typeof fn === 'function') return fn({ ...c, ...h });
+  return name === 'hinweis' ? fn : undefined;
+};
+objektTyp('teil', {
+  blockiert: true,
+  interagieren: anHaupt('interagieren'),
+  einlegen: anHaupt('einlegen'),
+  hinweis: anHaupt('hinweis'),
+});
 /** Alle Objekte eines Orts als [schlüssel, objekt], dynamische eingeschlossen. */
 export function alleObjekte(s, ort) {
   const liste = Object.entries(ort.welt.objekte);
@@ -410,12 +510,15 @@ export function verkaufbar(slot) {
 
 // ─── Fähigkeiten ────────────────────────────────────────────────────────────
 
+/** Erreichte Stufe einer Fähigkeit (0–10) aus der Erfahrung. */
 export function stufe(s, skill) {
   const xp = s.spieler.xp[skill] || 0;
   let l = 0;
   while (l < 10 && xp >= XP_STUFEN[l]) l++;
   return l;
 }
+/** Stufe, mit der gerechnet wird: erreichte Stufe plus Modifikator `stufe` (Buffs, Ringe). */
+export const stufeWirksam = (s, skill) => Math.max(0, Math.round(mod('stufe', stufe(s, skill), { s, skill })));
 
 /** Höchstwerte neu berechnen (Kampfstufe, Modifikatoren maxEnergie/maxGesundheit). */
 export function werteAktualisieren(s) {
@@ -438,7 +541,7 @@ export function xpGeben(s, skill, n, erg) {
 export function energieKosten(s, id, ladung = 0) {
   const art = WERKZEUG_ARTEN[ITEMS[id]?.werkzeug];
   if (!art?.skill) return 0;
-  return mod('energieKosten', Math.max(0.5, 2 - 0.1 * stufe(s, art.skill)) * (ladung + 1), { s, werkzeug: id, ladung });
+  return mod('energieKosten', Math.max(0.5, 2 - 0.1 * stufeWirksam(s, art.skill)) * (ladung + 1), { s, werkzeug: id, ladung });
 }
 
 // ─── Feldarbeit ─────────────────────────────────────────────────────────────
@@ -478,25 +581,29 @@ export function geben(s, ort, x, y, slot, erg) {
 
 export const neuesErgebnis = () => ({ items: [] });
 
+/** Kontext für Werkzeug-Handler; auf dem Teil eines großen Objekts gilt das große Objekt. */
 function werkzeugKontext(s, ort, x, y, art, r, erg) {
-  const kk = k(x, y);
+  const h = hauptVon(ort, x, y);
   const stufe = s.spieler.werkzeug[art] || 0;
-  return { s, ort, x, y, kk, o: ort.welt.objekte[kk], erg, r, art, stufe, kraft: 1 + stufe };
+  return { s, ort, x: h.x, y: h.y, kk: h.kk, o: h.o, erg, r, art, stufe, kraft: 1 + stufe };
 }
 
+/** Hacke: Objekte (Artefaktstellen …) überall, Beete nur auf farmbaren Karten. */
 export function hacken(s, ort, felder, r = Math.random) {
   const { def, welt: w } = ort;
   const erg = neuesErgebnis();
   erg.n = 0;
+  let nichtFarmbar = false;
   for (const [x, y] of felder) {
-    if (!def.farmbar) { erg.grund = 'Hier lässt sich nichts anbauen. Dafür ist dein Hof da.'; break; }
     const c = werkzeugKontext(s, ort, x, y, 'hacke', r, erg);
     if (c.o) { OBJEKT_TYPEN[c.o.t]?.hacke?.(c); continue; }
+    if (!def.farmbar) { nichtFarmbar = true; continue; }
     if (!bodenFlag(def, x, y, B_FARMBAR)) continue;
-    if (w.felder[c.kk] || !begehbar(s, def, w, x, y) || warpAn(def, x, y)) continue;
+    if (w.felder[c.kk] || w.belag?.[c.kk] || !begehbar(s, def, w, x, y) || warpAn(def, x, y)) continue;
     w.felder[c.kk] = { nass: regnet(s) };
     erg.n++;
   }
+  if (nichtFarmbar && !erg.treffer && !erg.items.length) erg.grund = 'Hier lässt sich nichts anbauen. Dafür ist dein Hof da.';
   return erg;
 }
 
@@ -531,7 +638,7 @@ export function saeen(s, ort, x, y, idx) {
   if (!f) return { grund: ort.def.farmbar ? 'Erst mit der Hacke den Boden lockern.' : null };
   if (f.pflanze) return {};
   const jz = jahreszeit(s);
-  if (!p.jz.includes(jz)) {
+  if (!ort.def.ganzjaehrig && !p.jz.includes(jz)) {
     return { grund: `${ITEMS[slot.id].name} wachsen nur im ${p.jz.map((j) => JZ_NAME[j]).join(' und ')}.` };
   }
   f.pflanze = { id: pid, tage: 0 };
@@ -565,7 +672,7 @@ export function ernten(s, ort, x, y, r = Math.random) {
   const def = PFLANZEN[p.id];
   if (platzFuer(s, { id: def.ernte, n: 1 }) < 1) return { grund: 'Dein Rucksack ist voll.', items: [] };
   const erg = neuesErgebnis();
-  const q = mod('ernteQualitaet', qualitaetWuerfeln(stufe(s, 'landwirtschaft'), f.duenger, r), { s, ort, x, y, feld: f, pflanze: def });
+  const q = mod('ernteQualitaet', qualitaetWuerfeln(stufeWirksam(s, 'landwirtschaft'), f.duenger, r), { s, ort, x, y, feld: f, pflanze: def });
   let n = def.menge;
   if (def.extra && r() < def.extra) n++;
   geben(s, ort, x, y, { id: def.ernte, n: 1, q }, erg);
@@ -591,6 +698,14 @@ export function spitzhackeHieb(s, ort, x, y, r = Math.random) {
   const erg = neuesErgebnis();
   const c = werkzeugKontext(s, ort, x, y, 'spitzhacke', r, erg);
   if (!c.o) {
+    const b = ort.welt.belag?.[c.kk];
+    if (b) {
+      const item = BELAG_TYPEN[b.t]?.item;
+      delete ort.welt.belag[c.kk];
+      if (item && ITEMS[item]) geben(s, ort, x, y, { id: item, n: 1 }, erg);
+      erg.treffer = 'aufheben';
+      return erg;
+    }
     const f = ort.welt.felder[c.kk];
     if (f && !f.pflanze) {
       delete ort.welt.felder[c.kk];
@@ -627,22 +742,53 @@ export function aufheben(c) {
   if (grund) { erg.grund = grund; return true; }
   const id = typ?.item ?? o.t;
   if (platzFuer(s, { id, n: 1 }) < 1) { erg.grund = 'Dein Rucksack ist voll.'; return true; }
-  delete ort.welt.objekte[k(x, y)];
+  objektEntfernen(ort, x, y);
   geben(s, ort, x, y, { id, n: 1 }, erg);
   erg.treffer = 'aufheben';
   return true;
 }
 
+/**
+ * Gegenstand aus der Hand aufstellen. Erlaubt auf farmbaren Karten und Karten mit `aufstellen: true`
+ * auf freien Feldern; der Objekttyp darf mit platz(ctx) eigene Regeln haben (true = erlaubt,
+ * Text = abgelehnt, undefined = Standard). Große Objekte (flaeche) brauchen ihre ganze Fläche.
+ */
 export function aufstellen(s, ort, x, y, idx) {
   const slot = s.spieler.inv[idx];
   const it = ITEMS[slot.id];
   const { def, welt: w } = ort;
-  if (!def.farmbar) return { grund: 'Das kannst du nur auf deinem Hof aufstellen.' };
+  const t = typeof it.aufstellbar === 'string' ? it.aufstellbar : slot.id;
+  const typ = OBJEKT_TYPEN[t];
+  const [b, h] = typ?.flaeche || [1, 1];
   const kk = k(x, y);
-  if (w.objekte[kk] || w.felder[kk] || !begehbar(s, def, w, x, y) || warpAn(def, x, y)) return { grund: 'Hier ist kein Platz.' };
-  const o = { t: typeof it.aufstellbar === 'string' ? it.aufstellbar : slot.id };
-  OBJEKT_TYPEN[o.t]?.anlegen?.(o, slot);
-  w.objekte[kk] = o;
+  const eigen = typ?.platz?.({ s, ort, x, y, kk, slot, it });
+  if (typeof eigen === 'string') return { grund: eigen };
+  if (eigen === true) {
+    for (let dy = 0; dy < h; dy++) for (let dx = 0; dx < b; dx++) if (w.objekte[k(x + dx, y + dy)]) return { grund: 'Hier ist kein Platz.' };
+  } else {
+    if (!def.farmbar && !def.aufstellen) return { grund: 'Das kannst du nur auf deinem Hof aufstellen.' };
+    for (let dy = 0; dy < h; dy++) for (let dx = 0; dx < b; dx++) {
+      const fk = k(x + dx, y + dy);
+      if (w.objekte[fk] || w.felder[fk] || !begehbar(s, def, w, x + dx, y + dy) || warpAn(def, x + dx, y + dy)) return { grund: 'Hier ist kein Platz.' };
+    }
+  }
+  const o = { t };
+  typ?.anlegen?.(o, slot);
+  objektSetzen(ort, x, y, o);
+  entfernenAusSlot(s, idx, 1);
+  return { ok: true };
+}
+
+/** Bodenbelag aus der Hand legen (Item mit `belag: 'typ'`): wie Aufstellen, aber begehbar und unter Objekten. */
+export function belagLegen(s, ort, x, y, idx) {
+  const slot = s.spieler.inv[idx];
+  const t = ITEMS[slot.id]?.belag;
+  const { def, welt: w } = ort;
+  if (!BELAG_TYPEN[t]) return { grund: null };
+  if (!def.farmbar && !def.aufstellen) return { grund: 'Das kannst du nur auf deinem Hof legen.' };
+  const kk = k(x, y);
+  if (w.belag[kk] || w.objekte[kk] || w.felder[kk] || !begehbar(s, def, w, x, y) || warpAn(def, x, y)) return { grund: 'Hier ist kein Platz.' };
+  w.belag[kk] = { t };
   entfernenAusSlot(s, idx, 1);
   return { ok: true };
 }
@@ -656,7 +802,7 @@ export function aufsammeln(s, ort, x, y, r = Math.random) {
   const it = ITEMS[o.id];
   let q = 0;
   if (it.kat === 'sammel') {
-    const lvl = stufe(s, 'sammeln');
+    const lvl = stufeWirksam(s, 'sammeln');
     const z = r();
     q = z < lvl * 0.02 ? 2 : z < lvl * 0.07 ? 1 : 0;
   }
@@ -735,10 +881,10 @@ export function wetterWuerfeln(s, r = Math.random) {
   return z < sturm ? 'sturm' : z < sturm + regen ? 'regen' : 'sonne';
 }
 
-/** Sammelfunde, die in einer Zone dieser Art wachsen (Item-Feld `fundort`, Standard „wald"). */
+/** Sammelfunde, die in einer Zone dieser Art wachsen (Item-Feld `fundort`: Text oder Liste, Standard „wald"). */
 export function sammelPool(art, jz) {
   return Object.values(ITEMS)
-    .filter((i) => i.kat === 'sammel' && (i.fundort ?? 'wald') === art && (!i.jz || i.jz.includes(jz)))
+    .filter((i) => i.kat === 'sammel' && [].concat(i.fundort ?? 'wald').includes(art) && (!i.jz || i.jz.includes(jz)))
     .map((i) => i.id);
 }
 
@@ -763,7 +909,7 @@ export function sammelSpawnen(s, id, r, anzahlNeu) {
       const y = zone.y + Math.floor(r() * zone.h);
       if (boden(def, x, y) !== zielBoden) continue;
       const kk = k(x, y);
-      if (w.objekte[kk] || w.felder[kk] || !begehbar(s, def, w, x, y)) continue;
+      if (w.objekte[kk] || w.felder[kk] || w.belag?.[kk] || !begehbar(s, def, w, x, y)) continue;
       let wahl = waehle(r, pool);
       if (ITEMS[wahl].selten && r() > 0.25) wahl = waehle(r, pool.filter((p) => !ITEMS[p].selten));
       w.objekte[kk] = { t: 'sammel', id: wahl, wild: true };
@@ -798,11 +944,15 @@ export function briefVon(id) {
 /**
  * Die Nacht: Versand auszahlen, Kalender und Wetter weiter, Pflanzen wachsen lassen,
  * Regen, Objekte über Nacht (Sprenger, Gläser …), dann der Hook `tagEnde` der Bereiche,
- * Sammelfunde, Post und am Ende `morgen`. Gibt einen Bericht für den Tagesabschluss zurück.
+ * Sammelfunde, Post und am Ende `morgen`. Gibt einen Bericht für den Tagesabschluss zurück:
+ * { verkauf, summe, meldungen, stufen, jzWechsel, nachtMinuten, wahlen, ohnmacht }.
+ * `nachtMinuten`: verschlafene Minuten bis 6 Uhr. `wahlen`: Fenster, die vor dem Morgen
+ * nacheinander aufgehen ({ fenster, daten }, Bereiche hängen sie im Hook tagEnde an).
  */
 export function tagBeenden(s, { ohnmacht = false, r = Math.random } = {}) {
   const sp = s.spieler;
-  const bericht = { verkauf: [], summe: 0, meldungen: [], stufen: [] };
+  const bericht = { verkauf: [], summe: 0, meldungen: [], stufen: [], wahlen: [] };
+  bericht.nachtMinuten = Math.max(0, TAG_BEGINN + 1440 - s.zeit.minute);
 
   for (const slot of s.versand) {
     const preis = preisVon(slot, s) * slot.n;
@@ -846,7 +996,7 @@ export function tagBeenden(s, { ohnmacht = false, r = Math.random } = {}) {
       if (p && !p.tot) {
         const pd = PFLANZEN[p.id];
         if (f.nass && p.tage < pd.tage) p.tage = Math.min(pd.tage, p.tage + mod('wachstum', 1, { s, ort, feld: f, pflanze: pd }));
-        if (jzWechsel && def.aussen && !pd.jz.includes(neueJz)) { p.tot = true; verwelkt++; }
+        if (jzWechsel && def.aussen && !def.ganzjaehrig && !pd.jz.includes(neueJz)) { p.tot = true; verwelkt++; }
       }
       if (!f.pflanze && !f.nass && r() < 0.1) { delete w.felder[kk]; continue; }
       f.nass = false;
@@ -867,11 +1017,13 @@ export function tagBeenden(s, { ohnmacht = false, r = Math.random } = {}) {
       const typ = OBJEKT_TYPEN[o.t];
       if (!typ?.nacht) continue;
       const [x, y] = ausK(kk);
-      typ.nacht({ s, ort, x, y, kk, o, bericht, r });
+      typ.nacht({ s, ort, x, y, kk, o, bericht, r, nachtMinuten: bericht.nachtMinuten });
     }
   }
 
   alle('tagEnde', s, bericht, r);
+  // Bereiche ändern über Nacht dynamische Gebäude, Deko und Objekte (Ställe fertig, Feste …)
+  kartenGeaendert();
 
   if (jzWechsel) {
     for (const w of Object.values(s.welt)) {
@@ -887,17 +1039,15 @@ export function tagBeenden(s, { ohnmacht = false, r = Math.random } = {}) {
   werteAktualisieren(s);
   sp.energie = ohnmacht ? Math.round(sp.maxEnergie / 2) : sp.maxEnergie;
   sp.hp = sp.maxHp;
-  const bett = bettPunkt();
-  sp.karte = 'haus';
-  sp.x = bett.x;
-  sp.y = bett.y;
-  sp.blick = 'unten';
   sp.tempoBis = 0;
 
   bericht.stufen = s.stufeNeu;
   s.stufeNeu = [];
   s.stats.tage++;
   alle('morgen', s, bericht);
+  kartenGeaendert();
+  const z2 = zuhause(s);
+  Object.assign(sp, { karte: z2.karte, x: z2.x, y: z2.y, blick: z2.blick });
   return bericht;
 }
 
@@ -909,6 +1059,7 @@ export function geburtstagHeute(s, id) {
   return jahreszeit(s) === g.jz && s.zeit.tag === g.tag;
 }
 export const textErsetzen = (s, t) => t.replaceAll('{name}', s.spieler.name).replaceAll('{hof}', s.spieler.hof);
+/** Freundschaftspunkte ändern (auf 0 … MAX_PUNKTE begrenzt). */
 export const freundschaft = (s, id, punkte) => {
   const st = s.npcs[id];
   st.punkte = Math.max(0, Math.min(MAX_PUNKTE, st.punkte + punkte));
@@ -927,7 +1078,7 @@ export function gespraech(s, id, ort, r = Math.random) {
     return erg;
   }
   st.gesprochen = true;
-  st.punkte = Math.min(MAX_PUNKTE, st.punkte + 20);
+  freundschaft(s, id, 20);
   const h = herzen(s, id);
   const offen = [2, 4, 6, 8, 10].find((l) => h >= l && !st.herzGesehen.includes(l));
   let text;
@@ -973,7 +1124,7 @@ export function schenken(s, id, idx) {
   const gb = geburtstagHeute(s, id);
   let punkte = GESCHENK_PUNKTE[art];
   if (gb) punkte *= 8;
-  st.punkte = Math.max(0, Math.min(MAX_PUNKTE, st.punkte + punkte));
+  freundschaft(s, id, punkte);
   st.beschenkt = true;
   entfernenAusSlot(s, idx, 1);
   const gut = art === 'liebt' || art === 'mag' || art === 'neutral';
@@ -1017,7 +1168,7 @@ export function kartenWeg(s, von, nach) {
     if (kk === nach) break;
     for (const l of v) {
       if (l.von !== kk || l.nach in vorher) continue;
-      if (karteHolen(l.nach, s)?.npcWege === false || !erfuellt(s, l.tuerWenn)) continue;
+      if (karteHolen(l.nach, s)?.npcWege === false || !erfuellt(s, l.nurWenn) || !erfuellt(s, l.npcWenn)) continue;
       vorher[l.nach] = l;
       offen.push(l.nach);
     }
@@ -1096,8 +1247,25 @@ export function wegPlanen(s, von, ziel) {
 
 // ─── Basteln und Läden ──────────────────────────────────────────────────────
 
-export const rezeptFrei = (s, r) => (r.frei ? !!r.frei(s) : !r.stufe || stufe(s, r.stufe[0]) >= r.stufe[1]);
-export const kannBasteln = (s, r) => rezeptFrei(s, r) && Object.entries(r.zutaten).every(([id, n]) => anzahl(s, id) >= n);
+/** Gibt es Ergebnis und alle Zutaten als Gegenstand? (Fremde IDs fehlen, bis alles zusammengeführt ist.) */
+export const rezeptVollstaendig = (r) => !!ITEMS[r.ergebnis ?? r.id] && Object.keys(r.zutaten).every((id) => ITEMS[id]);
+/** Rezepte einer Art ('basteln', 'kochen'), ohne unvollständige. */
+export const rezepteVon = (art) => REZEPTE.filter((r) => (r.art ?? 'basteln') === art && rezeptVollstaendig(r));
+
+export function rezeptFrei(s, r) {
+  if (s.rezepte?.includes(r.id)) return true;
+  if (r.frei) return !!r.frei(s);
+  if (r.stufe) return stufe(s, r.stufe[0]) >= r.stufe[1];
+  return !r.lernen;
+}
+/** Ein Rezept lernen (Fernsehen, Briefe, Belohnungen). Gibt true zurück, wenn es neu war. */
+export function rezeptLernen(s, id) {
+  s.rezepte ??= [];
+  if (s.rezepte.includes(id)) return false;
+  s.rezepte.push(id);
+  return true;
+}
+export const kannBasteln = (s, r) => rezeptVollstaendig(r) && rezeptFrei(s, r) && Object.entries(r.zutaten).every(([id, n]) => anzahl(s, id) >= n);
 
 export function basteln(s, rezept) {
   if (!kannBasteln(s, rezept)) return null;
@@ -1114,24 +1282,30 @@ export function ladenOrt(ladenId) {
   return { karte: z.karte, x: z.x, y: z.y };
 }
 
+/**
+ * Was ein Laden heute anbietet: seine eigene Ware plus die aus dem Hook ladenWare(ladenId, s)
+ * (Ware anderer Bereiche in fremden Läden), sortiert nach `reihe` (Standard 50). Spezialwaren
+ * bekommen den Laden mit; Ware mit fehlendem Gegenstand wird ausgeblendet.
+ */
 export function ladenWare(s, ladenId) {
   const L = LAEDEN[ladenId];
-  const quelle = typeof L.ware === 'function' ? L.ware(s) : L.ware;
+  const quelle = [...(typeof L.ware === 'function' ? L.ware(s) : L.ware), ...sammle('ladenWare', ladenId, s)];
   const liste = [];
   for (const w of quelle) {
     if (w.bedingung && !erfuellt(s, w.bedingung)) continue;
     if (w.spezial) {
       const sw = SPEZIAL_WARE[w.spezial];
       if (!sw) continue;
-      if (sw.angebote) { liste.push(...sw.angebote(s, w)); continue; }
-      if (sw.verfuegbar && !sw.verfuegbar(s, w)) continue;
+      if (sw.angebote) { liste.push(...sw.angebote(s, w, ladenId).filter((a) => !a.id || ITEMS[a.id])); continue; }
+      if (sw.verfuegbar && !sw.verfuegbar(s, w, ladenId)) continue;
       const { id, kaufen: _k, verfuegbar: _v, angebote: _a, ...vorgabe } = sw;
       liste.push({ ...vorgabe, ...w });
       continue;
     }
+    if (w.id && !ITEMS[w.id]) continue;
     liste.push({ ...w });
   }
-  return liste;
+  return liste.map((w, i) => [w, i]).sort((a, b) => (a[0].reihe ?? 50) - (b[0].reihe ?? 50) || a[1] - b[1]).map(([w]) => w);
 }
 
 export function kaufen(s, ware, n = 1) {
@@ -1155,8 +1329,11 @@ export function kaufen(s, ware, n = 1) {
   return { ok: true, text };
 }
 
+/** Kategorien, die ein Laden ankauft: eigene plus Hook ladenKauft(ladenId). */
+export const kauftKategorien = (ladenId) => [...LAEDEN[ladenId].kauft, ...sammle('ladenKauft', ladenId)];
+
 export function kauftLaden(ladenId, slot) {
-  return !!slot && LAEDEN[ladenId].kauft.includes(ITEMS[slot.id].kat) && verkaufbar(slot);
+  return !!slot && kauftKategorien(ladenId).includes(ITEMS[slot.id].kat) && verkaufbar(slot);
 }
 
 export function verkaufen(s, ladenId, idx, n = 1) {
@@ -1168,52 +1345,6 @@ export function verkaufen(s, ladenId, idx, n = 1) {
   s.stats.verdient += gold;
   entfernenAusSlot(s, idx, n);
   return { gold };
-}
-
-// ─── Angeln ─────────────────────────────────────────────────────────────────
-
-export function muellFuer(art) {
-  return MUELL[art]?.length ? MUELL[art] : Object.values(MUELL).flat();
-}
-
-export function fischWaehlen(s, wasserArt, r = Math.random) {
-  const jz = jahreszeit(s);
-  const m = s.zeit.minute;
-  const uhr = Math.floor(m / 60) * 100 + (m % 60);
-  const wetter = regnet(s) ? 'regen' : 'sonne';
-  const pool = FISCHE.filter((f) => {
-    const d = f.fisch;
-    return d.orte.includes(wasserArt) && d.jz.includes(jz) && uhr >= d.zeit[0] && uhr < d.zeit[1] && (!d.wetter || d.wetter === wetter);
-  });
-  if (!pool.length || r() < 0.08) return { muell: waehle(r, muellFuer(wasserArt)) };
-  const gewicht = pool.map((f) => 110 - f.fisch.schwierigkeit);
-  let z = r() * gewicht.reduce((a, b) => a + b, 0);
-  for (let i = 0; i < pool.length; i++) {
-    z -= gewicht[i];
-    if (z <= 0) return { fisch: pool[i] };
-  }
-  return { fisch: pool[pool.length - 1] };
-}
-
-export function fangGeben(s, ort, id, perfekt, r = Math.random) {
-  const it = ITEMS[id];
-  const erg = neuesErgebnis();
-  const x = s.spieler.x;
-  const y = s.spieler.y;
-  if (it.kat !== 'fisch') {
-    geben(s, ort, x, y, { id, n: 1 }, erg);
-    xpGeben(s, 'angeln', 3, erg);
-    return erg;
-  }
-  const lvl = stufe(s, 'angeln');
-  const z = r();
-  let q = z < 0.03 + lvl * 0.03 ? 2 : z < 0.15 + lvl * 0.06 ? 1 : 0;
-  if (perfekt && q < 2 && r() < 0.5) q++;
-  geben(s, ort, x, y, { id, n: 1, q }, erg);
-  xpGeben(s, 'angeln', ((q + 1) * 3 + it.fisch.schwierigkeit / 3) * (perfekt ? 2 : 1), erg);
-  s.stats.gefangen++;
-  erg.q = q;
-  return erg;
 }
 
 // ─── Speichern ──────────────────────────────────────────────────────────────
