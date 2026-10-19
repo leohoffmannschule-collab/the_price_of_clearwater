@@ -272,6 +272,9 @@ try {
 
   const gespeichert = await page.evaluate(() => !!localStorage.getItem('klarwasser-hof-v2'));
   pruefe(gespeichert, 'Der Morgen wurde gespeichert');
+  await page.reload();
+  await page.waitForSelector('text=Weiterspielen');
+  pruefe(true, 'Nach dem Neuladen bietet der Titel „Weiterspielen“ an');
   pruefe(fehler.length === 0, `Keine Fehler in der Konsole${fehler.length ? `: ${fehler.join(' | ')}` : ''}`);
 } finally {
   await browser.close();

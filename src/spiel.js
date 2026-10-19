@@ -6,6 +6,7 @@ import { T, ITEMS, NPCS, LAEDEN, TAG_ENDE, MS_PRO_MINUTE, PFLANZEN, OBJEKT_TYPEN
 import { karteHolen, karteVergessen, punkt, zielVon, warpZiel } from './karten.js';
 import { alle, erster, sammle, mod } from './system.js';
 import * as L from './logik.js';
+import { speicherung } from './speicher.js';
 
 export const S = {
   s: null,
@@ -637,10 +638,10 @@ export function neuerMorgen() {
   postZeigen(false);
 }
 
+/** Speichert in die Datenbank des Artefakts (siehe speicher.js) und in den Browser-Speicher. */
 export function speichern() {
   try {
-    localStorage.setItem(L.SPEICHER_SCHLUESSEL, L.serialisieren(zustandSichern()));
-    return true;
+    return speicherung.schreiben(L.serialisieren(zustandSichern()));
   } catch {
     return false;
   }

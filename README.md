@@ -25,7 +25,8 @@ Dann `http://localhost:8080` im Browser öffnen. `npm start` startet nur einen k
 Dateiserver (`tools/server.mjs`, ohne Fremdpakete). `python3 -m http.server 8080` tut dasselbe.
 Ein Doppelklick auf `index.html` reicht nicht, weil Browser ES-Module nicht über `file://` laden.
 
-Der Spielstand liegt im `localStorage` des Browsers. Gespeichert wird jeden Morgen
+Der Spielstand liegt im Artefakt in der Datenbank, pro Person privat. Ohne Artefakt, etwa beim
+lokalen Server, liegt er im `localStorage` des Browsers. Gespeichert wird jeden Morgen
 und auf Wunsch im Menü unter „Optionen".
 
 ---
@@ -116,6 +117,7 @@ src/
   karten.js      Kartenformat, Bodenarten, Punkte, Bereiche, Gewässer, dynamische Karten
   system.js      Hooks und Modifikatoren
   logik.js       Rucksack, Feldarbeit, Tageswechsel, Freundschaft, Läden, Wege, Speichern
+  speicher.js    Spielstand: Datenbank des Artefakts pro Person, Browser-Speicher als Sicherung
   mine.js        Höhlenform und Monster-Verhalten
   spiel.js       Laufzeit: Bewegung, Werkzeuge, Interaktion, Uhr, Wege der Dorfbewohner
   angeln.js      Auswerfen, Anbiss, Drill

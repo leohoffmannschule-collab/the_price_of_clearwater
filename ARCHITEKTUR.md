@@ -462,6 +462,15 @@ Gewässerarten: `teich` (Hof), `fluss` (Dorf, Wald), `see` (Berg), `waldsee` (Wa
   ignoriert (anderer Schlüssel) bzw. beim Laden abgelehnt.
 * Gespeichert wird `JSON.stringify(s)` jeden Morgen und auf Wunsch. Laufzeitzustand (`S`) wird
   nicht gespeichert; `zustandSichern()` überträgt die Position.
+* Wohin: `src/speicher.js`. Im Artefakt liegt der Stand in der Datenbank (`db`-Fähigkeit) als
+  Dokument `data/users/<id>/spielstand` mit dem Feld `stand`; `<id>` kommt von `user.id()`, so bleibt
+  jede Person für die anderen unsichtbar. Der Browser-Speicher (`klarwasser-hof-v2`) geht immer
+  mit, als Sicherung und für den lokalen Server. Lesen: Datenbank, sonst Browser; ein Stand nur im
+  Browser wandert beim ersten Lesen in die Datenbank. `speichern()` bleibt synchron; das
+  Schreiben in die Datenbank läuft im Hintergrund, nacheinander. Ein Spielstand ist rund 8 KB groß
+  (Limit pro Dokument 256 KiB).
+* Einstellungen (Lautstärke) bleiben im Browser (`klarwasser-hof-einstellungen`).
+* Das Artefakt braucht `capabilities: { db: {}, user: {} }`. Ohne sie fällt alles auf den Browser zurück.
 * Bereichszustand liegt in eigenen Schlüsseln (Tabelle in 1.) und wird im Hook `ergaenzen`
   mit `??=` angelegt, damit auch ältere v2-Stände die neuen Felder bekommen (ein Test löscht alle
   Bereichsschlüssel und prüft, dass sie beim Laden wiederkommen). Freischaltungen kommen nach

@@ -23,6 +23,7 @@ import {
 } from './spiel.js';
 import { E, eingabeLeeren } from './eingabe.js';
 import { ton, einstellen, einstellungen, musikStimmung } from './ton.js';
+import { browserSpeicher, speicherung } from './speicher.js';
 
 export const $ = (sel) => document.querySelector(sel);
 export const zahl = new Intl.NumberFormat('de-DE');
@@ -829,13 +830,21 @@ fensterArt('tagEnde', (d) => {
 
 let titelAktiv = false;
 
-function gespeichert() {
+function gespeichertAus(text) {
   try {
-    const t = localStorage.getItem(L.SPEICHER_SCHLUESSEL);
-    return t ? L.deserialisieren(t) : null;
+    return text ? L.deserialisieren(text) : null;
   } catch {
     return null;
   }
+}
+
+let titelKnoepfe = null; // Knopfzeile des Titels, solange er offen ist
+
+function titelKnoepfeZeichnen(stand) {
+  titelKnoepfe.replaceChildren(
+    stand ? el('button', { type: 'button', class: 'knopf gross', onclick: () => spielBeginnen(stand, false) },
+      'Weiterspielen', el('span', { class: 'klein' }, `${stand.spieler.hof} · ${stand.zeit.tag}. ${JZ_NAME[JZ[stand.zeit.jz]]}, Jahr ${stand.zeit.jahr}`)) : null,
+    el('button', { type: 'button', class: `knopf${stand ? '' : ' gross'}`, onclick: neuesSpielFormular }, 'Neues Spiel'));
 }
 
 export function titelZeigen() {
@@ -851,17 +860,19 @@ export function titelZeigen() {
   demo.zeit.minute = 600;
   spielStarten(demo, hooks, { demo: true });
   musikStimmung('fruehling');
-  const stand = gespeichert();
   const t = $('#titel');
   t.hidden = false;
+  titelKnoepfe = el('div', { class: 'titel-knoepfe' });
   t.replaceChildren(el('div', { class: 'titel-inhalt' },
     el('h1', { class: 'logo' }, 'Klarwasser-Hof'),
     el('p', { class: 'untertitel' }, 'Ein verwilderter Hof, ein kleines Dorf am Fluss und vier Jahreszeiten, um etwas daraus zu machen.'),
-    el('div', { class: 'titel-knoepfe' },
-      stand ? el('button', { type: 'button', class: 'knopf gross', onclick: () => spielBeginnen(stand, false) },
-        'Weiterspielen', el('span', { class: 'klein' }, `${stand.spieler.hof} · ${stand.zeit.tag}. ${JZ_NAME[JZ[stand.zeit.jz]]}, Jahr ${stand.zeit.jahr}`)) : null,
-      el('button', { type: 'button', class: `knopf${stand ? '' : ' gross'}`, onclick: neuesSpielFormular }, 'Neues Spiel')),
-    el('p', { class: 'titel-fuss' }, 'Musik und Geräusche starten mit der ersten Taste. Gespeichert wird in diesem Browser.')));
+    titelKnoepfe,
+    el('p', { class: 'titel-fuss' }, 'Musik und Geräusche starten mit der ersten Taste. Gespeichert wird in der Datenbank des Artefakts, sonst in diesem Browser.')));
+  // Zuerst der Browser-Speicher (sofort da), dann die Datenbank, sobald sie antwortet.
+  titelKnoepfeZeichnen(gespeichertAus(browserSpeicher.lesen()));
+  speicherung.laden().then((text) => {
+    if (titelAktiv && titelKnoepfe?.isConnected) titelKnoepfeZeichnen(gespeichertAus(text));
+  });
 }
 
 const AUSWAHL = {
