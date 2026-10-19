@@ -111,7 +111,7 @@ Aufträge vom Schwarzen Brett und eine Ohnmacht, wenn man um zwei Uhr nachts noc
 ```
 index.html
 src/
-  main.js        Einstieg: lädt die Bereiche, dann Spielschleife
+  index.js       Einstieg: lädt die Bereiche, dann Spielschleife – das einzige Skript von index.html
   daten.js       Register: Gegenstände, Pflanzen, Fische, Rezepte, Läden, Leute, Objekttypen …
   karten.js      Kartenformat, Bodenarten, Punkte, Bereiche, Gewässer, dynamische Karten
   system.js      Hooks und Modifikatoren
@@ -128,7 +128,7 @@ src/
   bereiche/      basis, hof, dorf, wildnis, pflanzen, angeln, mine, handwerk, tiere,
                  npcs, npcs2, feste, gemeinschaft – je inhalt.js (Inhalte),
                  grafik.js (Pixelkunst, Zeichner), oberflaeche.js (Fenster, Menüreiter)
-  style.css
+  index.css      das einzige Stylesheet von index.html, holt auch die Schriften
 test/
   alle.mjs       führt alle *.test.mjs aus
   *.test.mjs     Register, Karten und Punkte, Logik, ganze Tage, Laufzeit, Darstellung
