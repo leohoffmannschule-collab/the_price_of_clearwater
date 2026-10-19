@@ -15,7 +15,7 @@ Sprache im Code ist Deutsch. Reine ES-Module, kein Build, keine Abhängigkeiten.
 ```
 src/
   daten.js  karten.js  system.js  logik.js  spiel.js  mine.js  angeln.js     Kern, DOM-frei
-  sprites.js  render.js  ui.js  eingabe.js  ton.js  zufall.js  main.js        Kern, Browser
+  sprites.js  render.js  ui.js  eingabe.js  ton.js  zufall.js  index.js       Kern, Browser
   bereiche/
     inhalt.js        lädt alle bereiche/*/inhalt.js, dann fertig()   (DOM-frei, auch in Node)
     grafik.js        lädt alle bereiche/*/grafik.js                  (Pixelkunst)
@@ -57,7 +57,7 @@ Welche Kunst und welche Fenster in `grafik.js` und `oberflaeche.js` liegen, steh
 
 ### Laden
 
-`main.js` importiert zuerst `bereiche/inhalt.js`, `bereiche/grafik.js`, `bereiche/oberflaeche.js`,
+`index.js` importiert zuerst `bereiche/inhalt.js`, `bereiche/grafik.js`, `bereiche/oberflaeche.js`,
 dann den Rest. `bereiche/inhalt.js` importiert die Bereiche in dieser festen Reihenfolge und ruft
 danach `fertig()` (daten.js), das den Hook `fertig` auslöst:
 

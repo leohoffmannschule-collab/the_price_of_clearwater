@@ -84,6 +84,8 @@ export function el(tag, attrs = {}, ...kinder) {
   for (const [k, v] of Object.entries(attrs)) {
     if (v == null || v === false) continue;
     if (k === 'class') e.className = v;
+    // Werte für das Stylesheet als Custom Properties, nie als style-Attribut
+    else if (k === 'vars') for (const [name, wert] of Object.entries(v)) e.style.setProperty(name, wert);
     else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
     else e.setAttribute(k, v === true ? '' : v);
   }
@@ -166,11 +168,12 @@ function touchStarten() {
     if (l > 1) { dx /= l; dy /= l; }
     E.touch.x = Math.abs(dx) > 0.2 ? dx : 0;
     E.touch.y = Math.abs(dy) > 0.2 ? dy : 0;
-    knopf.style.transform = `translate(${dx * 34}px, ${dy * 34}px)`;
+    knopf.style.setProperty('--dx', dx);
+    knopf.style.setProperty('--dy', dy);
   };
   stick.addEventListener('pointerdown', (e) => { id = e.pointerId; stick.setPointerCapture(id); setzen(e); e.preventDefault(); });
   stick.addEventListener('pointermove', (e) => { if (e.pointerId === id) setzen(e); });
-  const los = (e) => { if (e.pointerId !== id) return; id = null; E.touch.x = 0; E.touch.y = 0; knopf.style.transform = ''; };
+  const los = (e) => { if (e.pointerId !== id) return; id = null; E.touch.x = 0; E.touch.y = 0; knopf.style.removeProperty('--dx'); knopf.style.removeProperty('--dy'); };
   stick.addEventListener('pointerup', los);
   stick.addEventListener('pointercancel', los);
 
@@ -204,12 +207,12 @@ export function hudAktualisieren() {
   const sp = s.spieler;
   const def = S.ort?.def;
   const en = $('#energieLeiste');
-  en.querySelector('.fuellung').style.height = `calc((100% - 29px) * ${sp.energie / sp.maxEnergie})`;
+  en.querySelector('.fuellung').style.setProperty('--anteil', sp.energie / sp.maxEnergie);
   en.classList.toggle('niedrig', sp.energie < 40);
   const hp = $('#hpLeiste');
   // Gesundheit zeigen, wo gekämpft wird (Mine, Karten mit `kampf: true`) oder wenn sie fehlt
   hp.hidden = !(def?.innen === 'mine' || def?.kampf || sp.hp < sp.maxHp);
-  hp.querySelector('.fuellung').style.height = `calc((100% - 29px) * ${sp.hp / sp.maxHp})`;
+  hp.querySelector('.fuellung').style.setProperty('--anteil', sp.hp / sp.maxHp);
 
   const sig = `${sp.wahl}|${sp.inv.slice(0, 12).map((x) => (x ? `${x.id}:${x.n}:${x.q || 0}:${x.von || ''}` : '-')).join(',')}|${AUFRUESTBAR.map((id) => sp.werkzeug[id] || 0).join('')}`;
   if (sig !== hotbarSignatur) { hotbarSignatur = sig; hotbarZeichnen(); }
@@ -631,7 +634,7 @@ function faehigkeitenReiter() {
       return el('div', { class: 'zeile' },
         el('div', { class: 'stufe-zahl', 'aria-label': `Stufe ${lvl}` }, lvl),
         el('div', { class: 'zeile-text' }, el('strong', {}, name),
-          el('div', { class: 'balken', role: 'progressbar', 'aria-valuenow': Math.round(anteil * 100), 'aria-valuemin': 0, 'aria-valuemax': 100 }, el('div', { style: `width:${anteil * 100}%` })),
+          el('div', { class: 'balken', role: 'progressbar', 'aria-valuenow': Math.round(anteil * 100), 'aria-valuemin': 0, 'aria-valuemax': 100 }, el('div', { vars: { '--anteil': anteil } })),
           el('div', { class: 'leise klein' }, lvl >= 10 ? 'Meisterstufe' : `${xp - von} / ${bis - von} Erfahrung bis Stufe ${lvl + 1}`),
           el('div', { class: 'leise klein' }, vorteile[id])));
     })),
@@ -786,7 +789,7 @@ function neuesSpielFormular() {
     g.clearRect(0, 0, 16, 24);
     g.drawImage(SP.figurBild(a, ['unten', 'rechts', 'oben', 'links'][richtung], 0), 0, 0);
   };
-  const farbwahl = (feld, titel) => el('fieldset', { class: 'farbwahl' }, el('legend', {}, titel), AUSWAHL[feld].map((f, i) => el('label', { class: 'farbe', style: `--f:${f}` },
+  const farbwahl = (feld, titel) => el('fieldset', { class: 'farbwahl' }, el('legend', {}, titel), AUSWAHL[feld].map((f, i) => el('label', { class: 'farbe', vars: { '--f': f } },
     el('input', { type: 'radio', name: feld, value: f, checked: a[feld] === f, onchange: () => { a[feld] = f; zeichneVorschau(); } }), el('span', { class: 'sr' }, `${titel} ${i + 1}`))));
   const name = el('input', { id: 'neuName', type: 'text', maxlength: 14, value: 'Liesel', autocomplete: 'off' });
   const hof = el('input', { id: 'neuHof', type: 'text', maxlength: 18, value: 'Sonnenhof', autocomplete: 'off' });
