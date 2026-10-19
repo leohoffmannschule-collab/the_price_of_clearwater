@@ -695,7 +695,7 @@ zeichner({
 | `STATISTIK` | `statistik({ id, name, wert(s), reihe })` | Zeilen unter „Bisher" im Reiter Fähigkeiten |
 | `RUCKSACK_TEILE` | `rucksackTeil({ id, reihe, bauen(d, { slot, idx }) })` | Teile in der Rucksack-Ansicht unter der Info zum gewählten Platz (Ringplätze, Stiefel) |
 | `RUCKSACK_AKTIONEN` | `rucksackAktion({ id, name, wenn(slot, s), tun(d, { slot, idx }), reihe })` | Knöpfe für den gewählten Platz („Anlegen") |
-| `STILE` | `stil(id, css)` | CSS eines Bereichs; hängt einmal ein `<style>` an den Kopf (in Node: nichts). Fensterstile gehören in den Bereich, nicht in `style.css` |
+| `STILE` | `stil(id, css)` | CSS eines Bereichs; hängt einmal ein `<style>` an den Kopf (in Node: nichts). Fensterstile gehören in den Bereich, nicht in `index.css` |
 
 Geöffnet wird ein Fenster aus der Spiellogik mit `fenster(name, daten)` (spiel.js, über
 `S.hooks`) – inhalt.js importiert ui.js nie. Fenster des Kerns: `menue`, `brief`, `tagEnde`.

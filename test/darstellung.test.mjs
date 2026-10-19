@@ -220,7 +220,7 @@ gruppe('Oberfläche', () => {
     stil('test-stil', '.x { color: red; }');
     assert.throws(() => stil('test-stil', ''), /gibt es schon/);
     assert.ok(STILE['dorf-laden'] && STILE['gemeinschaft-buendel'], 'Bereichsstile liegen in den Bereichen');
-    const kernCss = readFileSync(`${wurzel}style.css`, 'utf8');
+    const kernCss = readFileSync(`${wurzel}index.css`, 'utf8');
     for (const klasse of ['.laden-kopf', '.buendel', '.versand-liste']) assert.ok(!kernCss.includes(klasse), `${klasse} gehört nicht ins Kern-Stylesheet`);
   });
   test('die Oberflächen-Register werfen bei doppelten Namen', () => {
