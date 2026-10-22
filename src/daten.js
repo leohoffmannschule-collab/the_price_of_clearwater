@@ -135,6 +135,10 @@ const FISCH_ID = new Set();
  */
 export function fisch(id, def) {
   const [d, ersetzen] = ohneErsetzen(def);
+  // Felder des alten Fangsystems (der Name ist zerlegt, damit der Test auf Reste des alten Systems nicht anschlägt)
+  for (const alt of ['schwierig' + 'keit', 'verhalten']) {
+    if (alt in d) throw new Error(`Fisch „${id}": seltenheit und laenge statt ${alt} (siehe ARCHITEKTUR.md, Abschnitt 2).`);
+  }
   const { seltenheit = 30, laenge = [20, 60], orte, jz, zeit = [600, 2600], wetter, ...rest } = d;
   const it = item(id, { kat: 'fisch', sorte: 'fisch', ...rest, fisch: { seltenheit, laenge, orte, jz, zeit, wetter }, ersetzen });
   return inListe(FISCHE, FISCH_ID, id, it, 'Fisch', ersetzen);

@@ -5,16 +5,17 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import '../src/bereiche/inhalt.js';
-import { T, ITEMS, LAEDEN, NPCS, FISCHE, XP_STUFEN, item } from '../src/daten.js';
+import { T, ITEMS, LAEDEN, NPCS, FISCHE, XP_STUFEN, item, fisch } from '../src/daten.js';
+const fischRegistrieren = (extra) => fisch('altfisch', { name: 'Altfisch', preis: 1, bild: { art: 'fisch' }, orte: ['teich'], jz: ['sommer'], ...extra });
 import { karte, raster, rahmen, rechteck, fertigRaster } from '../src/karten.js';
-import { BEKANNTE_MODIFIKATOREN, modifikator } from '../src/system.js';
+import { BEKANNTE_MODIFIKATOREN, modifikator, system } from '../src/system.js';
 import {
   ANGELN, VORSCHAU, angelnHinweis, wurfZiel, wartezeit, wurfWerte, muellChance,
   fischWaehlen, fangWaehlen, fangGeben, schatzInhalt, schatzGeben, fischLaenge,
 } from '../src/angeln.js';
 import { zufall } from '../src/zufall.js';
 import * as L from '../src/logik.js';
-import { S, spielStarten, update, karteBetreten } from '../src/spiel.js';
+import { S, spielStarten, update, karteBetreten, wechseln, schlafen } from '../src/spiel.js';
 
 let bestanden = 0;
 let fehlgeschlagen = 0;
@@ -275,14 +276,15 @@ gruppe('Auswerfen', () => {
   test('Köder im Rucksack wird beim Wurf verbraucht, einer je Wurf', () => {
     const s = frisch({ koeder: 2, x: 5 });
     wurf();
-    assert.equal(L.anzahl(s, 'koeder'), 1);
+    assert.equal(L.anzahl(s, 'koeder'), 2, 'im Flug noch nicht');
     assert.equal(S.angeln.koeder, 'koeder');
     bis('warten');
+    assert.equal(L.anzahl(s, 'koeder'), 1, 'beim Landen verbraucht');
     druecken(); // zu früh: leer eingeholt
     druecken(); // gleich wieder auswerfen, mit dem zweiten Köder
-    assert.equal(L.anzahl(s, 'koeder'), 0);
     assert.equal(S.angeln.koeder, 'koeder');
     bis('warten');
+    assert.equal(L.anzahl(s, 'koeder'), 0);
     druecken();
     druecken(); // jetzt ohne Köder
     assert.equal(S.angeln.phase, 'wurf');
@@ -748,6 +750,126 @@ gruppe('Kraftbalken und Drill sind weg', () => {
       const m = t.match(tot);
       assert.ok(!m, `${d}: „${m?.[0]}"`);
     }
+  });
+});
+
+// ─── Befunde aus dem Code-Review ────────────────────────────────────────────
+gruppe('Review: Eingabe beim Auswerfen', () => {
+  test('gehaltene Laufrichtung zum Wasser + Benutzen: der Wurf bleibt, der Köder wird beim Landen verbraucht', () => {
+    const s = frisch({ koeder: 2, x: 5 });
+    E.richtung.x = 1; // Taste weiter gedrückt
+    druecken();
+    assert.ok(S.angeln, 'ausgeworfen');
+    bilder(0.6);
+    assert.equal(S.angeln?.phase, 'warten', 'die gehaltene Taste holt die Schnur nicht ein');
+    assert.equal(L.anzahl(s, 'koeder'), 1);
+    E.richtung.x = 0;
+    bild();
+    assert.ok(S.angeln, 'Loslassen ändert nichts');
+    E.richtung.x = 1; // erneut gedrückt: Laufen holt ein
+    bild();
+    E.richtung.x = 0;
+    assert.equal(S.angeln, null);
+  });
+  test('ein abgebrochener Flug kostet keinen Köder', () => {
+    const s = frisch({ koeder: 2, x: 5 });
+    wurf();
+    E.richtung.x = -1;
+    bild();
+    E.richtung.x = 0;
+    assert.equal(S.angeln, null);
+    assert.equal(L.anzahl(s, 'koeder'), 2);
+  });
+  test('Maus auf dem Landfeld neben der Figur: Benutzen wirft zum Wasser, die Figur dreht sich nicht weg', () => {
+    const s = frisch({ x: 6, y: 4, blick: 'rechts', koeder: 1 });
+    S.kamera.zoom = 4;
+    S.kamera.dpr = 1;
+    S.kamera.x = 0;
+    S.kamera.y = 0;
+    E.maus.aktiv = true;
+    E.maus.x = 5 * T * 4 + 20; // Feld x = 5, links neben der Figur
+    E.maus.y = 4 * T * 4 + 20;
+    bild();
+    assert.ok(VORSCHAU.ziel, 'die Vorschau zeigt das Wasser');
+    druecken();
+    E.maus.aktiv = false;
+    assert.ok(S.angeln, `ausgeworfen: ${prot.meldungen.join()}`);
+    assert.equal(S.sp.blick, 'rechts');
+    assert.equal(S.angeln.x, 8);
+    assert.equal(L.anzahl(s, 'koeder'), 1, 'noch im Flug');
+  });
+  test('Benutzen und Aktionstaste im selben Bild werfen nur einmal aus', () => {
+    frisch({ koeder: 2, x: 5 });
+    E.benutzen.gedrueckt = true;
+    E.aktion.gedrueckt = true;
+    bild();
+    assert.equal(prot.toene.filter((t) => t === 'wurf').length, 1);
+    bis('warten');
+    assert.equal(L.anzahl(S.s, 'koeder'), 1);
+  });
+});
+
+gruppe('Review: Ausnahmen bleiben nicht hängen', () => {
+  const still = (fn) => {
+    const alt = console.error;
+    const meldungen = [];
+    console.error = (...a) => meldungen.push(a.join(' '));
+    try { fn(); } finally { console.error = alt; }
+    return meldungen;
+  };
+  let werfen = null;
+  system({
+    name: 'test_review_wirft',
+    karteBetreten() { if (werfen === 'karte') throw new Error('Karte kaputt'); },
+    tagEnde() { if (werfen === 'tag') throw new Error('Tag kaputt'); },
+    update() { if (werfen === 'update') throw new Error('Update kaputt'); },
+  });
+  test('wirft das Betreten einer Karte, bleibt S.uebergang nicht gesetzt', () => {
+    frisch();
+    werfen = 'karte';
+    assert.throws(() => wechseln('angeltest', 3, 4, 'unten'), /Karte kaputt/);
+    werfen = null;
+    assert.equal(S.uebergang, false);
+    const t = S.s.zeit.minute;
+    bilder(15);
+    assert.ok(S.s.zeit.minute > t, 'die Uhr läuft wieder');
+  });
+  test('wirft ein Hook beim Schlafen, bleibt S.pause nicht gesetzt', () => {
+    frisch();
+    werfen = 'tag';
+    assert.throws(() => schlafen(), /Tag kaputt/);
+    werfen = null;
+    assert.equal(S.pause, false);
+  });
+  test('ein dauerhaft werfender update-Hook friert die Figur nicht ein', () => {
+    frisch({ x: 4 });
+    werfen = 'update';
+    const x0 = S.sp.x;
+    E.richtung.x = -1;
+    const m = still(() => bilder(0.5));
+    E.richtung.x = 0;
+    werfen = null;
+    assert.ok(S.sp.x < x0 - 5, 'die Figur läuft trotzdem');
+    assert.ok(m.some((z) => /update/.test(z) && /Update kaputt/.test(z)), m.join());
+  });
+});
+
+gruppe('Review: Zahlen und Registrierung', () => {
+  test('Modifikatoren ohne Rückgabe oder mit negativem Wert machen weder NaN noch ein negatives Fenster', () => {
+    const s = neues(2);
+    const alt = BEKANNTE_MODIFIKATOREN;
+    assert.ok(alt.includes('bissFenster'));
+    modifikator('bissFenster', () => undefined);
+    modifikator('bissZeit', () => NaN);
+    modifikator('schatzChance', () => -5);
+    const w = wurfWerte(s, 'angel', null, 'teich');
+    assert.ok(Number.isFinite(w.fenster) && w.fenster >= 0.2, `Fenster ${w.fenster}`);
+    assert.ok(Number.isFinite(wartezeit(s, 'angel', null, 'teich', () => 0.5)));
+    assert.equal(w.schatz, 0);
+  });
+  test('fisch() weist die alten Felder schwierigkeit/verhalten ab', () => {
+    assert.throws(() => fischRegistrieren({ schwierigkeit: 90 }), /seltenheit und laenge/);
+    assert.throws(() => fischRegistrieren({ verhalten: 'flink' }), /seltenheit und laenge/);
   });
 });
 

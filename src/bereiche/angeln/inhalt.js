@@ -21,7 +21,7 @@ item('angel', {
   text: 'Am Wasser „Benutzen": Schnur auswerfen. Taucht der Schwimmer ab, sofort einholen!',
 });
 werkzeugArt('angel', {
-  benutzen() { auswerfen(S, fx, { zeiger: zeiger() }); },
+  benutzen() { auswerfen(S, fx, wurfOpt()); },
 });
 
 item('koeder', {
@@ -78,6 +78,8 @@ let eingabe = null;
 /** Das Feld unter dem Mauszeiger, nur bei Mausbedienung. */
 const zeiger = () => (eingabe?.maus.aktiv ? feldUnterZeiger(eingabe.maus.x, eingabe.maus.y) : null);
 /** Töne, Meldungen und Spritzer, die der Ablauf in angeln.js braucht. */
+/** Wurf-Optionen: Mausfeld und die Blickrichtung vom Bildanfang (Benutzen dreht die Figur sonst zum Zielfeld neben ihr, weg vom Wasser). */
+const wurfOpt = () => ({ zeiger: zeiger(), blick: S.sp.blickVor });
 const fx = { ton, meldung, partikel, ergebnis: ergebnisZeigen, feld: spielerFeld, zeiger };
 
 const istRute = (slot) => !!slot && ITEMS[slot.id]?.werkzeug === 'angel';
@@ -113,8 +115,9 @@ system({
   },
   /** Aktionstaste (E, Rechtsklick, „Aktion"): wirft aus, wenn dort nichts anderes zu tun ist. */
   interagieren(c) {
-    if (!istRute(c.slot) || fremdesZiel(c) || wurfZiel(S, zeiger()).grund) return undefined;
-    auswerfen(S, fx, { zeiger: zeiger() });
+    if (S.angeln) return true; // im selben Bild schon ausgeworfen (Benutzen + Aktion): kein zweiter Wurf
+    if (!istRute(c.slot) || fremdesZiel(c) || wurfZiel(S, zeiger(), S.sp.blickVor).grund) return undefined;
+    auswerfen(S, fx, wurfOpt());
     return true;
   },
   hinweis(c) {

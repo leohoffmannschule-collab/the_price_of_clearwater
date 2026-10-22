@@ -215,7 +215,10 @@ try {
   await page.keyboard.press('Space');
   await page.waitForTimeout(100);
   z = await stand(page);
-  pruefe(z.koeder === 2 && z.phase === 'wurf', 'Köder wird beim Wurf verbraucht');
+  pruefe(z.koeder === 3 && z.phase === 'wurf', 'im Flug ist der Köder noch da');
+  await phase(page, 'warten');
+  z = await stand(page);
+  pruefe(z.koeder === 2, 'Köder wird beim Landen verbraucht');
   await phase(page, 'warten');
   pruefe((await stand(page)).warte <= 11 + 1e-9, 'mit Köder höchstens die halbe Wartezeit (11 s)');
 

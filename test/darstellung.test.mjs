@@ -246,7 +246,7 @@ gruppe('Importregeln der Darstellung', () => {
     }
     return liste;
   }
-  const kern = ['daten', 'karten', 'system', 'logik', 'spiel', 'mine', 'angeln', 'zufall'];
+  const kern = ['daten', 'karten', 'system', 'logik', 'spiel', 'mine', 'angeln', 'zufall', 'schleife'];
   const pruefen = (datei, extra) => {
     const erlaubt = [...kern, ...extra].map((m) => `${wurzel}${m}.js`);
     for (const b of BEREICHE) {

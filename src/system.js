@@ -10,6 +10,8 @@
 // Systeme laufen in der Reihenfolge, in der die Bereiche geladen werden
 // (siehe bereiche/inhalt.js). Dort ist sie fest, damit Ergebnisse reproduzierbar bleiben.
 
+import { schrittSicher } from './schleife.js';
+
 /**
  * Bekannte Hook-Namen. Die ersten ruft der Kern auf; die letzten sind zwischen Bereichen
  * vereinbart (ein Bereich ruft, andere hören zu). Ein System mit einem Hook, der hier fehlt,
@@ -51,6 +53,16 @@ export function system(def) {
 
 export function alle(name, ...args) {
   for (const sy of SYSTEME) sy[name]?.(...args);
+}
+
+/**
+ * Wie `alle`, aber ein werfender Hook stoppt die anderen nicht: der Fehler wird einmal gemeldet
+ * (schleife.js). Für Hooks, die in jedem Bild laufen (`update`).
+ */
+export function alleSicher(name, ...args) {
+  for (const sy of SYSTEME) {
+    if (sy[name]) schrittSicher(`${name} (${sy.name})`, () => sy[name](...args));
+  }
 }
 
 export function erster(name, ...args) {

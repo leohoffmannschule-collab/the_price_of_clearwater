@@ -208,6 +208,31 @@ try {
   });
   pruefe(gross.teile > 0 && gross.teile < gross.gesamt / 4, `Kulling auf 100×72: ${gross.teile} von ${gross.gesamt} Objekten gesammelt, ${gross.ms} ms je Bild`);
 
+  // Werfende Zeichner löschen nicht den Rest des Bildes: spätere Teile und Ebenen werden trotzdem gemalt
+  const zeichnerWirft = await page.evaluate(async () => {
+    const R = await import('/src/render.js');
+    const gemalt = { welt: false, ueber: false, bildschirm: false };
+    const alt = console.error;
+    const meldungen = [];
+    console.error = (...a) => meldungen.push(a.join(' '));
+    const namen = ['test_wirft_boden', 'test_wirft_welt', 'test_welt_danach', 'test_wirft_ueber', 'test_ueber_danach', 'test_bildschirm_danach'];
+    try {
+      R.zeichner({ name: 'test_wirft_boden', ebene: 'boden', reihe: 99, zeichnen() { throw new Error('Boden kaputt'); } });
+      R.zeichner({ name: 'test_wirft_welt', ebene: 'welt', reihe: 0, sammeln() { return [{ y: -1e6, f() { throw new Error('Teil kaputt'); } }]; } });
+      R.zeichner({ name: 'test_welt_danach', ebene: 'welt', reihe: 0, sammeln() { return [{ y: 1e6, f() { gemalt.welt = true; } }]; } });
+      R.zeichner({ name: 'test_wirft_ueber', ebene: 'ueber', reihe: 0, zeichnen() { throw new Error('Ebene kaputt'); } });
+      R.zeichner({ name: 'test_ueber_danach', ebene: 'ueber', reihe: 99, zeichnen() { gemalt.ueber = true; } });
+      R.zeichner({ name: 'test_bildschirm_danach', ebene: 'bildschirm', reihe: 99, zeichnen() { gemalt.bildschirm = true; } });
+      R.zeichnen();
+    } finally {
+      console.error = alt;
+      for (const e of R.EBENEN) R.ZEICHNER[e] = R.ZEICHNER[e].filter((z) => !namen.includes(z.name));
+    }
+    return { gemalt, meldungen: meldungen.length };
+  });
+  pruefe(zeichnerWirft.gemalt.welt && zeichnerWirft.gemalt.ueber && zeichnerWirft.gemalt.bildschirm, `Werfende Zeichner löschen den Rest des Bildes nicht (${JSON.stringify(zeichnerWirft.gemalt)})`);
+  pruefe(zeichnerWirft.meldungen >= 3, 'die Fehler der Zeichner werden gemeldet');
+
   // Große Objekte, Bodenbeläge und Pflanzenkunst für alle Phasen zeichnen ohne Fehler
   const erweiterung = await page.evaluate(async () => {
     const D = await import('/src/daten.js');

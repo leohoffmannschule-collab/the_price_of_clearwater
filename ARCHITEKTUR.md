@@ -15,7 +15,8 @@ Sprache im Code ist Deutsch. Reine ES-Module, kein Build, keine Abhängigkeiten.
 ```
 src/
   daten.js  karten.js  system.js  logik.js  spiel.js  mine.js  angeln.js     Kern, DOM-frei
-  sprites.js  render.js  ui.js  eingabe.js  ton.js  zufall.js  schleife.js  index.js   Kern, Browser
+  sprites.js  render.js  ui.js  eingabe.js  ton.js  index.js                       Kern, Browser
+  zufall.js  schleife.js                                                       Kern, DOM-frei
   bereiche/
     inhalt.js        lädt alle bereiche/*/inhalt.js, dann fertig()   (DOM-frei, auch in Node)
     grafik.js        lädt alle bereiche/*/grafik.js                  (Pixelkunst)

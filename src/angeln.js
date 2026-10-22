@@ -54,6 +54,9 @@ export function muellFuer(art) {
   return MUELL[art]?.length ? MUELL[art] : Object.values(MUELL).flat();
 }
 
+/** Eine Zahl mit Untergrenze; NaN oder undefined (ein Modifikator ohne return) fallen auf `ersatz` zurück. */
+const klemme = (x, min, ersatz) => (Number.isFinite(x) ? Math.max(min, x) : ersatz);
+
 const rutenWerte = (id) => ({ ...STANDARD_RUTE, ...ITEMS[id]?.rute });
 
 /**
@@ -67,16 +70,19 @@ export function wurfWerte(s, rute, koeder, wasser = null) {
   const k = koeder ? ITEMS[koeder]?.koeder : null;
   const kontext = { s, rute, koeder, wasser, stufe: lvl };
   const warten = r.warten * (k?.biss ?? 1) * Math.max(0.2, 1 - ANGELN.stufeAbzug * lvl) * (L.regnet(s) ? ANGELN.regen : 1);
-  const fenster = mod('bissFenster', ANGELN.fenster + r.fenster + (k?.fenster ?? 0), kontext);
-  const schatz = mod('schatzChance', ANGELN.schatz.grund + ANGELN.schatz.jeStufe * lvl + r.schatz + (k?.schatz ?? 0), kontext);
-  return { warten, fenster, schatz: Math.max(0, schatz), kontext };
+  const fensterGrund = ANGELN.fenster + r.fenster + (k?.fenster ?? 0);
+  const schatzGrund = ANGELN.schatz.grund + ANGELN.schatz.jeStufe * lvl + r.schatz + (k?.schatz ?? 0);
+  const fenster = klemme(mod('bissFenster', fensterGrund, kontext), 0.2, fensterGrund);
+  const schatz = klemme(mod('schatzChance', schatzGrund, kontext), 0, schatzGrund);
+  return { warten, fenster, schatz, kontext };
 }
 
 /** Wartezeit in Sekunden bis zur Blasenspur (zufällig, Echtzeit). */
 export function wartezeit(s, rute, koeder, wasser = null, r = Math.random) {
   const w = wurfWerte(s, rute, koeder, wasser);
   const [von, bis] = ANGELN.warten;
-  return Math.max(0.5, mod('bissZeit', (von + r() * (bis - von)) * w.warten, w.kontext));
+  const grund = (von + r() * (bis - von)) * w.warten;
+  return klemme(mod('bissZeit', grund, w.kontext), 0.5, Math.max(0.5, grund));
 }
 
 /** Chance auf Müll statt Fisch; erfahrene Angler haken weniger davon. */
@@ -210,10 +216,10 @@ export const VORSCHAU = { ziel: null };
 
 /**
  * Das Wasserfeld, auf das ein Wurf fällt: das Feld unter dem Zeiger (`zeiger = { x, y }`, nur bei
- * Mausbedienung), wenn es Wasser in Reichweite ist; sonst das nächste Wasserfeld in Blickrichtung
+ * Mausbedienung; `blickRichtung`: wohin die Figur schaut, Standard S.sp.blick), wenn es Wasser in Reichweite ist; sonst das nächste Wasserfeld in Blickrichtung
  * bis `ANGELN.reichweite` Felder weit. → { x, y, wasser, blick } oder { grund } (freundlicher Hinweis).
  */
-export function wurfZiel(S, zeiger = null) {
+export function wurfZiel(S, zeiger = null, blickRichtung = S.sp.blick) {
   const def = S.ort.def;
   const f = spielerFeld(S);
   const wasser = (x, y) => (istWasser(def, x, y) ? wasserArt(def, x, y) : null);
@@ -222,15 +228,15 @@ export function wurfZiel(S, zeiger = null) {
     const dx = zeiger.x - f.x;
     const dy = zeiger.y - f.y;
     if (Math.hypot(dx, dy) <= ANGELN.reichweite + 0.5) {
-      const blick = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'links' : 'rechts') : dy !== 0 ? (dy < 0 ? 'oben' : 'unten') : S.sp.blick;
+      const blick = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'links' : 'rechts') : dy !== 0 ? (dy < 0 ? 'oben' : 'unten') : blickRichtung;
       return { x: zeiger.x, y: zeiger.y, wasser: wasser(zeiger.x, zeiger.y), blick };
     }
     zuWeit = true;
   }
-  const [dx, dy] = L.RICHTUNG[S.sp.blick];
+  const [dx, dy] = L.RICHTUNG[blickRichtung];
   for (let d = 1; d <= ANGELN.reichweite; d++) {
     const art = wasser(f.x + dx * d, f.y + dy * d);
-    if (art) return { x: f.x + dx * d, y: f.y + dy * d, wasser: art, blick: S.sp.blick };
+    if (art) return { x: f.x + dx * d, y: f.y + dy * d, wasser: art, blick: blickRichtung };
   }
   return { grund: zuWeit ? 'Zu weit weg – geh näher ans Wasser.' : 'Kein Wasser in Reichweite. Stell dich ans Ufer und schau aufs Wasser.' };
 }
@@ -253,20 +259,20 @@ function spurWinkel(def, x, y, r) {
 }
 
 /**
- * Die Schnur auswerfen (aus der Hand: Angel gewählt). opt: { zeiger: { x, y } (Mausfeld), r (Zufall) }.
+ * Die Schnur auswerfen (aus der Hand: Angel gewählt). opt: { zeiger: { x, y } (Mausfeld), blick (Blickrichtung
+ * vor dem Drehen zum Ziel), r (Zufall) }.
  * Ohne Wasser in Reichweite: freundlicher Hinweis, nichts passiert (→ false). Köder aus dem Rucksack
- * wird dabei verbraucht. fx: { ton, meldung, ... } wie in angelnUpdate.
+ * wird erst beim Landen verbraucht (ein abgebrochener Flug kostet nichts). fx: { ton, meldung, ... } wie in angelnUpdate.
  */
 export function auswerfen(S, fx, opt = {}) {
   const s = S.s;
-  const ziel = wurfZiel(S, opt.zeiger);
+  const ziel = wurfZiel(S, opt.zeiger, opt.blick);
   if (ziel.grund) { fx.meldung(ziel.grund); return false; }
   const r = opt.r ?? Math.random;
   const rute = s.spieler.inv[s.spieler.wahl]?.id;
   const koeder = koederImRucksack(s)?.id ?? null;
   const w = wurfWerte(s, rute, koeder, ziel.wasser);
   const warte = wartezeit(s, rute, koeder, ziel.wasser, r);
-  if (koeder) L.entfernen(s, koeder, 1);
   S.sp.blick = ziel.blick;
   const versatz = SCHWIMMER_VERSATZ[ziel.blick];
   S.angeln = {
@@ -276,6 +282,8 @@ export function auswerfen(S, fx, opt = {}) {
     warte, spur: ANGELN.spur, fenster: w.fenster, perfektZeit: ANGELN.perfekt,
     winkel: spurWinkel(S.ort.def, ziel.x, ziel.y, r),
     dauer: ANGELN.wurf, fang: null,
+    // Wer die Laufrichtung zum Wasser beim Auswerfen weiter hält, holt nicht gleich wieder ein
+    sperre: !!S.sp.bewegt,
   };
   fx.ton('wurf');
   return true;
@@ -299,7 +307,9 @@ export function angelnUpdate(S, dt, E, fx) {
   const s = S.s;
   const slot = s.spieler.inv[s.spieler.wahl];
   const wechsel = !slot || slot.id !== a.rute || (E.slot != null && E.slot !== s.spieler.wahl) || !!E.rad;
-  if (wechsel || Math.hypot(E.richtung.x, E.richtung.y) > 0.2 || S.sp.stoss) {
+  const lauf = Math.hypot(E.richtung.x, E.richtung.y) > 0.2;
+  if (!lauf) a.sperre = false; // erst nach dem Loslassen zählt ein neuer Druck als Abbruch
+  if (wechsel || (lauf && !a.sperre) || S.sp.stoss) {
     abbrechen(S, fx);
     return false;
   }
@@ -310,6 +320,7 @@ export function angelnUpdate(S, dt, E, fx) {
       if (a.t >= a.dauer) {
         a.t -= a.dauer;
         a.phase = 'warten';
+        if (a.koeder) L.entfernen(s, a.koeder, 1);
         fx.ton('platsch');
         fx.partikel(a.bx, a.by, 6, SPRITZER.klein);
       }

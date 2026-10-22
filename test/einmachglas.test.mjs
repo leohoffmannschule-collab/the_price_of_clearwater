@@ -394,9 +394,21 @@ gruppe('Spielschleife', () => {
     for (let i = 0; i < 60; i++) bild();
     assert.equal(reihenfolge.filter((x) => x === 'zeichnen').length, 60, 'alle 60 Bilder wurden gezeichnet');
     assert.equal(reihenfolge.filter((x) => x === 'eingabe').length, 60);
-    assert.equal(gemeldet.length, 1, 'ein Fehler in jedem Bild wird nur einmal gemeldet');
+    assert.equal(gemeldet.length, 6, 'erst gemeldet, dann nur beim 2., 4., 8., 16. und 32. Mal');
     assert.match(gemeldet[0], /Spiel/);
-    assert.equal(fehlerZaehler()['Spiel: Cannot read properties of undefined'], 60);
+    assert.match(gemeldet[5], /32x/);
+    assert.equal(Object.values(fehlerZaehler())[0], 60);
+  });
+  test('gleicher Standardtext an verschiedenen Stellen: jede Stelle wird gemeldet', () => {
+    const { schrittSicher, meldungenVergessen } = modul();
+    meldungenVergessen();
+    const gemeldet = [];
+    const a = () => { throw new TypeError("Cannot read properties of undefined (reading 'kat')"); };
+    const b = () => { throw new TypeError("Cannot read properties of undefined (reading 'kat')"); };
+    schrittSicher('Spiel', a, (m) => gemeldet.push(m));
+    schrittSicher('Spiel', b, (m) => gemeldet.push(m));
+    assert.equal(gemeldet.length, 2);
+    meldungenVergessen();
   });
   test('schrittSicher meldet, ob der Schritt durchlief', () => {
     const { schrittSicher } = modul();

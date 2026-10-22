@@ -222,7 +222,7 @@ function fremdeImporte(pfad, ordner, gesehen = new Set()) {
   }
   return liste;
 }
-const KERN_DOMFREI = ['daten', 'karten', 'system', 'logik', 'spiel', 'mine', 'angeln', 'zufall'];
+const KERN_DOMFREI = ['daten', 'karten', 'system', 'logik', 'spiel', 'mine', 'angeln', 'zufall', 'schleife'];
 
 gruppe('Bereiche', () => {
   test('jeder Bereich hat inhalt.js, grafik.js und oberflaeche.js', () => {
@@ -253,7 +253,7 @@ gruppe('Bereiche', () => {
     assert.deepEqual(importeVon(`${wurzel}../test/register.test.mjs`).filter((i) => i === 'node:path'), ['node:path']);
   });
   test('der DOM-freie Kern importiert keine Bereiche', () => {
-    for (const m of ['daten', 'karten', 'system', 'logik', 'spiel', 'mine', 'angeln', 'zufall']) {
+    for (const m of ['daten', 'karten', 'system', 'logik', 'spiel', 'mine', 'angeln', 'zufall', 'schleife']) {
       for (const i of importeVon(`${wurzel}${m}.js`)) assert.ok(!i.includes('bereiche'), `${m}.js importiert ${i}`);
     }
   });

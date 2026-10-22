@@ -4,7 +4,8 @@
 
 import { T, ITEMS, NPCS, LAEDEN, TAG_ENDE, MS_PRO_MINUTE, PFLANZEN, OBJEKT_TYPEN, WERKZEUG_ARTEN, ITEM_BENUTZEN, BELAG_TYPEN } from './daten.js';
 import { karteHolen, karteVergessen, punkt, zielVon, warpZiel } from './karten.js';
-import { alle, erster, sammle, mod } from './system.js';
+import { alle, alleSicher, erster, sammle, mod } from './system.js';
+import { schrittSicher } from './schleife.js';
 import * as L from './logik.js';
 import { speicherung } from './speicher.js';
 
@@ -118,6 +119,7 @@ export function geben(slot) {
 }
 
 export function blickZu(ziel) {
+  S.sp.blickVor = S.sp.blick; // wohin die Figur schaute, bevor sie sich zum Ziel dreht (Angeln wirft dorthin)
   const f = spielerFeld();
   const dx = ziel.x - f.x;
   const dy = ziel.y - f.y;
@@ -188,8 +190,11 @@ export function karteBetreten(id, tx, ty, blick = 'unten') {
 export function wechseln(karte, x, y, blick) {
   S.uebergang = true;
   ton('tuer');
-  const weiter = () => { karteBetreten(karte, x, y, blick); S.uebergang = false; };
-  if (S.hooks.ueberblende) S.hooks.ueberblende(weiter); else weiter();
+  // Wirft das Betreten (ein Hook, ein Kartenanbieter), darf der Übergang nicht hängen bleiben:
+  // sonst läuft weder Uhr noch Eingabe, obwohl die Schleife weiterläuft.
+  const weiter = () => { try { karteBetreten(karte, x, y, blick); } finally { S.uebergang = false; } };
+  if (!S.hooks.ueberblende) { weiter(); return; }
+  try { S.hooks.ueberblende(weiter); } catch (e) { S.uebergang = false; throw e; }
 }
 /** wechselnZu({ karte, punkt }) oder ({ karte, x, y, blick }). */
 export function wechselnZu(ziel) {
@@ -210,8 +215,9 @@ export function update(dt, E) {
   }
   zeitUpdate(dt);
   if (S.pause) return;
-  npcsUpdate(dt);
-  alle('update', dt);
+  // Ein werfender Teil darf weder die Figur einfrieren noch die anderen Teile stoppen (die Uhr läuft ja schon).
+  schrittSicher('NPCs', () => npcsUpdate(dt));
+  alleSicher('update', dt);
   spielerUpdate(dt, E);
   fundeEinsammeln();
   hinweisBerechnen();
@@ -626,9 +632,14 @@ export function schlafen(ohnmacht = false) {
   S.modus = null;
   S.sp.aktion = null;
   S.sp.laden = null;
-  ton('schlafen');
-  const bericht = L.tagBeenden(S.s, { ohnmacht });
-  S.hooks.tagEnde?.(bericht, ohnmacht);
+  try {
+    ton('schlafen');
+    const bericht = L.tagBeenden(S.s, { ohnmacht });
+    S.hooks.tagEnde?.(bericht, ohnmacht);
+  } catch (e) {
+    S.pause = false; // sonst käme nie ein Morgenfenster, und nicht einmal das Menü ginge auf
+    throw e;
+  }
 }
 
 export function neuerMorgen() {

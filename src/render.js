@@ -12,6 +12,7 @@ import { T, NPCS, PFLANZEN, OBJEKT_TYPEN, ITEMS, WERKZEUG_ARTEN } from './daten.
 import * as L from './logik.js';
 import * as SP from './sprites.js';
 import { S } from './spiel.js';
+import { schrittSicher } from './schleife.js';
 
 let canvas;
 let ctx;
@@ -182,12 +183,19 @@ export function zeichnen() {
 
   const welt = () => { ctx.setTransform(z, 0, 0, z, -cx * z, -cy * z); };
   const bildschirm = () => { ctx.setTransform(1, 0, 0, 1, 0, 0); };
+  // Ein werfender Zeichner löscht nicht den Rest des Bildes: Fehler melden, Zustand der Leinwand zurücksetzen, weiter.
+  const sicher = (name, fn) => {
+    if (schrittSicher(name, fn)) return true;
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+    return false;
+  };
   const ebene = (name) => {
     for (const zr of ZEICHNER[name]) {
       if (WELTKOORDINATEN.has(name)) welt(); else bildschirm();
       ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = 'source-over';
-      zr.zeichnen(ctx, kamera, ort, sicht);
+      sicher(`Zeichner ${zr.name ?? '?'}`, () => zr.zeichnen(ctx, kamera, ort, sicht));
     }
   };
 
@@ -198,11 +206,15 @@ export function zeichnen() {
   welt();
   const liste = [];
   for (const zr of ZEICHNER.welt) {
-    const teile = zr.sammeln(ort, sicht);
-    if (teile) for (const t of teile) liste.push(t);
+    sicher(`Zeichner ${zr.name ?? '?'}`, () => {
+      const teile = zr.sammeln(ort, sicht);
+      if (teile) for (const t of teile) { t.zeichner = zr.name; liste.push(t); }
+    });
   }
   liste.sort((a, b) => a.y - b.y);
-  for (const e of liste) e.f(ctx);
+  for (const e of liste) {
+    if (!sicher(`Zeichner ${e.zeichner ?? '?'}`, () => e.f(ctx))) welt();
+  }
 
   ebene('ueber');
   ebene('licht');

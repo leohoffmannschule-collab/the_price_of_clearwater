@@ -6,16 +6,21 @@
 //
 // DOM-frei, damit die Tests es in Node prüfen können (test/einmachglas.test.mjs).
 
-/** Wie viele verschiedene Fehler einzeln gemeldet werden; weitere meldet nur ein Sammelhinweis. */
+/** Wie viele verschiedene Fehler (Schritt, Text, Fundstelle) einzeln gemeldet werden; weitere meldet nur ein Sammelhinweis. */
 export const MAX_MELDUNGEN = 20;
 
 const gesehen = new Map();
 let ueberlauf = false;
 
+/** Die erste Stackzeile nach der Meldung: unterscheidet Fehler mit gleichem Standardtext an verschiedenen Stellen. */
+const fundstelle = (e) => (typeof e?.stack === 'string' ? (e.stack.split('\n').find((z, i) => i > 0 && /^\s*at /.test(z)) ?? '').trim() : '');
+
 /**
  * Schritt `fn` ausführen. Gibt true zurück, wenn er durchlief, false, wenn er warf.
- * Jeder Fehler (Schritt + Text) erscheint nur einmal in `melden` (Standard: Konsole): ein Fehler,
- * der in jedem Bild auftritt, soll die Konsole nicht mit 60 Zeilen pro Sekunde füllen.
+ * Jeder Fehler (Schritt + Text + Fundstelle) erscheint beim ersten Mal in `melden` (Standard:
+ * Konsole), danach nur noch beim 2., 4., 8. … Auftreten als Zählzeile: ein Fehler, der in jedem
+ * Bild auftritt, soll die Konsole nicht mit 60 Zeilen pro Sekunde füllen, aber auch nicht
+ * unbemerkt als Dauerfehler weiterlaufen.
  */
 export function schrittSicher(name, fn, melden = console.error) {
   try {
@@ -23,9 +28,11 @@ export function schrittSicher(name, fn, melden = console.error) {
     return true;
   } catch (e) {
     const text = e?.message ?? String(e);
-    const schluessel = `${name}: ${text}`;
+    const schluessel = `${name}: ${text} @ ${fundstelle(e)}`;
     if (gesehen.has(schluessel)) {
-      gesehen.set(schluessel, gesehen.get(schluessel) + 1);
+      const n = gesehen.get(schluessel) + 1;
+      gesehen.set(schluessel, n);
+      if ((n & (n - 1)) === 0) melden(`Klarwasser: Fehler im Schritt „${name}" trat jetzt ${n}x auf. ${text}`);
     } else if (gesehen.size < MAX_MELDUNGEN) {
       gesehen.set(schluessel, 1);
       melden(`Klarwasser: Fehler im Schritt „${name}" – das Spiel läuft weiter. ${text}`, e);
@@ -43,5 +50,5 @@ export function meldungenVergessen() {
   ueberlauf = false;
 }
 
-/** Für Tests und Diagnose: wie oft welcher Fehler aufgetreten ist ({ "Schritt: Text": Anzahl }). */
+/** Für Tests und Diagnose: wie oft welcher Fehler aufgetreten ist ({ "Schritt: Text @ Fundstelle": Anzahl }). */
 export const fehlerZaehler = () => Object.fromEntries(gesehen);
