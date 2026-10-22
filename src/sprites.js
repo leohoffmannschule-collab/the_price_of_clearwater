@@ -34,10 +34,24 @@ export function leinwand(w, h) {
   g.imageSmoothingEnabled = false;
   return [c, g];
 }
-/** Einmal zeichnen, danach aus dem Zwischenspeicher. Schlüssel global eindeutig wählen. */
-export function gecacht(schluessel, fn) {
+/**
+ * Einmal zeichnen, danach aus dem Zwischenspeicher. Schlüssel global eindeutig wählen.
+ * `ersatzGroesse` [b, h]: Wirft der Maler (kaputte Daten, fehlende Farbe), meldet das einmal die Konsole
+ * und das Ersatzbild kommt in den Zwischenspeicher. Ohne den Parameter reicht die Ausnahme weiter und
+ * würde bei jedem Bild neu fallen (Tests erkennen das Ersatzbild an `c.ersatz`).
+ */
+export function gecacht(schluessel, fn, ersatzGroesse) {
   let c = cache.get(schluessel);
-  if (!c) { c = fn(); cache.set(schluessel, c); }
+  if (!c) {
+    try {
+      c = fn();
+    } catch (e) {
+      if (!ersatzGroesse) throw e;
+      console.error(`Klarwasser: Maler für „${schluessel}" wirft – Ersatzbild. ${e?.message ?? e}`, e);
+      c = ersatzBild(ersatzGroesse[0], ersatzGroesse[1]);
+    }
+    cache.set(schluessel, c);
+  }
   return c;
 }
 
@@ -317,11 +331,21 @@ export function itemBild(slot, stufe = 0) {
     const maler = KUNST[b.art] || KUNST[slot.id];
     if (!it || !maler) return ersatz(16, 16, `Gegenstand „${slot.id}"`);
     const [c, g] = leinwand(16, 16);
-    if (it.kat === 'artisan' && slot.von && ITEMS[slot.von]?.bild) b = { ...b, f: ITEMS[slot.von].bild.f };
+    b = artisanBild(it, b, slot);
     const metall = WERKZEUG_STUFEN[stufe]?.farbe || WERKZEUG_STUFEN[0].farbe;
     maler(g, b, metall);
     return umriss(c);
-  });
+  }, [16, 16]);
+}
+
+/**
+ * Bildangaben eines Gegenstands: Handwerkswaren (Kategorie artisan, z. B. Marmelade) tragen die Farbe
+ * ihres Ausgangsstoffs (`slot.von`). Hat dessen Bild keine Farbe `f` (Lauch malt seine eigenen Farben),
+ * bleibt die eigene Farbe der Ware; sonst bekäme der Maler `f: undefined` und rechnete damit.
+ */
+export function artisanBild(it, b, slot) {
+  const f = it.kat === 'artisan' && slot.von ? ITEMS[slot.von]?.bild?.f : undefined;
+  return f ? { ...b, f } : b;
 }
 
 export function itemDatenUrl(slot, stufe = 0) {
@@ -580,7 +604,7 @@ export function objektBild(o, k = {}) {
       const [c, g] = leinwand(a.b ?? 16, a.h ?? 16);
       a.malen(g, o, k);
       return a.umriss === false ? c : umriss(c);
-    });
+    }, [a.b ?? 16, a.h ?? 16]);
   }
   if (ITEMS[o.t]) return itemBild({ id: o.t });
   return ersatz(16, 16, `Objekt „${o.t}"`);
@@ -614,7 +638,7 @@ export function pflanzeBild(id, phase, tot) {
     if (!maler?.malen) return ersatz(16, 24, `Wuchsform „${p.wuchs}"`);
     maler.malen(g, { p, id, phase, f, fuss, gross: phase >= 3 });
     return maler.umriss === false ? c : umriss(c);
-  });
+  }, [16, 24]);
 }
 
 // ─── Deko ───────────────────────────────────────────────────────────────────
@@ -645,7 +669,7 @@ export function dekoBild(d, k) {
     const [c, g] = leinwand(b, a.h ?? T);
     a.malen(g, d, { ...k, winter: k.jz === 'winter', w, zustand: zustand || {} });
     return a.umriss ? umriss(c) : c;
-  });
+  }, [w, (d.h || 1) * T]);
 }
 
 // ─── Gebäude ────────────────────────────────────────────────────────────────
@@ -690,7 +714,7 @@ export function gebaeudeBild(geb, k) {
     const [c, g] = leinwand(def.b, def.h);
     def.malen(g, { jz: k.jz, winter: k.jz === 'winter', nacht: !!k.nacht, zustand });
     return def.umriss === false ? c : umriss(c);
-  });
+  }, [def.b, def.h]);
 }
 
 // ─── Bodenbeläge ────────────────────────────────────────────────────────────
@@ -703,7 +727,7 @@ export function belagBild(t, maske, jz) {
     const [c, g] = leinwand(16, 16);
     maler(g, { maske, jz, winter: jz === 'winter', n: !!(maske & 1), o: !!(maske & 2), s: !!(maske & 4), w: !!(maske & 8) });
     return c;
-  });
+  }, [16, 16]);
 }
 
 // ─── Figuren ────────────────────────────────────────────────────────────────
@@ -846,7 +870,7 @@ export function tierBild(art, schritt = 0, links = true) {
     def.malen(g, schritt);
     umriss(c);
     return links ? c : gespiegelt(c);
-  });
+  }, [16, 16]);
 }
 
 /** Monster 16×16: MONSTER_BILD[typ], sonst MONSTER_BILD[art]. */
@@ -857,7 +881,7 @@ export function monsterBild(typ, farbe, art, phase) {
     const [c, g] = leinwand(16, 16);
     maler(g, farbe, phase);
     return umriss(c);
-  });
+  }, [16, 16]);
 }
 
 // ─── Kleine Symbole für die Oberfläche ──────────────────────────────────────

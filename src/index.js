@@ -9,6 +9,7 @@ import { renderStarten, zeichnen } from './render.js';
 import { E, eingabeStarten, eingabeLesen, eingabeZuruecksetzen } from './eingabe.js';
 import { uiStarten, hudAktualisieren, eingabeVerarbeiten, titelZeigen, spielBeginnen, einstellungenLaden, zustandSichern, titelOffen } from './ui.js';
 import { tonStarten } from './ton.js';
+import { schrittSicher } from './schleife.js';
 import * as L from './logik.js';
 
 function start(hot = {}) {
@@ -35,15 +36,16 @@ function start(hot = {}) {
   document.getElementById('laden')?.remove();
   let vorher = performance.now();
   function schleife(jetzt) {
+    // Das nächste Bild zuerst bestellen und jeden Schritt für sich absichern: Eine Ausnahme (etwa ein
+    // Maler mit kaputten Daten) darf die Schleife nie beenden, sonst steht das ganze Spiel still.
+    requestAnimationFrame(schleife);
     const dt = Math.min(0.05, (jetzt - vorher) / 1000);
     vorher = jetzt;
-    eingabeLesen();
-    eingabeVerarbeiten();
-    update(dt, E);
-    zeichnen();
-    hudAktualisieren();
-    eingabeZuruecksetzen();
-    requestAnimationFrame(schleife);
+    schrittSicher('Eingabe', () => { eingabeLesen(); eingabeVerarbeiten(); });
+    schrittSicher('Spiel', () => update(dt, E));
+    schrittSicher('Zeichnen', zeichnen);
+    schrittSicher('Oberfläche', hudAktualisieren);
+    schrittSicher('Eingabe zurücksetzen', eingabeZuruecksetzen);
   }
   requestAnimationFrame(schleife);
 }
