@@ -94,9 +94,10 @@ export function ton(name) {
     case 'biss': ton1(1500, 0.12, 'sine', 0.25); ton1(2000, 0.12, 'sine', 0.2, null, 0.1); break;
     case 'wurf': rauschen(0.25, 0.12, 3000, 'highpass'); break;
     case 'platsch': rauschen(0.22, 0.28, 900); break;
-    case 'haken': ton1(400, 0.1, 'square', 0.1, 800); break;
+    case 'blubb': ton1(300, 0.09, 'sine', 0.1, 520); ton1(380, 0.09, 'sine', 0.08, 640, 0.16); ton1(460, 0.09, 'sine', 0.07, 760, 0.34); break;
+    case 'einholen': for (let i = 0; i < 4; i++) ton1(900 + i * 60, 0.04, 'square', 0.04, null, i * 0.06); rauschen(0.2, 0.08, 2500, 'highpass'); break;
     case 'fang': folge([523, 659, 784, 1046], 0.08); break;
-    case 'entkommen': ton1(400, 0.3, 'triangle', 0.15, 150); break;
+    case 'schatz': folge([392, 523, 659, 784, 1046, 1318], 0.07, 'square', 0.09, 0.2); break;
     case 'stufe': folge([523, 659, 784, 1046, 1318], 0.09, 'square', 0.09, 0.2); break;
     case 'treffer': ton1(220, 0.08, 'square', 0.18, 110); rauschen(0.06, 0.2, 2000); break;
     case 'au': ton1(300, 0.22, 'sawtooth', 0.14, 120); break;

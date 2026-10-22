@@ -35,7 +35,7 @@ export function hookBekannt(...namen) {
 /** Modifikatoren, an die der Kern seine Rechnungen hängt. */
 export const BEKANNTE_MODIFIKATOREN = [
   'energieKosten', 'laufTempo', 'verkaufspreis', 'xp', 'ernteQualitaet', 'wachstum',
-  'fangBalken', 'bissZeit', 'schaden', 'verteidigung', 'maxEnergie', 'maxGesundheit',
+  'bissZeit', 'bissFenster', 'schatzChance', 'schaden', 'verteidigung', 'maxEnergie', 'maxGesundheit',
   'glueck', 'erzMenge', 'stufe', 'sammelRadius',
 ];
 

@@ -3,7 +3,7 @@
 //   welt        Zeichenstücke { y, f(g) }, nach y sortiert (Tiefe)          – Weltkoordinaten
 //   ueber       Zielrahmen, Angelschnur, Partikel, schwebende Texte           – Weltkoordinaten
 //   licht       Wetter, Abdunkeln, Lichter                                  – Bildschirmpixel
-//   bildschirm  Blitz, Drill-Anzeige                                         – Bildschirmpixel
+//   bildschirm  Blitz                                                        – Bildschirmpixel
 // Jede Ebene hat Zeichner (Register `zeichner`). Der Kern bringt seine eigenen mit; Bereiche
 // fügen in grafik.js weitere hinzu (Hühner, Monster, Angeln …). Gezeichnet wird nur, was im
 // Bild liegt (Kulling).

@@ -32,7 +32,7 @@ gruppe('Doppelte IDs', () => {
     assert.throws(() => D.item('holz', { name: 'Holz', kat: 'ressource' }), doppelt);
     assert.throws(() => D.item('holz', 'Holz', 'ressource', 2, { art: 'holz' }), doppelt);
     assert.throws(() => D.pflanze('pastinake', { tage: 1, jz: ['fruehling'] }), doppelt);
-    assert.throws(() => D.fisch('karpfen', { name: 'K', preis: 1, schwierigkeit: 1, orte: ['teich'], jz: ['sommer'] }), doppelt);
+    assert.throws(() => D.fisch('karpfen', { name: 'K', preis: 1, seltenheit: 1, orte: ['teich'], jz: ['sommer'] }), doppelt);
     assert.throws(() => D.rezept('truhe', { zutaten: {} }), doppelt);
     assert.throws(() => D.laden('laden', { name: 'x', npc: 'ottilie', ort: { karte: 'laden', punkt: 'theke' } }), doppelt);
     assert.throws(() => D.spezialWare('upgrade', {}), doppelt);
@@ -82,7 +82,7 @@ gruppe('Inhalte vollständig', () => {
   test('Fische haben Gewässer, Jahreszeiten und Uhrzeiten', () => {
     for (const f of D.FISCHE) {
       const d = f.fisch;
-      assert.ok(d.orte.length && d.jz.length && d.zeit.length === 2 && d.schwierigkeit >= 0, f.id);
+      assert.ok(d.orte.length && d.jz.length && d.zeit.length === 2 && d.seltenheit >= 0, f.id);
       assert.ok(d.jz.every((j) => D.JZ.includes(j)), f.id);
     }
     for (const liste of Object.values(D.MUELL)) for (const id of liste) assert.ok(D.ITEMS[id], id);

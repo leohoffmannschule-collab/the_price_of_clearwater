@@ -44,7 +44,9 @@ und auf Wunsch im Menü unter „Optionen".
 
 Gedrückt halten wiederholt Axt, Spitzhacke und Sense. Hacke und Gießkanne laden ab der
 Kupferstufe auf und treffen dann 3, 5 oder 9 Felder. Mit der Maus zielt man auf jedes
-Nachbarfeld, sonst wirkt das Werkzeug auf das Feld vor der Figur.
+Nachbarfeld, sonst wirkt das Werkzeug auf das Feld vor der Figur. Die Angel wirft „Benutzen"
+(oder „Aktion") bis sechs Felder weit aufs Wasser und holt mit demselben Knopf wieder ein;
+Laufen oder ein anderes Werkzeug holt die Schnur ohne Fang ein.
 
 ---
 
@@ -71,9 +73,15 @@ schenken auch mal zurück.
 | Frieda | Bürgermeisterin, viel unterwegs | das Schwarze Brett, die Mühle |
 | Mats | Maler, mal am Strand, mal am Fluss | – |
 
-**Angeln.** Auswerfen mit Kraftbalken, beim Anbiss sofort ziehen, dann den grünen Balken
-über dem Fisch halten. 18 Fische in Teich, Fluss und Meer, je nach Jahreszeit,
-Uhrzeit und Wetter.
+**Angeln.** Wie in Minecraft: Angel in die Hand, aufs Wasser schauen und „Benutzen"
+(Leertaste, Linksklick oder der Knopf auf dem Handy) – die Schnur fliegt aufs nächste
+Wasserfeld, mit der Maus aufs angeklickte. Dann warten: der Schwimmer wippt, irgendwann
+zieht eine Blasenspur heran, und taucht er ab, heißt es sofort einholen. Zu früh oder zu
+spät gibt keinen Fang. Wer in der ersten Drittelsekunde reagiert, fängt „perfekt".
+Köder im Rucksack halbiert die Wartezeit, jede Angelstufe und Regen verkürzen sie weiter.
+18 Fische in Teich, Fluss und Meer, je nach Jahreszeit, Uhrzeit und Wetter – seltene
+beißen seltener. Dazu Müll und manchmal eine Schatzkiste mit Münzen, Erz, Köder oder
+einem kleinen Edelstein. Das Fangbuch merkt sich, wie viele und wie große Fische du hast.
 
 **Die alte Mine.** Am Berg nördlich des Hofs, ab Tag 4 offen. 30 Ebenen, bei jedem Besuch neu gegraben: Kupfer,
 Eisen, Gold, Edelsteine und Schleime in drei Gesteinsschichten. Die Leiter liegt unter
@@ -84,7 +92,7 @@ wartet eine Schatztruhe.
 Dünger, Köder – manche erst ab einer bestimmten Fähigkeitsstufe.
 
 **Fähigkeiten.** Landwirtschaft, Angeln, Sammeln, Bergbau und Kampf steigen bis Stufe 10
-und machen Werkzeuge sparsamer, Ernten besser, Fangbalken breiter und die Gesundheit größer.
+und machen Werkzeuge sparsamer, Ernten besser, die Wartezeit beim Angeln kürzer und die Gesundheit größer.
 
 **Die Mühle.** Acht Bündel aus Feld, Wald, Wasser, Tiefe und Stall. Jedes volle Bündel
 bringt eine Belohnung, alle zusammen bringen das Rad wieder zum Drehen.
@@ -120,7 +128,7 @@ src/
   speicher.js    Spielstand: Datenbank des Artefakts pro Person, Browser-Speicher als Sicherung
   mine.js        Höhlenform und Monster-Verhalten
   spiel.js       Laufzeit: Bewegung, Werkzeuge, Interaktion, Uhr, Wege der Dorfbewohner
-  angeln.js      Auswerfen, Anbiss, Drill
+  angeln.js      Angeln: Auswerfen, Warten, Biss, Einholen, Fang und Schatzkisten
   sprites.js     Pixelkunst-Kern: Zeichen-Grundfunktionen, Bild-Register, Boden, Figuren
   render.js      Kamera, Ebenen mit Zeichnern, Tiefensortierung, Kulling, Wetter, Licht
   ui.js          Anzeige, Werkzeugleiste, Gespräche, Fenster- und Menü-Register, Titel

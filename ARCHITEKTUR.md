@@ -31,7 +31,7 @@ src/
 | wildnis | Strand und Wald (Platzhalter), Lenes Hütte als Fischladen | strand, wald; Platzhalter fischladen, huetteMats, ranch, turm, geheimwald | – |
 | berg | Berg (Platzhalter) mit Mineneingang, Bergsee, Zimmerei und Gilde | berg; Platzhalter zimmerei, gilde | – |
 | pflanzen | Feldfrüchte samt Saat (mit `sorte`), Wildpflanzen und Strandfunde, Dünger, Säen/Düngen aus der Hand, Spezialware saatgut, Saatgut und Dünger bei Ottilie (Hook `ladenWare`), Krähen (tagEnde), Startsaat, Bäume (`objektTyp` baum, stumpf; `baumArt` eiche, kiefer) | – | – |
-| angeln | Angel (`werkzeugArt` angel), Fische, Köder, Laden „fischer" (Lene, im Fischladen), Lenes Angel-Geschenk (Hook gespraech), in Welle 1 auch **src/angeln.js** (Ablauf, Biss, Fischwahl, Fang; läuft über den Hook `eingabe`) | – | `s.flags.angelBekommen` |
+| angeln | Angel (`werkzeugArt` angel), Fische, Köder, Laden „fischer" (Lene, im Fischladen), Lenes Angel-Geschenk (Hook gespraech), in Welle 1 auch **src/angeln.js** (Auswerfen, Warten, Biss, Einholen, Fischwahl, Fang, Schatzkisten; läuft über den Hook `eingabe`, siehe „Angeln" in 2.) | – | `s.flags.angelBekommen`, `s.angeln` (Fangbuch) |
 | mine | Erze, Barren, Mineralien, Schwert (`werkzeugArt` waffe), Monster, Minenebenen (`kartenAnbieter`), Gestein (`objektTyp` mstein, leiter, schatz), Förderkorb, Kampf, Alrik und Laden „gilde" (Platzhalter), in Welle 1 auch **src/mine.js** | mine0, mine1 … mine30 (dynamisch) | `s.mine`, `s.flags.mineOffen` |
 | handwerk | Rezepte, Aufstellbares (`objektTyp` truhe, vogelscheuche, sprenger, qsprenger, einmachglas), Marmelade/Eingelegtes, Deko-Aktion `kochen` (Platzhalter), Fenster truhe (für alle Behälter) | – | – |
 | tiere | Hühnerstall (dynamisches Gebäude im Hof-Bereich „stall"), Küken, Hühner im Auslauf, Eier, Spezialware kueken/stall (in fremden Läden über `ladenWare`), Greta und Wilma samt Läden „zimmerei" und „ranch" (Platzhalter) | – | `s.stall`; setzt `s.haus.stufe` |
@@ -104,7 +104,7 @@ Objekte/Listen und werden über die Funktionen gefüllt. Abgeleitetes (`SAAT_ZU_
 | `kategorie(id, name)` | Anzeigename einer Item-Kategorie (`KATEGORIE_NAME`) | `kategorie('ring', 'Ring')` |
 | `item(id, def)` | `name, kat, preis, bild: { art, f, f2 }, text`/`beschreibung, energie, gesundheit, buff, tempo, stapel` (Standard: alles außer Werkzeug), `verkaufbar` (Standard: nicht werkzeug/platz/besonders), `verschenkbar, aufstellbar` (true oder Objekttyp), `belag` (Belagtyp, wird beim Benutzen gelegt), `aufruestbar, werkzeug` (Werkzeugart), `waffe: { schaden: [von, bis] }, koeder: { biss }, fundort` (Text oder Liste von Sammelzonen-Arten), `saisonal, strand, selten, kauf, pflanze, frucht, gemuese, sorte` (gemuese, obst, blume, getreide, kraut, pilz, fisch, krebs – Maschinen fragen danach) und beliebige Zusatzfelder. `energie` und `wert` dürfen `(slot) => Zahl` sein. Alte Form `item(id, name, kat, preis, bild, extra)` geht weiter. | `item('rubinring', { name: 'Rubinring', kat: 'ring', preis: 300, bild: { art: 'ring', f: '#e0344a' }, ring: { schaden: 0.1 } })` |
 | `pflanze(id, def)` | `saat, ernte, tage, nach`/`nachwachsen, jz: [...], menge, extra` (Chance auf +1), `wuchs, farbe`; `rankhilfe: true` – die Pflanze versperrt ihr Beet (Kern); `riesig` ist ein Datenfeld für den Bereich pflanzen (Riesenpflanzen verschmelzen in dessen tagEnde) | `pflanze('erdbeere', { tage: 8, nach: 4, jz: ['fruehling'], wuchs: 'busch' })` |
-| `fisch(id, def)` | `name, preis, bild, schwierigkeit` (0–100), `verhalten` (ruhig/gemischt/flink/sinker), `orte` (Gewässerarten: teich, fluss, see, waldsee, meer, geheimteich, mine), `jz, zeit: [von, bis)` als Uhrzeit 600–2600, `wetter` (sonne/regen); `sorte` ist `'fisch'`, wenn nicht anders angegeben | `fisch('saibling', { name: 'Saibling', preis: 90, bild: {…}, schwierigkeit: 50, verhalten: 'flink', orte: ['see'], jz: ['herbst'] })` |
+| `fisch(id, def)` | `name, preis, bild, seltenheit` (0–100; je höher, desto seltener beißt der Fisch), `laenge: [von, bis]` (cm, fürs Fangbuch), `orte` (Gewässerarten: teich, fluss, see, waldsee, meer, geheimteich, mine), `jz, zeit: [von, bis)` als Uhrzeit 600–2600, `wetter` (sonne/regen); `sorte` ist `'fisch'`, wenn nicht anders angegeben | `fisch('saibling', { name: 'Saibling', preis: 90, bild: {…}, seltenheit: 50, laenge: [25, 60], orte: ['see'], jz: ['herbst'] })` |
 | `muell(art, ids)` | Fang, der kein Fisch ist, je Gewässerart | `muell('see', ['stiefel'])` |
 | `rezept(id, def)` | `art: 'basteln' \| 'kochen', zutaten: { id: n }, ergebnis` (Standard id), `menge, stufe: [skill, n]` oder `frei(s)`; `lernen: true` = nur durch `L.rezeptLernen(s, id)` (Fernsehen, Briefe). Gelernte Rezepte (`s.rezepte`) sind immer frei. Rezepte mit fehlenden Gegenständen blendet der Kern aus (`L.rezepteVon(art)`). | `rezept('pilzpfanne', { art: 'kochen', zutaten: { pilz: 2 }, lernen: true })` |
 | `laden(id, def)` | `name, npc, ort: { karte, punkt }` (Theke), `kauft: [Kategorien], ware: [...]` oder `ware(s)`, `zeiten: [von, bis]`, `ruhetag: 'Mittwoch'`. Ware: `{ id, preis, bedingung, reihe }` oder `{ spezial, reihe }` (`reihe` sortiert, Standard 50). Offen ist, wenn die Person an der Theke steht. Ware und Ankauf anderer Bereiche: Hooks `ladenWare`, `ladenKauft` (unten). | `laden('ranch', { name: 'Ranch', npc: 'wilma', ort: { karte: 'ranch', punkt: 'theke' }, ware: [{ spezial: 'kuh' }] })` |
@@ -206,7 +206,41 @@ und der Modus wertet `E` selbst aus (`E.richtung`, `E.benutzen`, `E.aktion`, `E.
 * `feldUnterZeiger(px, py)` → `{ x, y }`: Feld unter Maus oder Finger (`E.maus`, `E.tippen`).
 * Knöpfe zum Bestätigen und Abbrechen kommen als `hudElement` (9.3); ein Fenster pausiert das Spiel.
 
-Angeln ist so ein Modus (`S.angeln`, Hook `eingabe` des Bereichs angeln).
+Angeln ist so ein Modus (`S.angeln`, Hook `eingabe` des Bereichs angeln). Ein Fenster oder Gespräch
+(`S.pause`) holt die Schnur ein: der Kern setzt dann `S.angeln` zurück, wie bei `karteBetreten` und `schlafen`.
+
+### Angeln
+
+Angeln wie in Minecraft, ohne Kraftmessung und ohne Minispiel. Ablauf (`S.angeln.phase`, src/angeln.js):
+
+| Phase | Dauer | Was passiert |
+|---|---|---|
+| `wurf` | 0,4 s | „Benutzen" (Leertaste, Linksklick, Touch-Knopf; auch die Aktionstaste) bei gewählter Angel: die Schnur fliegt im Bogen aufs nächste Wasserfeld in Blickrichtung (bis 6 Felder), mit der Maus aufs angeklickte Wasserfeld in Reichweite. Köder aus dem Rucksack wird verbraucht. Ohne Wasser in Reichweite: Hinweis, nichts passiert. |
+| `warten` | zufällig, Echtzeit | Grundwert 5 bis 22 s, mal 0,5 mit Köder, mal (1 − 0,04 je Angelstufe), mal 0,8 bei Regen (`wartezeit`, Modifikator `bissZeit`). |
+| `spur` | 1,2 s | Blasenspur zieht auf den Schwimmer zu. „Benutzen" holt leer ein: „Zu früh". |
+| `biss` | Fenster 1,0 s | Der Schwimmer taucht ab (Platscher, Ton, „!" über der Figur). „Benutzen" holt den Fang ein; in den ersten 0,35 s ist er „perfekt". Verpasst: „Zu spät – er ist weg." |
+| `einholen` | 0,5 s (leer 0,3 s) | Einhol-Animation, der Fang fliegt zur Figur, dann die Fund-Anzeige. Leer darf man gleich wieder auswerfen. |
+| `fang` | 0,7 s | Der Fang über dem Kopf; „Benutzen" wirft gleich wieder aus. |
+
+Laufen (Stick, WASD), Werkzeugwechsel (Taste, Mausrad, Hotbar), Stoß und jedes Fenster holen die
+Schnur ohne Fang ein. Die Zeit läuft über das `dt` der Spielschleife.
+
+* **Fang** (`fangWaehlen`): zuerst Schatzkiste (3 % plus 0,4 % je Angelstufe, `schatzInhalt`: Münzen und
+  Köder, Erz oder ein kleiner Edelstein, nach Stufe gestaffelt, ab Stufe 5 zwei Sorten), dann Müll
+  (10 % minus 0,5 % je Stufe, mindestens 5 %), sonst ein Fisch aus der Tabelle (`fischWaehlen`:
+  Gewässerart, Jahreszeit, Uhrzeit, Wetter; Gewicht 110 − `seltenheit`). Qualität nach Angelstufe, „perfekt"
+  hebt sie öfter an und verdoppelt die Erfahrung (`fangGeben`).
+* **Fangbuch:** `s.angeln = { gefangen: { <fischId>: { n, groesste } } }` (Länge in cm, nur Fische);
+  der Hook `ergaenzen` legt es an, auch für ältere Stände. Angezeigt wird es noch nirgends; eine
+  Sammlungsseite kann es später lesen.
+* **Ruten und Köder sind nur Zahlen:** `item('angel', { rute: { warten: 1, fenster: 0, schatz: 0 } })`
+  (Faktor auf die Wartezeit, Zusatz zum Einhol-Fenster in s, Zusatz zur Schatzchance), Köder
+  `koeder: { biss: 0.5, fenster, schatz }` (`biss` ist der Faktor auf die Wartezeit). Eine bessere Rute ist ein
+  weiteres Item mit `werkzeug: 'angel'`. Dazu die Modifikatoren `bissZeit`, `bissFenster`, `schatzChance` (4.)
+  für Buffs und Ringe. Alle Zahlen stehen in `ANGELN` (angeln.js).
+* **Hooks des Bereichs:** `eingabe` (Ablauf), `interagieren` und `hinweis` (Aktionstaste: „Auswerfen",
+  „Einholen", „Einholen!"; eine Person, Tür oder Kiste vor dem Wasser geht vor), `update` (Vorschau
+  `VORSCHAU.ziel`, wohin die Schnur fiele), `ergaenzen`, `gespraech` (Lenes Angel).
 
 Helfer für Bereiche: `S` (Laufzeit), `ton, meldung, dialog(npcId, texte, optionen, danach),
 frage(text, optionen), fenster(name, daten), fundeZeigen`/`fundeAnzeigen, ergebnisZeigen(erg),
@@ -295,8 +329,9 @@ modifikator('energieKosten', (wert, k) => (k.s.flags.buffKaffee ? wert * 0.8 : w
 | `xp` | `L.xpGeben` | `s, skill` |
 | `ernteQualitaet` | `L.ernten` (0–3) | `s, ort, x, y, feld, pflanze` |
 | `wachstum` | Nachtwachstum je gegossenem Beet (Tage, Grund 1) | `s, ort, feld, pflanze` |
-| `fangBalken` | Größe des grünen Balkens (angeln.js) | `s, fisch` |
-| `bissZeit` | Sekunden bis zum Anbiss (angeln.js) | `s, koeder, wasser` |
+| `bissZeit` | Wartezeit in Sekunden bis zur Blasenspur, nach Köder, Angelstufe und Regen (angeln.js) | `s, rute, koeder, wasser, stufe` |
+| `bissFenster` | Sekunden zum Einholen nach dem Biss (Standard 1,0, angeln.js) | `s, rute, koeder, wasser, stufe` |
+| `schatzChance` | Chance auf eine Schatzkiste statt Fisch oder Müll (angeln.js) | `s, rute, koeder, wasser, stufe` |
 | `schaden` | Schaden der Spielerin an Monstern (mine) | `s, monster, waffe` |
 | `verteidigung` | wird vom Monsterschaden abgezogen (mine) | `s, monster` |
 | `maxEnergie` / `maxGesundheit` | `L.werteAktualisieren` (Laden, Stufenaufstieg, Morgen) | `s` |
@@ -488,6 +523,7 @@ Gewässerarten: `teich` (Hof), `fluss` (Dorf, Wald), `see` (Berg), `waldsee` (Wa
 npm test                    # node test/alle.mjs: jede test/*.test.mjs nacheinander
 node test/alle.mjs karten   # nur Dateien, deren Name „karten" enthält
 CHROMIUM=/opt/pw-browsers/chromium-1194/chrome-linux/chrome node test/browser.mjs
+CHROMIUM=/opt/pw-browsers/chromium-1194/chrome-linux/chrome node test/angeln.browser.mjs
 ```
 
 | Datei | Prüft |
@@ -499,8 +535,9 @@ CHROMIUM=/opt/pw-browsers/chromium-1194/chrome-linux/chrome node test/browser.mj
 | `tag.test.mjs` | ganze Tage nach den Tagesplänen (ohne feste Orte): jeder am Planziel, Läden offen, Regenpläne, alle daheim, Ohnmacht um zwei Uhr, Aufwachen zu Hause |
 | `laufzeit.test.mjs` | Laufzeit ohne Bildschirm: Rundgang durch den Weltgraphen, Mineneingang, Werkzeuge, Laden und Auftrag (Orte aus Punkten und Theken-Deko) |
 | `darstellung.test.mjs` | Darstellung ohne Bildschirm (lädt auch `bereiche/grafik.js` und `bereiche/oberflaeche.js`): jedes Item, jede Deko, jedes Gebäude, jeder Objekttyp, jede Wuchsform, jedes Monster, jedes Bodenzeichen hat ein Bild; Innenraum-, Wasser- und Bandfarben; doppelte Bilder werfen; Zeichner des Kerns in fester Reihenfolge; jedes geöffnete Fenster ist registriert; Fenster-Optionen; Menüreiter und Statistik des Kerns; Rucksack-Teile, Stile; Warenbilder; Importregeln von grafik.js/oberflaeche.js |
-| `<bereich>.test.mjs` | hof, berg, pflanzen, angeln, mine, handwerk, tiere: was nur diesen Bereich betrifft (Stall über Nacht, Barren, Ebenen, Fischwahl, Bäume …) |
+| `<bereich>.test.mjs` | hof, berg, pflanzen, angeln, mine, handwerk, tiere: was nur diesen Bereich betrifft (Stall über Nacht, Barren, Ebenen, Wurf, Wartezeit, Biss und Fang, Bäume …) |
 | `einmachglas.test.mjs` | das Einmachglas durch den ganzen Ablauf mit jeder Frucht und jedem Gemüse (einlegen, Nacht, leeren, doppelt leeren, voller Rucksack, Speichern und Laden, beschädigte Stände), die Bilder der Handwerkswaren für jeden Ausgangsstoff (mit einer Leinwand-Attrappe), werfende Maler (Ersatzbild statt Ausnahme) und die Spielschleife (`schleife.js`) |
+| `angeln.browser.mjs` | Browser-Test des Angelns (Chromium, eigener Server): ans Wasser laufen, werfen, die Wartezeit abkürzen, einholen, Fang im Rucksack, Mausklick, Abbruch, Hochformat 390×844, keine Konsolenfehler; läuft mit `npm run test:browser` hinter dem Rauchtest |
 | `browser.mjs` | Rauchtest in Chromium: neues Spiel, Feldarbeit, Menü, Rundgang bis in die Mine (Orte aus dem Punkte-Vertrag), jedes Item/jede Deko/jedes Gebäude/jedes Objekt/jede Pflanze malt ohne Ersatzbild (alle Jahreszeiten, Tag und Nacht), Ersatzbilder für Fehlendes, Kulling auf einer 100×72-Karte, große Objekte, Beläge, Pflanzenkunst mit `alle`, Kameraführung, alle Fenster öffnen sich mit ihren Beispieldaten, Schlafen, Speichern (v2), Einmachglas leeren (jede Sorte, voller Rucksack; danach muss sich die Spielerin noch bewegen können, denn „die Seite antwortet" genügt nicht: die Spielschleife kann stehen, während der Browser läuft), keine Konsolenfehler |
 
 **Kerntests prüfen keine Bereichsinhalte.** Sie arbeiten mit Testkarten, Testinhalten und den
@@ -661,10 +698,10 @@ zeichner({ name, ebene: 'boden' | 'ueber' | 'licht' | 'bildschirm', reihe, zeich
 | Ebene | Koordinaten | Kern (reihe) | Bereiche (reihe) |
 |---|---|---|---|
 | `boden` | Weltpixel | glitzern 10, beete 20, belag 25, wanddeko 30 | |
-| `welt` | Weltpixel, y-sortiert | objekte 10, pflanzen 20, deko 30, gebaeude 40, funde 50, npcs 60, spieler 90 | muehlrad 42 (gemeinschaft), fallend 45 (pflanzen), huehner 70 (tiere), monster 80 (mine), fang 95 (angeln) |
+| `welt` | Weltpixel, y-sortiert | objekte 10, pflanzen 20, deko 30, gebaeude 40, funde 50, npcs 60, spieler 90 | muehlrad 42 (gemeinschaft), fallend 45 (pflanzen), huehner 70 (tiere), monster 80 (mine), angelrute 91 (angeln) |
 | `ueber` | Weltpixel | ziel 10, partikel 30, texte 40 | angeln 20 (angeln) |
 | `licht` | Bildschirmpixel | wetter 10, dunkel 50 | |
-| `bildschirm` | Bildschirmpixel | blitz 10 | drill 20 (angeln) |
+| `bildschirm` | Bildschirmpixel | blitz 10 | |
 
 Innerhalb einer Ebene zählt `reihe`, bei gleichem `y` in der Welt die Reihenfolge der Zeichner.
 Vor jedem Zeichner setzt der Kern Transformation, Deckkraft 1 und normales Überblenden.
@@ -757,7 +794,7 @@ menueReiter({ id: 'tiere', name: 'Tiere', reihe: 45, bauen: () => el('div', { cl
 | wildnis | Gebäude huette (Fischladen), ranch, turm; Deko strandkorb | – |
 | berg | Gebäude hoehle (Mineneingang, mit Geröll solange zu), zimmerei, gilde | – |
 | pflanzen | Saatgut, Ernte, Wildpflanzen, Strandfunde, Dünger; Wuchsformen; Objekte baum, stumpf; Zeichner fallend | – |
-| angeln | Angel, Fische, Köder; Deko stand; Zeichner fang, angeln, drill | – |
+| angeln | Angel, Fische, Köder; Deko stand; Zeichner angelrute und angeln (Rute, Schnur, Schwimmer, Wellen, Blasenspur, Biss, Fang im Flug; anzeige.js) | – |
 | mine | Erze, Barren, Mineralien, Schwert; Minen-Bänder; Objekte mstein, leiter, schatz; Deko leiter_ab, leiter_auf, aufzug, schwertfund, wandlampe; Monster schleim, fledermaus; Zeichner monster | Fenster aufzug, Statistik tiefste |
 | handwerk | Truhe, Vogelscheuche, Sprenger, Einmachglas, Marmelade, Eingelegtes; Objekt einmachglas | Fenster truhe (alle Behälter) |
 | tiere | Eier; Gebäude stall; Tier huhn; Zeichner huehner | Warenbilder kueken, stall |

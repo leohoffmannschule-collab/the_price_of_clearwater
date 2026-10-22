@@ -129,13 +129,14 @@ export const FISCHE = [];
 const FISCH_ID = new Set();
 
 /**
- * fisch(id, { name, preis, bild, schwierigkeit, verhalten, orte: [Gewässerarten], jz, zeit, wetter })
- * Gewässerarten: teich, fluss, see, waldsee, meer, geheimteich, mine.
+ * fisch(id, { name, preis, bild, seltenheit, laenge: [von, bis], orte: [Gewässerarten], jz, zeit, wetter })
+ * `seltenheit` 0–100: je höher, desto seltener beißt der Fisch (und desto mehr Erfahrung gibt er);
+ * `laenge` in cm (Fangbuch). Gewässerarten: teich, fluss, see, waldsee, meer, geheimteich, mine.
  */
 export function fisch(id, def) {
   const [d, ersetzen] = ohneErsetzen(def);
-  const { schwierigkeit, verhalten = 'gemischt', orte, jz, zeit = [600, 2600], wetter, ...rest } = d;
-  const it = item(id, { kat: 'fisch', sorte: 'fisch', ...rest, fisch: { schwierigkeit, verhalten, orte, jz, zeit, wetter }, ersetzen });
+  const { seltenheit = 30, laenge = [20, 60], orte, jz, zeit = [600, 2600], wetter, ...rest } = d;
+  const it = item(id, { kat: 'fisch', sorte: 'fisch', ...rest, fisch: { seltenheit, laenge, orte, jz, zeit, wetter }, ersetzen });
   return inListe(FISCHE, FISCH_ID, id, it, 'Fisch', ersetzen);
 }
 
