@@ -96,6 +96,12 @@ Aktionstaste auf den Ofen: bis zu 200 Fische je Ofen und Tag wandern hinein, üb
 sie zu Geräuchertem. Das ist zehnmal so viel wert wie der frische Fisch (bei gleicher Qualität).
 Aktionstaste ohne Fisch holt es ab.
 
+**Fischfarm.** Für 3 Holz von Anfang an im Basteln-Menü. Sie steht direkt am Wasser (auf jeder
+Karte mit Wasser, mehrere sind erlaubt) und fängt jede Nacht 200 normale Karpfen, auch wenn du
+nicht dort bist. Mit der Aktionstaste (E, Rechtsklick, Aktion-Knopf) sammelst du ein, was in den
+Rucksack passt; leer hebst du sie mit Axt oder Spitzhacke wieder auf. Zahlen: `FISCHFARM_PRO_TAG`
+und `FISCHFARM_FISCH` in `src/bereiche/handwerk/fischfarm.js`.
+
 **Fähigkeiten.** Landwirtschaft, Angeln, Sammeln, Bergbau und Kampf steigen bis Stufe 10
 und machen Werkzeuge sparsamer, Ernten besser, die Wartezeit beim Angeln kürzer und die Gesundheit größer.
 
