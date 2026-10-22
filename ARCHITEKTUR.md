@@ -34,7 +34,7 @@ src/
 | angeln | Angel (`werkzeugArt` angel), Fische, Köder, Laden „fischer" (Lene, im Fischladen), Lenes Angel-Geschenk (Hook gespraech), in Welle 1 auch **src/angeln.js** (Auswerfen, Warten, Biss, Einholen, Fischwahl, Fang, Schatzkisten; läuft über den Hook `eingabe`, siehe „Angeln" in 2.) | – | `s.flags.angelBekommen`, `s.angeln` (Fangbuch) |
 | mine | Erze, Barren, Mineralien, Schwert (`werkzeugArt` waffe), Monster, Minenebenen (`kartenAnbieter`), Gestein (`objektTyp` mstein, leiter, schatz), Förderkorb, Kampf, Alrik und Laden „gilde" (Platzhalter), in Welle 1 auch **src/mine.js** | mine0, mine1 … mine30 (dynamisch) | `s.mine`, `s.flags.mineOffen` |
 | handwerk | Rezepte, Aufstellbares (`objektTyp` truhe, vogelscheuche, sprenger, qsprenger, einmachglas), Marmelade/Eingelegtes, Deko-Aktion `kochen` (Platzhalter), Fenster truhe (für alle Behälter) | – | – |
-| tiere | Hühnerstall (dynamisches Gebäude im Hof-Bereich „stall"), Küken, Hühner im Auslauf, Eier, Spezialware kueken/stall (in fremden Läden über `ladenWare`), Greta und Wilma samt Läden „zimmerei" und „ranch" (Platzhalter) | – | `s.stall`; setzt `s.haus.stufe` |
+| tiere | Hühnerstall (dynamisches Gebäude im Hof-Bereich „stall"), Küken in beliebiger Menge, die Herde als Zahlen (keine einzelnen Hühner, keine Tiere in der Welt), Eier, die Eierkiste vor dem Stall (dynamische Deko), Spezialware kueken/stall (in fremden Läden über `ladenWare`), Greta und Wilma samt Läden „zimmerei" und „ranch" (Platzhalter) | – | `s.stall` (siehe „Hühner und Eierkiste"); setzt `s.haus.stufe` |
 | npcs | die sechs Dorfbewohner (Ottilie, Bruno, Lene, Frieda, Mats, Hannes) – in Welle 1 unverändert | – | (`s.npcs` gehört dem Kern) |
 | npcs2 | weitere Dorfbewohner (leer) | – | – |
 | feste | Feste (leer) | – | `s.feste` (geplant) |
@@ -241,6 +241,35 @@ Schnur ohne Fang ein. Die Zeit läuft über das `dt` der Spielschleife.
 * **Hooks des Bereichs:** `eingabe` (Ablauf), `interagieren` und `hinweis` (Aktionstaste: „Auswerfen",
   „Einholen", „Einholen!"; eine Person, Tür oder Kiste vor dem Wasser geht vor), `update` (Vorschau
   `VORSCHAU.ziel`, wohin die Schnur fiele), `ergaenzen`, `gespraech` (Lenes Angel).
+
+### Hühner und Eierkiste
+
+Der Bereich tiere kennt keine einzelnen Hühner: keine Entities, keine Animationen, nichts in `S`.
+Die Herde besteht nur aus Zahlen im Spielstand (Version 2 bleibt):
+
+```
+s.stall = { gebaut, bauMorgen, anzahl, neue, freundschaft, gestreichelt, eier: { ei, grossesei } }
+```
+
+* **Beliebig viele Hühner** (bis `HUEHNER_MAX` = 10⁹): Küken kosten 800 G bei Ottilie und im Wilma-Platzhalter und
+  ziehen sofort in den Stall (`neue`: legen in der ersten Nacht nichts). Mengenkauf über das Feld `mengen: [1, 10, 100]`
+  und `hoechstmenge(s, ware) → n` einer Spezialware: der Laden (dorf/oberflaeche.js) zeigt dann die Knöpfe ×1, ×10, ×100
+  und „Max" statt des Zählers; `kaufen(s, { n })` bekommt die Menge.
+* **Zufriedenheit** `freundschaft` (0 bis 1000, Durchschnitt der Herde): neue Küken mit Wert 0 ziehen ihn herunter, die
+  Aktion auf den Stall streichelt alle auf einmal (`gestreichelt`, einmal am Tag, +15 über Nacht), sonst −5 je Tag.
+* **Eier** (`nachtImStall`): je Huhn (ohne `neue`) ein Ei über Nacht, Großes Ei mit Chance `freundschaft / 1000 · 0,6`. Bis 500
+  Hühner wird jedes gewürfelt, darüber gilt eine Normalverteilungs-Näherung der Binomialverteilung (`binomial`), die bei
+  gleicher Zufallsfolge dasselbe liefert; die Summe ist immer exakt `anzahl − neue`. Die Nacht dauert auch mit 10 Millionen
+  Hühnern Millisekunden, der Spielstand bleibt klein (nur Zahlen).
+* **Eierkiste:** dynamische Deko `eierkiste` (Hook `deko`, Aktion `dekoAktion('eierkiste')`) direkt unter der Gebäudezeile des
+  Hof-Bereichs „stall", seitlich neben dem Eingang, nie auf dem Eingangsfeld und nie auf dem Weg zur Tür (`kistenFeld(def)`
+  rechnet aus `bereichVon`, die Kiste wandert also mit einer anderen Hofkarte). Das Bild folgt dem Bestand über `zustand`
+  (leer, wenige, einige, viele Eier; mit Blase, solange etwas drin liegt; Winter-Variante), der Bestand selbst liegt in
+  `s.stall.eier`. Die Aktionstaste (`eierHolen`) nimmt, was in den Rucksack passt (Stapelgrenze `STAPEL_MAX`); der Rest bleibt in
+  der Kiste. Die Kiste ist nicht abbaubar und nicht versetzbar. Beim Bau des Stalls räumt der Bereich ein Objekt vom Kistenfeld.
+* **Alte Stände:** der Hook `ergaenzen` wandelt die frühere Liste `s.stall.huehner` (`{ name, freundschaft, gestreichelt, neu }`)
+  in Zahlen um (Namen gehen verloren), entfernt die Liste und legt Eier, die noch im Auslauf lagen, in die Kiste. Zahlen im
+  Stand werden zu Ganzzahlen in den Grenzen geglättet. Der Karten-Bereich „auslauf" der Hofkarte bleibt, wird aber nicht mehr benutzt.
 
 Helfer für Bereiche: `S` (Laufzeit), `ton, meldung, dialog(npcId, texte, optionen, danach),
 frage(text, optionen), fenster(name, daten), fundeZeigen`/`fundeAnzeigen, ergebnisZeigen(erg),
@@ -698,7 +727,7 @@ zeichner({ name, ebene: 'boden' | 'ueber' | 'licht' | 'bildschirm', reihe, zeich
 | Ebene | Koordinaten | Kern (reihe) | Bereiche (reihe) |
 |---|---|---|---|
 | `boden` | Weltpixel | glitzern 10, beete 20, belag 25, wanddeko 30 | |
-| `welt` | Weltpixel, y-sortiert | objekte 10, pflanzen 20, deko 30, gebaeude 40, funde 50, npcs 60, spieler 90 | muehlrad 42 (gemeinschaft), fallend 45 (pflanzen), huehner 70 (tiere), monster 80 (mine), angelrute 91 (angeln) |
+| `welt` | Weltpixel, y-sortiert | objekte 10, pflanzen 20, deko 30, gebaeude 40, funde 50, npcs 60, spieler 90 | muehlrad 42 (gemeinschaft), fallend 45 (pflanzen), monster 80 (mine), angelrute 91 (angeln) |
 | `ueber` | Weltpixel | ziel 10, partikel 30, texte 40 | angeln 20 (angeln) |
 | `licht` | Bildschirmpixel | wetter 10, dunkel 50 | |
 | `bildschirm` | Bildschirmpixel | blitz 10 | |
@@ -728,16 +757,22 @@ der Mine nach `def.dunkel`. Lichtquellen: `GEBAEUDE_LICHT` jedes Gebäudes, Deko
 Objekttypen mit `licht` (`objektTyp('fackel', { licht: 3 })`, Radius in Feldern), eigene Quellen über
 `lichtQuelle((ort, sicht) => [{ x, y, r, warm }])` und die Spielerin selbst.
 
-Beispiel (vereinfacht nach den Hühnern im Bereich tiere):
+Beispiel (vereinfacht nach dem Mühlrad im Bereich gemeinschaft):
 
 ```js
 zeichner({
-  name: 'huehner', ebene: 'welt', reihe: 70,
+  name: 'muehlrad', ebene: 'welt', reihe: 42,
   sammeln(ort, v) {
-    if (!huehnerDraussen()) return null;
-    return S.huehner.filter((h) => v.imBild(h.x - 10, h.y - 18, 20, 22)).map((h) => ({
-      y: h.y, f: (g) => { schatten(g, h.x, h.y, 4, 1.5); g.drawImage(tierBild('huhn', 0, h.links), h.x - 8, h.y - 15); },
-    }));
+    const teile = [];
+    for (const g of Logik.gebaeudeListe(v.s, ort.def)) {
+      if (g.typ !== 'muehle') continue;
+      const x = (g.x + g.w) * T - 6;
+      const y = (g.y + 2) * T - 4;
+      if (!v.imBild(x, y, 40, 48)) continue;
+      const rad = muehlradBild(v.s.muehle ? Math.floor(S.t * 5) % 8 : 0, v.s.muehle);
+      teile.push({ y: (g.y + g.h) * T + 1, f: (gr) => gr.drawImage(rad, x, y) });
+    }
+    return teile;
   },
 });
 ```
@@ -797,7 +832,7 @@ menueReiter({ id: 'tiere', name: 'Tiere', reihe: 45, bauen: () => el('div', { cl
 | angeln | Angel, Fische, Köder; Deko stand; Zeichner angelrute und angeln (Rute, Schnur, Schwimmer, Wellen, Blasenspur, Biss, Fang im Flug; anzeige.js) | – |
 | mine | Erze, Barren, Mineralien, Schwert; Minen-Bänder; Objekte mstein, leiter, schatz; Deko leiter_ab, leiter_auf, aufzug, schwertfund, wandlampe; Monster schleim, fledermaus; Zeichner monster | Fenster aufzug, Statistik tiefste |
 | handwerk | Truhe, Vogelscheuche, Sprenger, Einmachglas, Marmelade, Eingelegtes; Objekt einmachglas | Fenster truhe (alle Behälter) |
-| tiere | Eier; Gebäude stall; Tier huhn; Zeichner huehner | Warenbilder kueken, stall |
+| tiere | Eier; Gebäude stall; Deko eierkiste (Bild nach Bestand); Küken-Symbol (Tierbild huhn) für den Laden | Warenbilder kueken, stall |
 | gemeinschaft | Medaille; Gebäude muehle (verfallen/repariert); Deko brett; Zeichner muehlrad | Fenster muehle, brett; Menüreiter aufgaben; Stil gemeinschaft-buendel |
 | npcs, npcs2, feste | – (Figuren und Porträts malt der Kern aus `aussehen`) | – |
 

@@ -15,7 +15,6 @@ export const S = {
   demo: false,
   sp: { x: 0, y: 0, blick: 'unten', lauf: 0, bewegt: false, aktion: null, laden: null, unverwundbar: 0, stoss: null, wiederholen: 0 },
   npcs: [],
-  huehner: [],
   monster: [],
   partikel: [],
   texte: [],
