@@ -204,7 +204,10 @@ export function update(dt, E) {
   partikelUpdate(dt);
   if (!S.s || S.demo) return;
   if (S.blitz > 0) S.blitz = Math.max(0, S.blitz - dt * 2.5);
-  if (S.pause || S.uebergang) return;
+  if (S.pause || S.uebergang) {
+    if (S.pause) S.angeln = null; // ein Fenster oder Gespräch holt die Schnur ein
+    return;
+  }
   zeitUpdate(dt);
   if (S.pause) return;
   npcsUpdate(dt);

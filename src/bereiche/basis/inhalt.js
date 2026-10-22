@@ -203,7 +203,7 @@ itemBenutzen((c) => !!c.it.belag, (c) => {
 
 for (const t of [
   'Gegossene Beete sind dunkler. Nur was gegossen ist, wächst über Nacht.',
-  'Regen gießt alle Beete. An Regentagen beißen außerdem besondere Fische.',
+  'Regen gießt alle Beete. An Regentagen beißen außerdem besondere Fische, und sie beißen schneller.',
   'Am letzten Tag jeder Jahreszeit welkt alles, was im neuen Wetter nicht wachsen kann.',
   'Aus Unkraut wird Faser, aus gefällten Bäumen Harz. Beides braucht man zum Basteln.',
   'Mit Dünger im Beet gelingt öfter eine Silber- oder Goldernte.',
@@ -213,7 +213,7 @@ for (const t of [
   'Alle fünf Ebenen merkt sich der Förderkorb am Mineneingang deinen Fortschritt.',
   'Krähen fressen ungeschützte Pflanzen. Eine Vogelscheuche schützt alles in acht Feldern Umkreis.',
   'Essen stellt Energie wieder her. Halte etwas Essbares in der Hand und drücke F.',
-  'Mit Köder im Rucksack beißen die Fische doppelt so schnell.',
+  'Köder im Rucksack wird beim Auswerfen verbraucht, dafür beißen die Fische doppelt so schnell. Taucht der Schwimmer ab, sofort einholen!',
 ]) tipp(t);
 
 // ─── Startausrüstung ────────────────────────────────────────────────────────

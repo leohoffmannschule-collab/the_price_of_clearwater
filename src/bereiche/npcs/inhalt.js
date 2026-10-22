@@ -112,7 +112,7 @@ npc('lene', {
       'Na, Landratte? Das Meer hat heute gute Laune. Merkt man am Geruch.',
       'Fische beißen am liebsten früh am Morgen. Oder spät. Oder wann sie wollen.',
       'Mit Köder im Rucksack beißen sie schneller. Ich verkaufe welchen, wenn du magst.',
-      'Halt den grünen Balken über dem Fisch. Klingt einfach. Ist es nicht.',
+      'Wenn der Schwimmer abtaucht, zieh sofort. Wer zu früh zieht, fängt nur Luft. Wer zu spät zieht, auch.',
       'Ich hab mal einen Thunfisch gefangen, der war größer als mein Boot. Mein Boot war allerdings sehr klein.',
       'Bei Regen kommen die Aale raus. Und die Welse im Teich. Schlechtes Wetter, gute Fische.',
       'Mats malt mich immer, wenn ich am Steg sitze. Ich sehe auf jedem Bild anders aus.',

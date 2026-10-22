@@ -79,7 +79,7 @@ export function questErzeugen(s, r = Math.random) {
   for (const p of Object.values(PFLANZEN)) if (p.jz.includes(jz)) kand.push(p.ernte);
   for (const it of Object.values(ITEMS)) {
     if (it.kat === 'sammel' && !it.strand && it.jz?.includes(jz)) kand.push(it.id);
-    if (it.kat === 'fisch' && it.fisch.jz.includes(jz) && it.fisch.schwierigkeit <= 60) kand.push(it.id);
+    if (it.kat === 'fisch' && it.fisch.jz.includes(jz) && it.fisch.seltenheit <= 60) kand.push(it.id);
   }
   for (const id of ['kupfererz', 'quarz', 'kohle']) if (ITEMS[id]) kand.push(id);
   if (s.mine?.tiefste >= 10 && ITEMS.eisenerz) kand.push('eisenerz');
