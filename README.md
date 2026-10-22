@@ -66,7 +66,7 @@ schenken auch mal zurück.
 
 | Person | Wo | Was es dort gibt |
 |---|---|---|
-| Ottilie | Krämerladen | Saatgut der Jahreszeit, Dünger, Küken, größerer Rucksack |
+| Ottilie | Krämerladen | Saatgut der Jahreszeit, Dünger, Küken (auch ×10, ×100 oder so viele wie bezahlbar), größerer Rucksack |
 | Bruno | Schmiede | Kohle und Erz, Werkzeuge verbessern, Hühnerstall bauen |
 | Lene | Strand | Köder, die Angel (ab Tag 2 geschenkt) |
 | Hannes | Gasthaus „Zum Krug" | Brot, Salat, Kaffee, Fischsuppe |
@@ -112,7 +112,8 @@ bringt eine Belohnung, alle zusammen bringen das Rad wieder zum Drehen.
 dem Mineneingang – beide noch klein und ruhig, sie wachsen mit den nächsten Ausbaustufen.
 
 Außerdem: Tag und Nacht mit Licht aus Fenstern und Laternen, Regen, Gewitter und Schnee,
-Wettervorhersage im Fernseher, Briefe in der Post, ein Hühnerstall mit Eiern,
+Wettervorhersage im Fernseher, Briefe in der Post, ein Hühnerstall (so viele Hühner, wie du bezahlen kannst – Küken gibt es auch
+in Mengen) mit einer Eierkiste davor, in der die Eier über Nacht landen,
 Aufträge vom Schwarzen Brett und eine Ohnmacht, wenn man um zwei Uhr nachts noch draußen ist.
 
 ---

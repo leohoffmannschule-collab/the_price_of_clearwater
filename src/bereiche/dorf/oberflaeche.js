@@ -15,6 +15,8 @@ stil('dorf-laden', `
 .laden-kopf { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
 .menge { display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; min-width: 92px; justify-content: center; }
 .menge span { min-width: 2ch; text-align: center; }
+.mengen-kauf { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; flex: 1 1 auto; }
+.mengen-kauf .knopf { min-height: 36px; min-width: 52px; }
 `);
 
 wareBild('upgrade', (w) => bild(itemDatenUrl({ id: w.werkzeug }, w.stufe)));
@@ -24,6 +26,29 @@ function wareIcon(w) {
   if (w.id) return itemIcon({ id: w.id });
   const fn = WARE_BILD[w.spezial];
   return fn ? fn(w) : itemIcon({ id: 'truhe' });
+}
+
+/** Kauft n Stück und zeigt Meldung und Ton. */
+function kaufe(w, n) {
+  const erg = L.kaufen(S.s, w, n);
+  if (erg.grund) { meldung(erg.grund, 'warn'); ton('dumpf'); }
+  else {
+    ton('geld');
+    if (erg.text) meldung(erg.text, 'gut');
+  }
+  fensterNeu();
+}
+
+/**
+ * Mengenkauf für Ware mit `mengen: [1, 10, 100]` (und optional `hoechstmenge(s, ware) → n` für „Max"):
+ * je ein Knopf pro Menge, kauft sofort. Knöpfe, die Gold oder Zutaten nicht hergeben, sind gesperrt.
+ */
+function mengenKnoepfe(s, w) {
+  const geht = (n) => n >= 1 && s.spieler.gold >= w.preis * n && Object.entries(w.zutaten || {}).every(([id, m]) => L.anzahl(s, id) >= m * n);
+  const max = w.hoechstmenge ? w.hoechstmenge(s, w) : 0;
+  const knoepfe = w.mengen.map((n) => el('button', { type: 'button', class: 'knopf klein', disabled: !geht(n), 'aria-label': `${n} kaufen`, onclick: () => kaufe(w, n) }, `×${zahl.format(n)}`));
+  if (w.hoechstmenge) knoepfe.push(el('button', { type: 'button', class: 'knopf klein', disabled: !geht(max), 'aria-label': 'So viele wie bezahlbar kaufen', onclick: () => kaufe(w, max) }, `Max${max > 0 ? ` (${zahl.format(max)})` : ''}`));
+  return el('div', { class: 'mengen-kauf' }, knoepfe);
 }
 
 /** Laden: daten { laden: LAEDEN-ID, reiter: 'kaufen' | 'verkaufen' }. */
@@ -49,23 +74,15 @@ fensterArt('laden', (d) => {
       return el('div', { class: 'zeile' },
         wareIcon(w),
         el('div', { class: 'zeile-text' }, el('strong', {}, name), text ? el('div', { class: 'leise klein' }, text) : null, zutaten ? el('div', { class: 'zutaten' }, zutaten) : null),
-        el('div', { class: 'preis' }, `${zahl.format(w.preis * n)} g`),
-        stapel ? el('div', { class: 'menge' },
+        el('div', { class: 'preis' }, w.mengen ? `${zahl.format(w.preis)} g je Stück` : `${zahl.format(w.preis * n)} g`),
+        w.mengen ? mengenKnoepfe(s, w) : stapel ? el('div', { class: 'menge' },
           el('button', { type: 'button', class: 'knopf klein', 'aria-label': 'Weniger', onclick: () => { d.menge[i] = Math.max(1, n - (n > 5 ? 5 : 1)); fensterNeu(); } }, '−'),
           el('span', { 'aria-live': 'polite' }, n),
           el('button', { type: 'button', class: 'knopf klein', 'aria-label': 'Mehr', onclick: () => { d.menge[i] = Math.min(99, n + (n >= 5 ? 5 : 1)); fensterNeu(); } }, '+')) : el('div', { class: 'menge' }),
-        el('button', {
+        w.mengen ? null : el('button', {
           type: 'button', class: 'knopf',
           disabled: s.spieler.gold < w.preis * n || Object.entries(w.zutaten || {}).some(([id, m]) => L.anzahl(s, id) < m * n),
-          onclick: () => {
-            const erg = L.kaufen(s, w, n);
-            if (erg.grund) { meldung(erg.grund, 'warn'); ton('dumpf'); }
-            else {
-              ton('geld');
-              if (erg.text) meldung(erg.text, 'gut');
-            }
-            fensterNeu();
-          },
+          onclick: () => kaufe(w, n),
         }, 'Kaufen'));
     }) : el('p', { class: 'leise' }, 'Gerade gibt es hier nichts zu kaufen.'));
   } else {

@@ -187,6 +187,8 @@ export const SPEZIAL_WARE = {};
  * spezialWare(id, { name, preis, text, zutaten, verfuegbar(s, ware, ladenId),
  *                   angebote(s, ware, ladenId) → [ware…], kaufen(s, { ware, n }) → { text } })
  * `angebote` ersetzt den Eintrag durch mehrere Waren (Saatgut der Jahreszeit, Upgrades …).
+ * `mengen: [1, 10, 100]` (optional mit `hoechstmenge(s, ware) → n`) zeigt im Laden Mengenknöpfe
+ * (×1, ×10, ×100, Max) statt des Zählers; `kaufen` bekommt dann `n`.
  */
 export function spezialWare(id, def) {
   const [d, ersetzen] = ohneErsetzen(def);
