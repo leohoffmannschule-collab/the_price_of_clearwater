@@ -483,7 +483,15 @@ export function grundpreis(slot) {
 }
 const mitQualitaet = (slot) => Math.floor(grundpreis(slot) * QUALITAET[slot.q || 0].faktor);
 /** Verkaufspreis eines Stücks; `s` reicht den Spielstand an den Modifikator weiter. */
-export const preisVon = (slot, s) => Math.floor(mod('verkaufspreis', mitQualitaet(slot), { s, slot }));
+export function preisVon(slot, s) {
+  const it = ITEMS[slot.id];
+  // Ware mit `preisVielfaches: n` und Ausgangsstoff (slot.von): genau n-mal der Verkaufspreis des Ausgangsstoffs
+  // bei gleicher Qualität (Geräucherter Fisch); Modifikatoren wirken auf den Ausgangsstoff.
+  if (it.preisVielfaches && slot.von && ITEMS[slot.von]) {
+    return it.preisVielfaches * preisVon({ id: slot.von, n: slot.n, ...(slot.q ? { q: slot.q } : {}) }, s);
+  }
+  return Math.floor(mod('verkaufspreis', mitQualitaet(slot), { s, slot }));
+}
 
 export function nameVon(slot, s) {
   const it = ITEMS[slot.id];

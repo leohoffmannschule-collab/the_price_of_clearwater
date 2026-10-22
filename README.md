@@ -91,6 +91,11 @@ wartet eine Schatztruhe.
 **Basteln.** Barren, Truhe, Vogelscheuche, Sprenger, Qualitätssprenger, Einmachglas,
 Dünger, Köder – manche erst ab einer bestimmten Fähigkeitsstufe.
 
+**Der Räucherofen.** Kostet 1 Holz und 1 Kohle, von Anfang an im Basteln-Menü (K). Fisch in die Hand,
+Aktionstaste auf den Ofen: bis zu 200 Fische je Ofen und Tag wandern hinein, über Nacht werden
+sie zu Geräuchertem. Das ist zehnmal so viel wert wie der frische Fisch (bei gleicher Qualität).
+Aktionstaste ohne Fisch holt es ab.
+
 **Fähigkeiten.** Landwirtschaft, Angeln, Sammeln, Bergbau und Kampf steigen bis Stufe 10
 und machen Werkzeuge sparsamer, Ernten besser, die Wartezeit beim Angeln kürzer und die Gesundheit größer.
 
