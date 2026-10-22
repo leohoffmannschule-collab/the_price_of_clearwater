@@ -15,7 +15,7 @@ Sprache im Code ist Deutsch. Reine ES-Module, kein Build, keine Abhängigkeiten.
 ```
 src/
   daten.js  karten.js  system.js  logik.js  spiel.js  mine.js  angeln.js     Kern, DOM-frei
-  sprites.js  render.js  ui.js  eingabe.js  ton.js  zufall.js  index.js       Kern, Browser
+  sprites.js  render.js  ui.js  eingabe.js  ton.js  zufall.js  schleife.js  index.js   Kern, Browser
   bereiche/
     inhalt.js        lädt alle bereiche/*/inhalt.js, dann fertig()   (DOM-frei, auch in Node)
     grafik.js        lädt alle bereiche/*/grafik.js                  (Pixelkunst)
@@ -500,7 +500,8 @@ CHROMIUM=/opt/pw-browsers/chromium-1194/chrome-linux/chrome node test/browser.mj
 | `laufzeit.test.mjs` | Laufzeit ohne Bildschirm: Rundgang durch den Weltgraphen, Mineneingang, Werkzeuge, Laden und Auftrag (Orte aus Punkten und Theken-Deko) |
 | `darstellung.test.mjs` | Darstellung ohne Bildschirm (lädt auch `bereiche/grafik.js` und `bereiche/oberflaeche.js`): jedes Item, jede Deko, jedes Gebäude, jeder Objekttyp, jede Wuchsform, jedes Monster, jedes Bodenzeichen hat ein Bild; Innenraum-, Wasser- und Bandfarben; doppelte Bilder werfen; Zeichner des Kerns in fester Reihenfolge; jedes geöffnete Fenster ist registriert; Fenster-Optionen; Menüreiter und Statistik des Kerns; Rucksack-Teile, Stile; Warenbilder; Importregeln von grafik.js/oberflaeche.js |
 | `<bereich>.test.mjs` | hof, berg, pflanzen, angeln, mine, handwerk, tiere: was nur diesen Bereich betrifft (Stall über Nacht, Barren, Ebenen, Fischwahl, Bäume …) |
-| `browser.mjs` | Rauchtest in Chromium: neues Spiel, Feldarbeit, Menü, Rundgang bis in die Mine (Orte aus dem Punkte-Vertrag), jedes Item/jede Deko/jedes Gebäude/jedes Objekt/jede Pflanze malt ohne Ersatzbild (alle Jahreszeiten, Tag und Nacht), Ersatzbilder für Fehlendes, Kulling auf einer 100×72-Karte, große Objekte, Beläge, Pflanzenkunst mit `alle`, Kameraführung, alle Fenster öffnen sich mit ihren Beispieldaten, Schlafen, Speichern (v2), keine Konsolenfehler |
+| `einmachglas.test.mjs` | das Einmachglas durch den ganzen Ablauf mit jeder Frucht und jedem Gemüse (einlegen, Nacht, leeren, doppelt leeren, voller Rucksack, Speichern und Laden, beschädigte Stände), die Bilder der Handwerkswaren für jeden Ausgangsstoff (mit einer Leinwand-Attrappe), werfende Maler (Ersatzbild statt Ausnahme) und die Spielschleife (`schleife.js`) |
+| `browser.mjs` | Rauchtest in Chromium: neues Spiel, Feldarbeit, Menü, Rundgang bis in die Mine (Orte aus dem Punkte-Vertrag), jedes Item/jede Deko/jedes Gebäude/jedes Objekt/jede Pflanze malt ohne Ersatzbild (alle Jahreszeiten, Tag und Nacht), Ersatzbilder für Fehlendes, Kulling auf einer 100×72-Karte, große Objekte, Beläge, Pflanzenkunst mit `alle`, Kameraführung, alle Fenster öffnen sich mit ihren Beispieldaten, Schlafen, Speichern (v2), Einmachglas leeren (jede Sorte, voller Rucksack; danach muss sich die Spielerin noch bewegen können, denn „die Seite antwortet" genügt nicht: die Spielschleife kann stehen, während der Browser läuft), keine Konsolenfehler |
 
 **Kerntests prüfen keine Bereichsinhalte.** Sie arbeiten mit Testkarten, Testinhalten und den
 Punkten des Vertrags; was ein Bereich liefert, prüft `test/<bereich>.test.mjs`. Bereiche legen ihre
@@ -575,7 +576,7 @@ Argument) und nimmt auch ein Objekt mit vielen Einträgen: `kunst({ hacke(g, b, 
 
 | Register | Füllen mit | Schlüssel | Eintrag | Kontext |
 |---|---|---|---|---|
-| `KUNST` | `kunst(art, fn)` | `item.bild.art`, sonst Item-ID | `(g, bild, metall)` malt 16×16; Umriss macht der Kern; `metall` = Farbe der Werkzeugstufe | `bild` = `item.bild` (bei Handwerkswaren mit `f` des Ausgangsstoffs) |
+| `KUNST` | `kunst(art, fn)` | `item.bild.art`, sonst Item-ID | `(g, bild, metall)` malt 16×16; Umriss macht der Kern; `metall` = Farbe der Werkzeugstufe | `bild` = `item.bild`; bei Handwerkswaren (Kategorie `artisan`) mit der Farbe `f` des Ausgangsstoffs (`slot.von`), und nur, wenn dessen Bild eine hat – sonst bleibt die eigene Farbe der Ware (`artisanBild`) |
 | `OBJEKT_BILD` | `objektKunst(t, def)` | Objekttyp (`welt.objekte[…].t`) | `(o, k) → Leinwand`, `{ bild(o, k) }` oder `{ b, h, schluessel(o, k), malen(g, o, k), umriss }`; dazu Darstellungsfelder (unten). Ohne Eintrag: das Bild des gleichnamigen Items. Große Objekte (`flaeche`) stehen unten mittig auf ihrer Fläche. | `{ jz, band, nacht, s, t, tx, ty, ort }` – `ort.welt.objekte` für Nachbarn (Zaun: Nachbarmaske in den `schluessel`) |
 | `DEKO_BILD` | `dekoKunst(typ, def)` | `deko[].typ` | `(g, d, k)` malt auf `w×16` oder `{ b(d), h, malen, umriss, zustand(d, k) }` bzw. `{ bild(d, k) }`; dazu Darstellungsfelder | `{ jz, winter, nacht, innen, s, w, zustand }` |
 | `GEBAEUDE_BILD` | `gebaeudeKunst(typ, def)` | `gebaeude[].typ` | `{ b, h, malen(g, k), zustand(s, geb) → Objekt, licht: [[px, py]…], umriss }`; `zustand` bekommt das Gebäude (Stufe, Bauzustand) und geht in den Schlüssel | `{ jz, winter, nacht, zustand }` |
@@ -609,7 +610,18 @@ einem Präfix des Bereichs.
 **Ersatzbild:** Fehlt ein Bild (unbekannte Kunst, Deko, Gebäude, Objekt, Wuchsform, Monster,
 Tier, Boden, Symbol), malt der Kern ein magenta-schwarz kariertes Feld in passender Größe,
 setzt `leinwand.ersatz = true` und warnt einmal in der Konsole. Es stürzt nichts ab; die Tests
-finden das Feld trotzdem.
+finden das Feld trotzdem. Dasselbe gilt, wenn ein **Maler wirft** (kaputte Daten, fehlende
+Farbe): `gecacht(schluessel, fn, [b, h])` meldet es einmal als Konsolenfehler und legt das
+Ersatzbild in den Zwischenspeicher, statt in jedem Bild neu zu werfen. Die Bild-Abrufe des Kerns
+(`itemBild`, `objektBild`, `dekoBild`, `gebaeudeBild`, `pflanzeBild`, `belagBild`, `tierBild`,
+`monsterBild`) tun das; eigene `gecacht`-Aufrufe dürfen eine Ersatzgröße angeben.
+Malt ein Bereich Handwerkswaren aus Ausgangsstoffen, rechnet er nicht mit `bild.f` des
+Ausgangsstoffs, ohne sie zu prüfen: nicht jedes Item hat eine Farbe (Lauch malt seine eigenen).
+
+**Spielschleife** (`index.js`, Hilfe in `schleife.js`): Jedes Bild bestellt zuerst das nächste
+und führt Eingabe, Spiel, Zeichnen und Oberfläche je in `schrittSicher(name, fn)` aus. Eine
+Ausnahme wird einmal als Konsolenfehler gemeldet und beendet die Schleife nie; früher stand das
+ganze Spiel still (der Browser antwortete weiter), sobald irgendwo ein Maler oder ein Hook warf.
 
 **Grundfunktionen** (alle exportiert): `leinwand(w, h)`, `gecacht`, `P` (Pixel), `R` (Rechteck),
 `E` (Ellipse), `L` (Linie mit Dicke – in grafik.js deshalb logik.js als `* as Logik` holen),

@@ -272,6 +272,122 @@ try {
 
   const gespeichert = await page.evaluate(() => !!localStorage.getItem('klarwasser-hof-v2'));
   pruefe(gespeichert, 'Der Morgen wurde gespeichert');
+
+  // Einmachglas leeren. Fehlerbild: Ein Glas mit Eingelegtem aus Lauch stoppte beim Leeren die Spielschleife
+  // (der Maler der Ware warf), das Spiel stand still, der Browser antwortete weiter. Darum reicht
+  // „antwortet die Seite" nicht: Die Spielerin muss sich danach noch bewegen können.
+  const waren = await page.evaluate(async () => {
+    const SP = await import('/src/sprites.js');
+    const { ITEMS } = await import('/src/daten.js');
+    const sorten = Object.keys(ITEMS).filter((id) => (ITEMS[id].frucht || ITEMS[id].gemuese) && ['ernte', 'sammel'].includes(ITEMS[id].kat));
+    const fehlt = [];
+    for (const id of Object.keys(ITEMS).filter((i) => ITEMS[i].kat === 'artisan')) {
+      for (const von of sorten) {
+        try { const c = SP.itemBild({ id, von }); if (c.width !== 16 || c.ersatz) fehlt.push(`${id} aus ${von}`); SP.itemDatenUrl({ id, von }); } catch (e) { fehlt.push(`${id} aus ${von}: ${e.message}`); }
+      }
+    }
+    return { sorten, fehlt };
+  });
+  pruefe(waren.fehlt.length === 0, `Handwerkswaren malen für jeden Ausgangsstoff (${waren.sorten.length} Sorten)${waren.fehlt.length ? `: ${waren.fehlt.join(', ')}` : ''}`);
+
+  /** Briefe, die am Morgen aufgehen, wegklicken (sie halten das Spiel an und schlucken die Aktionstaste). */
+  const briefeWeg = async () => {
+    for (let i = 0; i < 4 && await page.locator('.papier .knopf').count(); i++) { await page.click('.papier .knopf'); await page.waitForTimeout(200); }
+  };
+  await briefeWeg();
+
+  // ein Glas mit freiem Platz dahinter, damit die Spielerin sich bewegen kann
+  const glasOrt = await page.evaluate(async () => {
+    const { S, L } = window.__klarwasser;
+    const m = await import('/src/spiel.js');
+    const ort = L.ortVon(S.s, 'hof');
+    for (let y = 4; y < ort.def.h - 3; y++) {
+      for (let x = 4; x < ort.def.w - 4; x++) {
+        let frei = true;
+        for (let yy = y - 3; yy <= y; yy++) for (let xx = x - 1; xx <= x + 1; xx++) frei = frei && L.feldFrei(S.s, ort, xx, yy);
+        if (!frei) continue;
+        ort.welt.objekte[L.k(x, y)] = { t: 'einmachglas', inhalt: null, fertig: false };
+        m.karteBetreten('hof', x, y - 1, 'unten');
+        return { x, y };
+      }
+    }
+    return null;
+  });
+  pruefe(!!glasOrt, 'Ein Einmachglas steht auf dem Hof');
+  const vorGlas = async () => {
+    await page.evaluate(async ([x, y]) => { const m = await import('/src/spiel.js'); m.karteBetreten('hof', x, y - 1, 'unten'); }, [glasOrt.x, glasOrt.y]);
+    await page.waitForTimeout(150);
+  };
+  /** Läuft das Spiel noch? Die Spielerin geht nach oben und muss dabei von der Stelle kommen. */
+  const spielLaeuft = async () => {
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    const vor = await page.evaluate(() => window.__klarwasser.S.sp.y);
+    await halte('w', 160);
+    const nach = await page.evaluate(() => window.__klarwasser.S.sp.y);
+    return vor - nach > 3;
+  };
+  const glasZustand = () => page.evaluate(([x, y]) => { const { S, L } = window.__klarwasser; const o = S.s.welt.hof.objekte[L.k(x, y)]; return o && { inhalt: o.inhalt, fertig: o.fertig }; }, [glasOrt.x, glasOrt.y]);
+
+  // der ganze Weg wie im Spiel: Lauch in die Hand, E, schlafen, am Morgen E
+  await vorGlas();
+  await page.evaluate(() => {
+    const { S, L } = window.__klarwasser;
+    L.hinzufuegen(S.s, { id: 'lauch', n: 20, q: 2 });
+    S.s.spieler.wahl = S.s.spieler.inv.findIndex((x) => x?.id === 'lauch');
+  });
+  await page.keyboard.press('e');
+  await page.waitForTimeout(100);
+  const eingelegt = await glasZustand();
+  pruefe(eingelegt?.inhalt?.von === 'lauch' && eingelegt.fertig === false, 'Lauch ins Einmachglas gelegt');
+  pruefe(await spielLaeuft(), 'Nach dem Einlegen läuft das Spiel');
+  await page.evaluate(async () => { const m = await import('/src/spiel.js'); m.schlafen(false); });
+  await page.waitForSelector('text=Guten Morgen!');
+  await page.click('text=Guten Morgen!');
+  await page.waitForTimeout(300);
+  await briefeWeg();
+  pruefe((await glasZustand())?.fertig === true, 'Am Morgen ist das Glas fertig');
+  await vorGlas();
+  await page.keyboard.press('e');
+  await page.waitForTimeout(100);
+  const geleert = await page.evaluate(() => { const { S } = window.__klarwasser; return S.s.spieler.inv.find((x) => x?.id === 'eingelegt'); });
+  pruefe(geleert?.von === 'lauch', 'Glas geleert: Eingelegtes aus Lauch im Rucksack');
+  pruefe(await spielLaeuft(), 'Nach dem Leeren läuft das Spiel weiter (Bilder werden noch gezeichnet)');
+  pruefe((await page.locator('#funde .fund').count()) >= 1, 'Der Fund wird angezeigt');
+  const hotbarBilder = await page.evaluate(() => [...document.querySelectorAll('#hud .slot[title="Eingelegtes (Lauch)"] img')].filter((i) => i.complete && i.naturalWidth > 0).length);
+  pruefe(hotbarBilder === 1, 'Die Werkzeugleiste zeigt „Eingelegtes (Lauch)“ mit Bild');
+
+  // jede Sorte einzeln: das Spiel läuft nach jedem Leeren weiter
+  const nichtGelaufen = [];
+  for (const sorte of waren.sorten) {
+    if (nichtGelaufen.length) break;
+    await vorGlas();
+    await page.evaluate(async ([x, y, sorte]) => {
+      const { S, L } = window.__klarwasser;
+      const { ITEMS } = await import('/src/daten.js');
+      S.s.spieler.inv = S.s.spieler.inv.map(() => null);
+      S.s.spieler.wahl = 0;
+      S.s.welt.hof.objekte[L.k(x, y)] = { t: 'einmachglas', inhalt: { id: ITEMS[sorte].frucht ? 'marmelade' : 'eingelegt', von: sorte }, fertig: true };
+    }, [glasOrt.x, glasOrt.y, sorte]);
+    await page.keyboard.press('e');
+    await page.waitForTimeout(60);
+    if (!(await spielLaeuft())) nichtGelaufen.push(sorte);
+  }
+  pruefe(nichtGelaufen.length === 0, `Nach dem Leeren läuft das Spiel für jede Sorte weiter (${waren.sorten.length})${nichtGelaufen.length ? `: steht still bei ${nichtGelaufen[0]}` : ''}`);
+
+  // voller Rucksack: das Glas bleibt voll, das Spiel läuft
+  if (!nichtGelaufen.length) {
+    await vorGlas();
+    await page.evaluate(async ([x, y]) => {
+      const { S, L } = window.__klarwasser;
+      S.s.spieler.inv = S.s.spieler.inv.map(() => ({ id: 'holz', n: 999 }));
+      S.s.welt.hof.objekte[L.k(x, y)] = { t: 'einmachglas', inhalt: { id: 'eingelegt', von: 'lauch' }, fertig: true };
+    }, [glasOrt.x, glasOrt.y]);
+    await page.keyboard.press('e');
+    await page.waitForTimeout(100);
+    pruefe((await glasZustand())?.fertig === true && await spielLaeuft(), 'Voller Rucksack: das Glas bleibt voll und das Spiel läuft');
+    await page.evaluate(() => { const { S } = window.__klarwasser; S.s.spieler.inv = S.s.spieler.inv.map(() => null); });
+  }
+
   await page.reload();
   await page.waitForSelector('text=Weiterspielen');
   pruefe(true, 'Nach dem Neuladen bietet der Titel „Weiterspielen“ an');

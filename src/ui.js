@@ -394,7 +394,8 @@ function ortZeigen(name) {
 function ueberblende(fn) {
   const b = $('#blende');
   b.classList.add('an');
-  setTimeout(() => { fn(); requestAnimationFrame(() => b.classList.remove('an')); }, 230);
+  // Wirft fn, muss die Blende trotzdem wieder auf, sonst bleibt der Bildschirm schwarz.
+  setTimeout(() => { try { fn(); } finally { requestAnimationFrame(() => b.classList.remove('an')); } }, 230);
 }
 
 // ─── Eingaben, die die Oberfläche betreffen ─────────────────────────────────

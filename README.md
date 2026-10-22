@@ -127,6 +127,7 @@ src/
   eingabe.js     Tastatur, Maus, Touch
   ton.js         Geräusche und Musik mit WebAudio
   zufall.js      Seedbarer Zufall
+  schleife.js    Spielschleife ohne Absturz: ein werfender Schritt hält das Spiel nicht an
   bereiche/      basis, hof, dorf, wildnis, pflanzen, angeln, mine, handwerk, tiere,
                  npcs, npcs2, feste, gemeinschaft – je inhalt.js (Inhalte),
                  grafik.js (Pixelkunst, Zeichner), oberflaeche.js (Fenster, Menüreiter)

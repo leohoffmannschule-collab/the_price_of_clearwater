@@ -58,6 +58,7 @@ objektTyp('qsprenger', { ...aufgestellt, nacht: sprengen(RING) });
 export function glasBenutzen(s, ort, x, y, idx) {
   const o = ort.welt.objekte[L.k(x, y)];
   const erg = L.neuesErgebnis();
+  if (o.fertig && !o.inhalt) o.fertig = false; // beschädigter Stand: „fertig" ohne Inhalt wäre sonst ein Fehler
   if (o.fertig) {
     if (L.platzFuer(s, { ...o.inhalt, n: 1 }) < 1) return { grund: 'Dein Rucksack ist voll.', items: [] };
     L.geben(s, ort, x, y, { id: o.inhalt.id, von: o.inhalt.von, n: 1 }, erg);
@@ -66,7 +67,7 @@ export function glasBenutzen(s, ort, x, y, idx) {
     erg.ok = true;
     return erg;
   }
-  if (o.inhalt) return { grund: `${ITEMS[o.inhalt.von].name} wird eingemacht. Morgen früh ist es fertig.`, items: [] };
+  if (o.inhalt) return { grund: `${ITEMS[o.inhalt.von]?.name ?? 'Etwas'} wird eingemacht. Morgen früh ist es fertig.`, items: [] };
   const slot = idx != null ? s.spieler.inv[idx] : null;
   const it = slot && ITEMS[slot.id];
   if (!it || !['ernte', 'sammel'].includes(it.kat) || !(it.frucht || it.gemuese)) {
