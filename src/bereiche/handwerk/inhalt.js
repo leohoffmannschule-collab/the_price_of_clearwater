@@ -5,6 +5,7 @@
 import { ITEMS, item, kategorie, rezept, objektTyp } from '../../daten.js';
 import * as L from '../../logik.js';
 import { ton, fenster, dialog, dekoAktion, ergebnisZeigen } from '../../spiel.js';
+import './raeucherofen.js';
 
 kategorie('artisan', 'Handwerksware');
 kategorie('platz', 'Aufstellbar');
