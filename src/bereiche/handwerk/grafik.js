@@ -3,6 +3,7 @@
 // Aufgestellte Dinge ohne eigenes Objektbild zeigen ihr Gegenstandsbild (Kern).
 
 import { kunst, objektKunst, P, R, E, L, mische, hell, dunkel, HOLZ } from '../../sprites.js';
+import './fischfarm-kunst.js'; // Fischfarm (eigene Datei)
 
 function truhe(g) {
   R(g, 2, 6, 12, 8, '#9a6a3a'); R(g, 2, 3, 12, 4, '#b07a48'); R(g, 2, 3, 12, 1, '#c8925a');

@@ -5,6 +5,7 @@
 import { ITEMS, item, kategorie, rezept, objektTyp } from '../../daten.js';
 import * as L from '../../logik.js';
 import { ton, fenster, dialog, dekoAktion, ergebnisZeigen } from '../../spiel.js';
+import './fischfarm.js'; // Fischfarm: Item, Rezept, Objekt (eigene Datei)
 
 kategorie('artisan', 'Handwerksware');
 kategorie('platz', 'Aufstellbar');
