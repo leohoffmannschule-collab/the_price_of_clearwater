@@ -1,224 +1,73 @@
-// Bereich „dorf": die Dorfkarte mit Krämerladen und Gasthaus als Innenräume, die Mühle als
-// Gebäude, die Läden von Ottilie, Bruno und Hannes, Rucksack und Werkzeug-Upgrades.
-// Platzhalter-Innenräume (noch ohne Tür): schmiede, rathaus, arzt, museum, hausRosa, muehle.
-// Ware anderer Bereiche in diesen Läden (Saatgut, Küken, Stall …) kommt über den Hook ladenWare.
+// Bereich „dorf": die große Dorfkarte (karte-dorf.js) und ihre Innenräume (innen.js), die Mühle als
+// Gebäude und von innen, die Läden von Ottilie, Bruno und Hannes, Rucksack und Werkzeug-Upgrades,
+// Öffnungszeiten der Türen und die Mülltonnen. Ware anderer Bereiche in diesen Läden (Saatgut,
+// Küken, Stall …) kommt über den Hook ladenWare.
 
-import { ITEMS, WERKZEUG_STUFEN, AUFRUESTBAR, KANNE_INHALT, WERKZEUG_ARTEN, item, kategorie, laden, spezialWare } from '../../daten.js';
-import { karte, raum, fertigRaster } from '../../karten.js';
+import { ITEMS, WERKZEUG_STUFEN, AUFRUESTBAR, KANNE_INHALT, WERKZEUG_ARTEN, item, kategorie, laden, spezialWare, bedingung } from '../../daten.js';
+import { bodenTyp } from '../../karten.js';
+import { system } from '../../system.js';
+import { S, dekoAktion, fenster, dialog, geben } from '../../spiel.js';
+import { zufall } from '../../zufall.js';
 import * as L from '../../logik.js';
+import './karte-dorf.js';
+import './innen.js';
 
-karte({
-  id: 'dorf', name: 'Klarwasser', aussen: true, wasser: 'fluss', rand: 'wald',
-  grid: [
-    '#####################::#############~~~#####',
-    '#####################::#############~~~#####',
-    '#....................::.............~~~....#',
-    '#....................::.............~~~....#',
-    '#....................::.............~~~....#',
-    '#....................::.............~~~....#',
-    '#....................::.............~~~....#',
-    '#....................::.............~~~....#',
-    '#.................:..::.............~~~....#',
-    '#..........:......:..::...:......:..~~~....#',
-    '#..........:......:..::...:......:..~~~....#',
-    '#..........:....============.....:..~~~....#',
-    '#..........:....============.....:..~~~....#',
-    '#..........:....============.....:..~~~....#',
-    '#..........:....============.....:..~~~....#',
-    '::::::::::::::::============::::::::hhh:::.#',
-    '::::::::::::::::============::::::::hhh:::.#',
-    '#........:......============........~~~....#',
-    '#........:......============........~~~....#',
-    '#........:......============........~~~....#',
-    '#........:...........::.............~~~....#',
-    '#........:...........::.............~~~....#',
-    '#........:...........::.............~~~....#',
-    '#..:::::::...........::.............~~~....#',
-    '#..:::::::...........::.............~~~....#',
-    '#..:::::::...........::.............~~~....#',
-    ':....................::.............~~~....#',
-    ':....................:::::::::......~~~....#',
-    '#....................::.............~~~....#',
-    '#....................::.............~~~....#',
-    '#####################::#############~~~#####',
-    '#####################::#############~~~#####',
-  ],
-  gebaeude: [
-    { typ: 'laden', x: 8, y: 3, w: 7, h: 6, tuer: { x: 11, y: 8 }, ziel: { karte: 'laden', punkt: 'eingang' } },
-    { typ: 'rathaus', x: 16, y: 2, w: 5, h: 6, tuer: { x: 18, y: 7 }, zu: 'Das Rathaus. An der Tür hängt ein Zettel: „Sprechstunde auf dem Marktplatz. – Frieda"' },
-    { typ: 'gasthaus', x: 23, y: 2, w: 7, h: 7, tuer: { x: 26, y: 8 }, ziel: { karte: 'gasthaus', punkt: 'eingang' } },
-    { typ: 'muehle', x: 31, y: 3, w: 5, h: 6, tuer: { x: 33, y: 8 }, aktion: 'muehle' },
-    { typ: 'schmiede', x: 3, y: 18, w: 6, h: 5, tuer: { x: 5, y: 22 }, zu: 'Brunos Werkstatt. Drinnen glüht die Esse. Bruno arbeitet draußen am Amboss.' },
-    { typ: 'atelier', x: 27, y: 22, w: 5, h: 5, tuer: { x: 29, y: 26 }, zu: 'Mats’ Atelier. Ein Zettel an der Tür: „Bin draußen malen."' },
-  ],
-  deko: [
-    { typ: 'brunnen', x: 21, y: 12, w: 2, h: 2 },
-    { typ: 'brett', x: 17, y: 11, aktion: 'brett' },
-    { typ: 'laterne', x: 16, y: 11, licht: 4 },
-    { typ: 'laterne', x: 27, y: 11, licht: 4 },
-    { typ: 'laterne', x: 16, y: 19, licht: 4 },
-    { typ: 'laterne', x: 27, y: 19, licht: 4 },
-    { typ: 'laterne', x: 10, y: 14, licht: 4 },
-    { typ: 'laterne', x: 30, y: 14, licht: 4 },
-    { typ: 'bank', x: 19, y: 17, w: 2 },
-    { typ: 'bank', x: 24, y: 17, w: 2 },
-    { typ: 'blumen', x: 9, y: 9 },
-    { typ: 'blumen', x: 13, y: 9 },
-    { typ: 'blumen', x: 24, y: 9 },
-    { typ: 'amboss', x: 8, y: 24, aktion: 'laden', laden: 'schmiede' },
-    { typ: 'fass', x: 4, y: 24 },
-    { typ: 'schild', x: 2, y: 14, aktion: 'text', text: 'Klarwasser. Westlich liegt dein Hof, südlich der Strand, nördlich die Berge.' },
-    { typ: 'baum', x: 2, y: 3 }, { typ: 'baum', x: 5, y: 5 }, { typ: 'baum', x: 3, y: 9 },
-    { typ: 'baum', x: 6, y: 12 }, { typ: 'baum', x: 14, y: 22 }, { typ: 'baum', x: 17, y: 25 },
-    { typ: 'baum', x: 25, y: 24 }, { typ: 'baum', x: 33, y: 24 }, { typ: 'baum', x: 2, y: 28 },
-    { typ: 'baum', x: 11, y: 28 }, { typ: 'baum', x: 40, y: 4 }, { typ: 'baum', x: 41, y: 12 },
-    { typ: 'baum', x: 40, y: 20 }, { typ: 'baum', x: 42, y: 26 }, { typ: 'baum', x: 34, y: 28 },
-    { typ: 'busch', x: 15, y: 4 }, { typ: 'busch', x: 12, y: 22 }, { typ: 'busch', x: 7, y: 8 },
-    { typ: 'busch', x: 30, y: 20 }, { typ: 'busch', x: 13, y: 18 },
-  ],
-  warps: [
-    { x: 0, y: 15, w: 1, h: 2, karte: 'hof', punkt: 'vonDorf' },
-    { x: 21, y: 31, w: 2, h: 1, karte: 'strand', punkt: 'vonDorf' },
-    { x: 21, y: 0, w: 2, h: 1, karte: 'berg', punkt: 'vonDorf' },
-    { x: 0, y: 26, w: 1, h: 2, karte: 'wald', punkt: 'vonDorf' },
-  ],
-  punkte: {
-    vonHof: [1, 15, 'rechts'],
-    vonStrand: [21, 29, 'oben'],
-    vonBerg: [21, 2, 'unten'],
-    vonWald: [1, 26, 'rechts'],
-    brunnen: [19, 13],
-    platz: [24, 13],
-    brett: [17, 12, 'oben'],
-    bank1: [19, 18, 'oben'],
-    bank2: [25, 18, 'oben'],
-    fluss1: [40, 9, 'links'],
-    fluss2: [34, 19, 'rechts'],
-    spielplatz: [14, 27],
-    friedhof: [41, 28],
-    garten: [20, 22],
-    vorLaden: [11, 9, 'unten'],
-    vorGasthaus: [26, 9, 'unten'],
-    vorSchmiede: [5, 23, 'unten'],
-    vorRathaus: [18, 8, 'unten'],
-    vorArzt: [30, 11],
-    vorMuseum: [4, 12],
-    vorMuehle: [33, 9, 'unten'],
-    vorHausRosa: [14, 21],
-    vorAtelier: [29, 27, 'unten'],
-    amboss: [7, 24, 'rechts'],
-    ladenbeet: [12, 10],
-    rathausweg: [18, 9],
-    sprechstunde: [17, 13],
-    muehlblick: [32, 10],
-  },
-  bereiche: {
-    fest: [13, 10, 16, 12],
-  },
-  sammel: [
-    { x: 39, y: 2, w: 4, h: 28, art: 'wald', max: 3 },
-    { x: 1, y: 2, w: 6, h: 12, art: 'wald', max: 2 },
-    { x: 1, y: 26, w: 19, h: 4, art: 'wald', max: 2 },
-  ],
+// ─── Bodenzeichen des Dorfs ─────────────────────────────────────────────────
+
+bodenTyp('f', { name: 'blumenwiese', begehbar: true });
+bodenTyp('g', { name: 'kies', begehbar: true });
+bodenTyp('i', { name: 'friedhofserde', begehbar: true });
+bodenTyp('j', { name: 'zierpflaster', begehbar: true });
+
+// ─── Öffnungszeiten der Türen (nur für die Spielerin; Dorfbewohner gehen immer durch) ──
+
+const offen = (von, bis) => (s) => {
+  const m = s.zeit.minute;
+  return m >= L.planMinute(von) && m < L.planMinute(bis);
+};
+bedingung('dorf_ladenOffen', offen(830, 1730));
+bedingung('dorf_rathausOffen', offen(800, 1700));
+bedingung('dorf_gasthausOffen', offen(1100, 2600));
+bedingung('dorf_arztOffen', offen(900, 1600));
+bedingung('dorf_museumOffen', offen(1000, 1700));
+bedingung('dorf_schmiedeOffen', offen(800, 1800));
+bedingung('dorf_hausRosaOffen', offen(800, 2000));
+
+// ─── Zustand ────────────────────────────────────────────────────────────────
+
+system({
+  name: 'dorf',
+  ergaenzen(s) { s.dorf ??= { muell: {} }; s.dorf.muell ??= {}; },
 });
 
-karte({
-  id: 'laden', name: 'Krämerladen', aussen: false, innen: 'laden',
-  grid: [
-    '##############',
-    '##############',
-    '#____________#',
-    '#____________#',
-    '#____________#',
-    '#____________#',
-    '#____tttt____#',
-    '#____tttt____#',
-    '#____tttt____#',
-    '######_#######',
-  ],
-  deko: [
-    { typ: 'theke', x: 2, y: 4, w: 4, aktion: 'laden', laden: 'laden' },
-    { typ: 'regal', x: 8, y: 2, w: 2 },
-    { typ: 'regal', x: 11, y: 2, w: 2 },
-    { typ: 'saatregal', x: 10, y: 5, w: 2 },
-    { typ: 'fenster', x: 3, y: 1, wand: true },
-    { typ: 'fenster', x: 6, y: 1, wand: true },
-    { typ: 'fass', x: 1, y: 8 },
-    { typ: 'fass', x: 12, y: 8 },
-    { typ: 'pflanze', x: 1, y: 2 },
-  ],
-  warps: [{ x: 6, y: 9, w: 1, h: 1, karte: 'dorf', punkt: 'vorLaden' }],
-  punkte: {
-    eingang: [6, 8, 'oben'],
-    theke: [3, 3, 'unten'],
-    regal: [9, 3, 'oben'],
-    bett_ottilie: [12, 3],
-    bett_jonas: [1, 5],
-  },
-});
+// ─── Die Mühle von innen: Mühlstein und Bündel-Tafel öffnen dasselbe Fenster wie das Gebäude ──
 
-karte({
-  id: 'gasthaus', name: 'Gasthaus „Zum Krug"', aussen: false, innen: 'gasthaus',
-  grid: [
-    '################',
-    '################',
-    '#______________#',
-    '#______________#',
-    '#______________#',
-    '#______________#',
-    '#_tttttt_______#',
-    '#_tttttt_______#',
-    '#_tttttt_______#',
-    '#______________#',
-    '#######_########',
-  ],
-  deko: [
-    { typ: 'theke', x: 9, y: 4, w: 6, aktion: 'laden', laden: 'gasthaus' },
-    { typ: 'flaschen', x: 10, y: 1, w: 4, wand: true },
-    { typ: 'kamin', x: 2, y: 0, w: 2, h: 2, wand: true, licht: 3 },
-    { typ: 'fenster', x: 6, y: 1, wand: true },
-    { typ: 'bild', x: 8, y: 1, wand: true },
-    { typ: 'tisch', x: 3, y: 7 },
-    { typ: 'tisch', x: 6, y: 7 },
-    { typ: 'fass', x: 14, y: 7 },
-    { typ: 'fass', x: 14, y: 8 },
-    { typ: 'pflanze', x: 1, y: 2 },
-  ],
-  warps: [{ x: 7, y: 10, w: 1, h: 1, karte: 'dorf', punkt: 'vorGasthaus' }],
-  punkte: {
-    eingang: [7, 9, 'oben'],
-    theke: [11, 3, 'unten'],
-    tisch1: [4, 5],
-    tisch2: [5, 8],
-    tisch3: [3, 4],
-    kamin: [3, 3],
-    billard: [12, 8],
-    bett_hannes: [13, 2],
-    tresen1: [10, 5, 'oben'],
-    tresen2: [12, 5, 'oben'],
-  },
-});
+dekoAktion('dorf_muehle', () => fenster('muehle'), (d, s) => (s.muehle ? 'Der Mühlstein dreht sich' : 'Die alte Mühle'));
 
-// ─── Platzhalter-Innenräume ─────────────────────────────────────────────────
-// Kleine Räume mit allen Pflicht-Punkten des Punkte-Vertrags, noch ohne Tür im Dorf; der Ausgang
-// führt vor das Gebäude. Der Bereich baut sie in Welle 1 aus.
+// ─── Mülltonnen: einmal am Tag durchsuchbar, mit kleiner Fundchance ─────────
 
-function platzhalterRaum(id, name, vor, punkte, b = 12, h = 9) {
-  const tx = Math.floor(b / 2) - 1;
-  karte({
-    id, name, aussen: false,
-    grid: fertigRaster(raum(b, h)),
-    deko: [{ typ: 'fenster', x: 2, y: 1, wand: true }, { typ: 'pflanze', x: b - 2, y: 2 }],
-    warps: [{ x: tx, y: h - 1, w: 1, h: 1, karte: 'dorf', punkt: vor }],
-    punkte: { eingang: [tx, h - 2, 'oben'], ...punkte },
-  });
-}
-platzhalterRaum('schmiede', 'Schmiede', 'vorSchmiede', { theke: [3, 3, 'unten'], amboss: [7, 3], bett_bruno: [9, 5] });
-platzhalterRaum('rathaus', 'Rathaus', 'vorRathaus', { schreibtisch: [3, 3], bett_frieda: [9, 5] });
-platzhalterRaum('arzt', 'Arztpraxis', 'vorArzt', { theke: [3, 3, 'unten'], bett_theo: [9, 5] });
-platzhalterRaum('museum', 'Museum', 'vorMuseum', { theke: [3, 3, 'unten'], lesesaal: [7, 4], bett_mira: [9, 5] });
-platzhalterRaum('hausRosa', 'Haus Rosa', 'vorHausRosa', { kueche: [3, 3], bett_rosa: [8, 4], bett_pia: [9, 6] });
-platzhalterRaum('muehle', 'Mühle', 'vorMuehle', {});
+const MUELL_FUNDE = ['faser', 'kohle', 'stein', 'holz', 'harz', 'stiefel', 'treibholz', 'kaffee', 'brot'];
+dekoAktion('dorf_muelltonne', (d) => {
+  const s = S.s;
+  s.dorf ??= { muell: {} };
+  const key = `${S.ort.def.id}:${d.x},${d.y}`;
+  const tag = L.tagNr(s.zeit);
+  if (s.dorf.muell[key] === tag) { dialog(null, ['Hier hast du heute schon gewühlt. Der Deckel klappert vorwurfsvoll.']); return; }
+  s.dorf.muell[key] = tag;
+  const r = zufall(tag * 7919 + d.x * 131 + d.y * 17 + 5);
+  const w = r();
+  if (w < 0.55) { dialog(null, [['Nur Apfelgriebsche und eine leere Dose.', 'Eine Fischgräte. Sie hat ihr Leben gelebt.', 'Zeitungen von gestern. Alles halb so schlimm.', 'Ein einzelner Socke. Der andere ist sicher auch irgendwo.'][Math.floor(r() * 4)]]); return; }
+  if (w < 0.8) {
+    const n = 1 + Math.floor(r() * 12);
+    s.spieler.gold += n;
+    dialog(null, [`Zwischen den Resten klimpert etwas: ${n} Gold!`]);
+    return;
+  }
+  const pool = MUELL_FUNDE.filter((id) => ITEMS[id]);
+  if (!pool.length) { dialog(null, ['Nichts als Müll.']); return; }
+  const id = pool[Math.floor(r() * pool.length)];
+  geben({ id, n: 1 });
+}, 'Durchsuchen');
 
 // ─── Gasthaus-Küche ─────────────────────────────────────────────────────────
 
