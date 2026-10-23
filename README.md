@@ -94,7 +94,9 @@ Dünger, Köder – manche erst ab einer bestimmten Fähigkeitsstufe.
 **Holzrohre.** 1 Holz ergibt 2 Rohre (Basteln, K). Auf dem Hof legst du sie wie einen Weg; sie
 verbinden sich zu einem Netz. Berührt ein Netz eine Versandkiste, schickt es jede Nacht vor dem Verkauf
 alles Verkäufliche aus angrenzenden Truhen, der Eierkiste vor dem Stall, Fischfarmen und fertigen
-Räucheröfen dorthin. Mit der Spitzhacke nimmst du Rohre wieder auf. Achtung: In einer Truhe am Rohr
+Räucheröfen dorthin. Liegt ein Räucherofen am Netz, wandern Fische (Fischfarm, Truhe) zuerst in den Ofen
+(bis 200 je Ofen), und das Geräucherte geht in der nächsten Nacht zur Versandkiste: Fischfarm → Ofen →
+Kiste. Mit der Spitzhacke nimmst du Rohre wieder auf. Achtung: In einer Truhe am Rohr
 wird alles Verkäufliche mitverkauft, auch Saatgut und Barren.
 
 **Der Räucherofen.** Kostet 1 Holz und 1 Kohle, von Anfang an im Basteln-Menü (K). Fisch in die Hand,

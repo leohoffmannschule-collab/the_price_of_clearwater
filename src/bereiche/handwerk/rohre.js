@@ -3,12 +3,17 @@
 // Rohre jede Nacht vor dem Verkauf alles Verkäufliche aus den angrenzenden Quellen dorthin:
 //   Truhen (nur Verkäufliches, der Rest bleibt liegen), die Eierkiste vor dem Stall, Fischfarmen und
 //   den fertigen Teil von Räucheröfen. Das Netz muss die Quelle und die Versandkiste an einer Seite berühren.
+// Berührt das Netz auch einen Räucherofen, gehen Fische (Fischfarm, Truhe) zuerst in dessen Eingabe-Fach
+// (bis RAEUCHER_PRO_TAG je Ofen); was nicht mehr hineinpasst, läuft roh zur Versandkiste.
+// Reihenfolge je Nacht: fertige Ware aus den Öfen zur Kiste, danach Fische in die Öfen, die sie über Nacht
+// räuchern. Farm → Ofen → Kiste braucht deshalb zwei Nächte vom Fang bis zum Verkauf.
 // Neue Quellen: in QUELLEN eintragen (Objekttyp → nehmen(o, s) gibt Waren zurück und leert die Quelle).
 
-import { item, rezept, belagTyp } from '../../daten.js';
+import { ITEMS, item, rezept, belagTyp } from '../../daten.js';
 import * as L from '../../logik.js';
 import { karteHolen } from '../../karten.js';
 import { FISCHFARM_FISCH, vorratVon } from './fischfarm.js';
+import { RAEUCHER_PRO_TAG } from './raeucherofen.js';
 
 export const ROHR = 'holzrohr';
 
@@ -70,6 +75,21 @@ function* fussabdruck(d) {
   for (let dy = 0; dy < (d.h || 1); dy++) for (let dx = 0; dx < (d.w || 1); dx++) yield L.k(d.x + dx, d.y + dy);
 }
 
+/** Fische in die Eingabe-Fächer der Öfen legen (bis RAEUCHER_PRO_TAG je Ofen); gibt zurück, was nicht mehr passte. */
+function inOefen(oefen, ware) {
+  let rest = ware.n;
+  for (const o of oefen) {
+    if (!Array.isArray(o.ein)) o.ein = [];
+    const belegt = o.ein.reduce((n, x) => n + x.n, 0);
+    const n = Math.min(rest, Math.max(0, RAEUCHER_PRO_TAG - belegt));
+    if (n <= 0) continue;
+    const x = o.ein.find((y) => L.gleich(y, ware));
+    if (x) x.n += n; else o.ein.push(L.slotKopie(ware, n));
+    rest -= n;
+  }
+  return rest;
+}
+
 /** Zusammenhängende Rohrnetze einer Karte als Mengen von Feldschlüsseln. */
 export function netze(belag) {
   const rohre = new Set(Object.keys(belag).filter((kk) => belag[kk]?.t === ROHR));
@@ -127,11 +147,23 @@ export function rohreFliessen(s) {
       const rand = anliegend(netz);
       if (!senken.some((d) => [...fussabdruck(d)].some((kk) => rand.has(kk)))) continue;
       const waren = [];
+      const oefen = [];
       for (const [kk, o] of Object.entries(w.objekte)) {
-        if (rand.has(kk) && QUELLEN[o.t]) waren.push(...QUELLEN[o.t](o, s));
+        if (!rand.has(kk)) continue;
+        if (o.t === 'raeucherofen') oefen.push(o);
+        if (QUELLEN[o.t]) waren.push(...QUELLEN[o.t](o, s));
       }
       for (const d of deko) {
         if (d.typ === 'eierkiste' && [...fussabdruck(d)].some((kk) => rand.has(kk))) waren.push(...eierNehmen(s));
+      }
+      if (oefen.length) {
+        // frische Fische in die Öfen (fertige Ware aus den Öfen steht schon in waren, ihre Eingabe bleibt)
+        for (let i = waren.length - 1; i >= 0; i--) {
+          if (ITEMS[waren[i].id]?.kat !== 'fisch') continue;
+          const rest = inOefen(oefen, waren[i]);
+          if (rest <= 0) waren.splice(i, 1);
+          else waren[i] = { ...waren[i], n: rest };
+        }
       }
       for (const ware of waren) {
         if (!ware || !(ware.n > 0)) continue;

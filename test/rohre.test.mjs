@@ -115,12 +115,59 @@ test('Fischfarm und Räucherofen am Rohr liefern ihre Ware', () => {
   const [x, y] = weg[1];
   ort.welt.objekte[L.k(x, y - 1)] = { t: 'fischfarm', fisch: 400 };
   ort.welt.objekte[L.k(x + 1, y - 1)] = { t: 'raeucherofen', ein: [], aus: [{ id: 'geraeuchert', von: 'karpfen', n: 50 }] };
-  assert.equal(rohreFliessen(s), 450);
-  assert.equal(menge(s, 'karpfen'), 400);
+  // Der Ofen am Netz nimmt 200 Fische zum Räuchern, 200 gehen roh weiter, 50 Geräuchertes kommen heraus
+  assert.equal(rohreFliessen(s), 250);
+  assert.equal(menge(s, 'karpfen'), 200);
   assert.equal(menge(s, 'geraeuchert'), 50);
+  assert.equal(ort.welt.objekte[L.k(x + 1, y - 1)].ein.reduce((n, v) => n + v.n, 0), 200);
   assert.equal(ort.welt.objekte[L.k(x, y - 1)].fisch, 0);
   assert.deepEqual(ort.welt.objekte[L.k(x + 1, y - 1)].aus, []);
-  assert.equal(rohreFliessen(s), 0, 'zweiter Durchlauf: nichts mehr da');
+  assert.equal(rohreFliessen(s), 0, 'zweiter Durchlauf: Ofen voll, nichts mehr da');
+});
+
+test('Farm → Ofen → Kiste: Fische gehen in den Ofen, Geräuchertes zur Versandkiste', () => {
+  const { s, ort, weg } = hof();
+  s.stall.eier = { ei: 0, grossesei: 0 };
+  legen(ort, weg);
+  const [x, y] = weg[1];
+  const farm = { t: 'fischfarm', fisch: 250 };
+  const ofen = { t: 'raeucherofen', ein: [], aus: [{ id: 'geraeuchert', von: 'karpfen', n: 20 }] };
+  ort.welt.objekte[L.k(x, y - 1)] = farm;
+  ort.welt.objekte[L.k(x + 1, y - 1)] = ofen;
+  rohreFliessen(s);
+  assert.equal(ofen.ein.reduce((n, v) => n + v.n, 0), 200, 'Ofen voll (200)');
+  assert.equal(menge(s, 'geraeuchert'), 20, 'Fertiges aus dem Ofen liegt in der Kiste');
+  assert.equal(menge(s, 'karpfen'), 50, 'der Rest roh zur Kiste');
+  assert.equal(farm.fisch, 0);
+  assert.deepEqual(ofen.aus, []);
+});
+
+test('ohne Ofen am Netz gehen Fische roh zur Kiste', () => {
+  const { s, ort, weg } = hof();
+  s.stall.eier = { ei: 0, grossesei: 0 };
+  legen(ort, weg);
+  const [x, y] = weg[1];
+  ort.welt.objekte[L.k(x, y - 1)] = { t: 'fischfarm', fisch: 30 };
+  rohreFliessen(s);
+  assert.equal(menge(s, 'karpfen'), 30);
+});
+
+test('Kette über mehrere echte Nächte: Karpfen werden geräuchert und verkauft', () => {
+  const { s, ort, weg } = hof();
+  s.stall.eier = { ei: 0, grossesei: 0 };
+  legen(ort, weg);
+  const [x, y] = weg[1];
+  ort.welt.objekte[L.k(x, y - 1)] = { t: 'fischfarm', fisch: 0 };
+  ort.welt.objekte[L.k(x + 1, y - 1)] = { t: 'raeucherofen', ein: [], aus: [] };
+  let summen = [];
+  for (let nacht = 0; nacht < 4; nacht++) summen.push(L.tagBeenden(s, { r: () => 0.5 }).summe);
+  // Nacht 1: Farm leer → nichts. Nacht 2: Farm (200 von Nacht 1) → Ofen. Nacht 3: Geräuchertes → Kiste verkauft.
+  assert.equal(summen[0], 0);
+  assert.equal(summen[1], 0);
+  const preis = L.preisVon({ id: 'geraeuchert', von: 'karpfen', n: 1 }, s);
+  assert.ok(preis >= 300 - 1, `geräucherter Karpfen kostet ${preis}`);
+  assert.equal(summen[2], 200 * preis);
+  assert.ok(summen[3] === 200 * preis, 'ab dann jede Nacht 200 geräucherte Karpfen');
 });
 
 test('gleiche Ware wird in der Versandkiste zusammengezählt', () => {
