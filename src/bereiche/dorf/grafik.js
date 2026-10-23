@@ -6,6 +6,9 @@ import {
   kunst, gebaeudeKunst, dekoKunst, innenFarben, dach, fensterKasten, tuer, schrift, P, R, E, L, POLY, hell, BLATT_D,
 } from '../../sprites.js';
 import { hash } from '../../zufall.js';
+import './kunst-gebaeude.js';
+import './kunst-deko.js';
+import './kunst-innen.js';
 
 innenFarben('laden', { tapete: '#b4c79a', streifen: '#a3b888', leiste: '#5d4630', teppich: '#4f7aa8', muster: '#d8e4f0' });
 innenFarben('gasthaus', { tapete: '#a8744a', streifen: '#946238', leiste: '#4a2c18', teppich: '#7a3a5a', muster: '#e8b860' });
@@ -73,7 +76,7 @@ gebaeudeKunst('gasthaus', {
     L(g, 8, 38, 30, 64, balken, 2); L(g, 82, 64, 104, 38, balken, 2);
     dach(g, 0, 38, 112, 38, 2, 14, '#8a3a2a', winter);
     R(g, 47, 42, 18, 10, balken); schrift(g, 'KRUG', 49, 45, '#f2e8c8');
-    fensterKasten(g, 34, 42, 14, 12, nacht, balken); fensterKasten(g, 64, 42, 14, 12, nacht, balken);
+    fensterKasten(g, 29, 42, 14, 12, nacht, balken); fensterKasten(g, 69, 42, 14, 12, nacht, balken);
     fensterKasten(g, 12, 72, 18, 14, nacht, balken); fensterKasten(g, 82, 72, 18, 14, nacht, balken);
     tuer(g, 49, 82, 14, 30, '#7a4a2a');
     R(g, 66, 72, 10, 1, '#3a3a3a'); R(g, 68, 73, 6, 7, '#c8a050'); R(g, 69, 75, 4, 4, '#f2e8c8'); P(g, 74, 76, '#c8a050');
