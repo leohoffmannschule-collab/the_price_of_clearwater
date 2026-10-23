@@ -1,23 +1,12 @@
-// Bereich „hof" – Pixelkunst: Wohnhaus, Innenraumfarben des Hauses, Bett, Fernseher, Herd,
-// Versandkiste und Briefkasten (mit Fähnchen, wenn Post da ist).
+// Bereich „hof" – Pixelkunst: Bett, Fernseher, Herd, Versandkiste und Briefkasten (mit Fähnchen, wenn
+// Post da ist). Dazu die Unterdateien: Wohnhaus in drei Stufen und Gewächshaus (kunst-haus.js), Bodenzeichen
+// (kunst-boden.js), Hofdeko und Teichpflanzen (kunst-deko.js), Möbel und Kühlschrank (kunst-innen.js).
 
-import { gebaeudeKunst, dekoKunst, innenFarben, dach, fensterKasten, tuer, P, R, E } from '../../sprites.js';
-
-innenFarben('haus', { tapete: '#d7b98c', streifen: '#c9a676', leiste: '#7a4e2c', teppich: '#a8453f', muster: '#e0b060' });
-
-gebaeudeKunst('haus', {
-  b: 80, h: 80, licht: [[21, 52], [59, 52]],
-  malen(g, { winter, nacht }) {
-    R(g, 6, 34, 68, 46, '#d6b383'); for (let x = 10; x < 72; x += 5) R(g, x, 34, 1, 46, '#bf9a6a');
-    R(g, 6, 34, 4, 46, '#7a5232'); R(g, 70, 34, 4, 46, '#7a5232'); R(g, 6, 77, 68, 3, '#8a7a6a');
-    R(g, 54, 2, 9, 18, '#8a6a5a'); R(g, 53, 2, 11, 2, '#6a4a3a');
-    dach(g, 0, 38, 80, 38, 8, 12, '#a8452f', winter);
-    tuer(g, 33, 56, 14, 24, '#7a4a2a');
-    fensterKasten(g, 15, 47, 12, 10, nacht); fensterKasten(g, 53, 47, 12, 10, nacht);
-    R(g, 14, 59, 14, 3, '#7a4e2c'); R(g, 52, 59, 14, 3, '#7a4e2c');
-    if (!winter) for (const x of [15, 18, 21, 24, 53, 56, 59, 62]) P(g, x + 1, 58, ['#e8506a', '#f2d24a', '#f4f0f8'][x % 3]);
-  },
-});
+import { dekoKunst, P, R, E } from '../../sprites.js';
+import './kunst-boden.js';
+import './kunst-haus.js';
+import './kunst-deko.js';
+import './kunst-innen.js';
 
 dekoKunst({
   /** Bett 2×2; liegt flach (sortiert nach der Oberkante). */
