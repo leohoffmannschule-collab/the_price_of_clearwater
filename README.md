@@ -113,6 +113,13 @@ und `FISCHFARM_FISCH` in `src/bereiche/handwerk/fischfarm.js`.
 **Fähigkeiten.** Landwirtschaft, Angeln, Sammeln, Bergbau und Kampf steigen bis Stufe 10
 und machen Werkzeuge sparsamer, Ernten besser, die Wartezeit beim Angeln kürzer und die Gesundheit größer.
 
+**Die Welt.** Hof 80×64 (Anhöhe, Teich, Bauland, Wohnhaus in drei Ausbaustufen, Gewächshaus), Dorf
+100×72 (Marktplatz, Fluss mit Brücken, Friedhof, Spielplatz, Läden und Häuser), Strand 90×44 (Steg,
+Fischladen, Gezeitenbecken hinter einer kaputten Brücke), Wald 90×70 (Ranch, Turm, Händlerplatz, Waldsee,
+Geheimer Wald hinter einem umgestürzten Stamm) und Berg 80×52 (Bergsee, Wasserfall, Zimmerei, Gilde,
+Steinbruch hinter einer kaputten Brücke, Mineneingang). Spielstände der kleinen Karten sind nicht
+kompatibel; die Äcker ziehen nicht mit um.
+
 **Die Mühle.** Alternativ lässt sie sich für 100.000.000 g sofort reparieren (Knopf im Mühlenfenster).
 **Die Mühle.** Acht Bündel aus Feld, Wald, Wasser, Tiefe und Stall. Jedes volle Bündel
 bringt eine Belohnung, alle zusammen bringen das Rad wieder zum Drehen.

@@ -907,3 +907,13 @@ Erweiterungspunkte dafür. Damit lässt sich jeder Auftrag nur im eigenen Ordner
 | Dorfbewohner | npcs bleibt in Welle 1 unverändert; neue schlichte Personen legt der Bereich an, der ihren Laden betreibt | – |
 | Steinbruch | berg füllt Steine und Erze über `tagEnde` nach (Objekte `stein`, `fels` aus basis; Erzbrocken `mstein` mit `art` aus mine) und nutzt `L.feldFrei` | `feldFrei` |
 | Namen | Präfixregel aus 8.4, Bodenzeichen aus der Tabelle in 5. | – |
+
+## 11. Die große Welt (Stand Welle 1)
+
+Karten: `hof` 80×64 (zusätzlich `haus`, `haus1`, `haus2`, Gewächshaus), `dorf` 100×72, `strand` 90×44,
+`wald` 90×70, `geheimwald` 40×30, `berg` 80×52. Die Maße sind Absicht und von Tests abgedeckt.
+Zustandsschlüssel der Bereiche: `s.hof` (`uebernommen`), `s.dorf` (`muell`), `s.wildnis` (`besiedelt`),
+`s.berg` (`gefuellt`, `letzter`). Flaggen: `strandbruecke` und `geheimwald` (wildnis), `steinbruch` (berg),
+`gewaechshaus` (vorerst hof, Tag 14; die Mühle soll das später übernehmen). Dateien je Bereich siehe die
+Ordner `src/bereiche/<bereich>/` (`karte-*.js`, `innen.js`, `kunst-*.js`). Kernänderung: `wasserKachel`
+in `sprites.js` färbt Wasser nach Gewässerart. Bekannt: Der Winter friert Wasser nicht zu.
