@@ -917,3 +917,14 @@ Zustandsschlüssel der Bereiche: `s.hof` (`uebernommen`), `s.dorf` (`muell`), `s
 `gewaechshaus` (vorerst hof, Tag 14; die Mühle soll das später übernehmen). Dateien je Bereich siehe die
 Ordner `src/bereiche/<bereich>/` (`karte-*.js`, `innen.js`, `kunst-*.js`). Kernänderung: `wasserKachel`
 in `sprites.js` färbt Wasser nach Gewässerart. Bekannt: Der Winter friert Wasser nicht zu.
+
+### Umzug alter Spielstände auf die große Hofkarte
+
+`src/bereiche/hof/umzug.js`. Ein Stand ohne `s.hof`, aber mit besuchtem Hof, kommt von der kleinen Karte
+(40×30). Im Hook `ergaenzen` zieht `kartenUmzug(s)` alles um, was die Spielerin gemacht hat: aufgestellte
+Gegenstände (Items mit `aufstellbar`), Beete samt Pflanzen, Beläge (Wege, Rohre) und Funde. Der alte
+Bewuchs entfällt, die große Karte wird neu verwildert. Der Versatz ist der um die Haustür, bei dem die
+meisten Teile auf passenden Feldern landen; Zusammenstöße rücken aufs nächste freie Feld (Beete nur auf
+Ackerboden, die Fischfarm nur ans Ufer); was nirgends hinpasst, geht in den Rucksack zurück. Neue Spiele
+setzen `s.hof = { kartenV: 2 }` in `neuesSpiel` und ziehen nicht um. `test/umzug.test.mjs` lädt dazu den mit
+dem alten Code erzeugten Stand `test/alter-hof-stand.json`. Der Hinweis erscheint einmal beim ersten Betreten.

@@ -15,6 +15,7 @@ import { S, dekoAktion, frage, fenster, dialog, ton, schlafen, postZeigen } from
 import './karte-hof.js';
 import { HAUS_KARTEN, KUEHLSCHRANK, STUFE2_VERSATZ } from './innen.js';
 import { verwildern, nachwachsen } from './verwildern.js';
+import { istAlterStand, kartenUmzug, umzugText } from './umzug.js';
 
 // ─── Ausbaustufen und Gewächshaus ───────────────────────────────────────────
 
@@ -135,12 +136,14 @@ const OBJEKT_GROSS = (o) => { const [b, h] = L.flaecheVon(o); return b > 1 || h 
 system({
   name: 'hof',
   ergaenzen(s) {
+    // Stände von der kleinen Hofkarte ziehen auf die große um (umzug.js); neue Spiele setzen s.hof in neuesSpiel
+    if (istAlterStand(s)) s.hof = { ...(s.hof || {}), umzug: kartenUmzug(s) };
     s.hof ??= {};
     s.hof.uebernommen ??= {};
     kuehlschraenke(s);
     sicherStehen(s);
   },
-  neuesSpiel(s, r) { verwildern(s, r); },
+  neuesSpiel(s, r) { verwildern(s, r); s.hof = { uebernommen: {}, kartenV: 2 }; },
   tagEnde(s, bericht, r) {
     nachwachsen(s, r);
     if (!s.flags.gewaechshaus && L.tagNr(s.zeit) >= GEWAECHSHAUS_TAG) {
@@ -151,6 +154,8 @@ system({
   /** Wo man wohnt und aufwacht: das Bett der aktuellen Hausstufe (Stufe 0: Standard, Karte „haus"). */
   zuhause(s) { return stufe(s) > 0 ? { karte: HAUS_KARTEN[stufe(s)], punkt: 'bett' } : undefined; },
   karteBetreten(ort) {
+    const h = S.s?.hof;
+    if (ort.def.id === 'hof' && h?.umzug && !h.umzugGezeigt) { h.umzugGezeigt = true; dialog(null, [umzugText(h.umzug)]); }
     if (ort.def.id === 'haus1' || ort.def.id === 'haus2') uebertragen(S.s, ort.def.id);
   },
 });
