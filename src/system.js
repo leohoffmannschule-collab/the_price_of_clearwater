@@ -24,6 +24,7 @@ export const BEKANNTE_HOOKS = [
   'npcAnsprechen', 'npcOptionen', 'npcPlan', 'gespraech', 'gegessen',
   'gebaeude', 'deko', 'objekteDynamisch',
   'ladenWare', 'ladenKauft', 'zuhause',
+  'vorVerkauf', // (logik, tagBeenden) alle(s, bericht): vor dem nächtlichen Verkauf, z. B. Rohre zur Versandkiste
   // zwischen Bereichen vereinbart (Aufrufer in Klammern)
   'fernsehen', // (hof) sammle: Sender [name, fn] für den Fernseher
   'grasGemaeht', // (pflanzen) alle: hohes Gras wurde gemäht

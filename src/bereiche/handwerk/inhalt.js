@@ -7,6 +7,7 @@ import * as L from '../../logik.js';
 import { ton, fenster, dialog, dekoAktion, ergebnisZeigen } from '../../spiel.js';
 import './raeucherofen.js';
 import './fischfarm.js'; // Fischfarm: Item, Rezept, Objekt (eigene Datei)
+import './rohre.js'; // Holzrohre: Rohrnetz von Kisten zur Versandkiste
 
 kategorie('artisan', 'Handwerksware');
 kategorie('platz', 'Aufstellbar');

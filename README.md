@@ -91,6 +91,12 @@ wartet eine Schatztruhe.
 **Basteln.** Barren, Truhe, Vogelscheuche, Sprenger, Qualitätssprenger, Einmachglas,
 Dünger, Köder – manche erst ab einer bestimmten Fähigkeitsstufe.
 
+**Holzrohre.** 1 Holz ergibt 2 Rohre (Basteln, K). Auf dem Hof legst du sie wie einen Weg; sie
+verbinden sich zu einem Netz. Berührt ein Netz eine Versandkiste, schickt es jede Nacht vor dem Verkauf
+alles Verkäufliche aus angrenzenden Truhen, der Eierkiste vor dem Stall, Fischfarmen und fertigen
+Räucheröfen dorthin. Mit der Spitzhacke nimmst du Rohre wieder auf. Achtung: In einer Truhe am Rohr
+wird alles Verkäufliche mitverkauft, auch Saatgut und Barren.
+
 **Der Räucherofen.** Kostet 1 Holz und 1 Kohle, von Anfang an im Basteln-Menü (K). Fisch in die Hand,
 Aktionstaste auf den Ofen: bis zu 200 Fische je Ofen und Tag wandern hinein, über Nacht werden
 sie zu Geräuchertem. Das ist zehnmal so viel wert wie der frische Fisch (bei gleicher Qualität).

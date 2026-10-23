@@ -849,6 +849,13 @@ export function versenden(s, idx) {
   return slot;
 }
 
+/** Ware ohne Rucksack in die Versandkiste legen (Rohre); gleiche Ware wird zusammengezählt. */
+export function versandHinzu(s, slot) {
+  if (!slot || !(slot.n > 0)) return;
+  const x = s.versand.find((v) => v && gleich(v, slot));
+  if (x) x.n += slot.n; else s.versand.push(slotKopie(slot, slot.n));
+}
+
 export function versandZurueck(s) {
   const slot = s.versandLetztes;
   if (!slot) return null;
@@ -962,6 +969,7 @@ export function tagBeenden(s, { ohnmacht = false, r = Math.random } = {}) {
   const bericht = { verkauf: [], summe: 0, meldungen: [], stufen: [], wahlen: [] };
   bericht.nachtMinuten = Math.max(0, TAG_BEGINN + 1440 - s.zeit.minute);
 
+  alle('vorVerkauf', s, bericht); // Rohre schieben Inhalte von Kisten in die Versandkiste
   for (const slot of s.versand) {
     const preis = preisVon(slot, s) * slot.n;
     bericht.summe += preis;
