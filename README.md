@@ -105,6 +105,7 @@ und `FISCHFARM_FISCH` in `src/bereiche/handwerk/fischfarm.js`.
 **Fähigkeiten.** Landwirtschaft, Angeln, Sammeln, Bergbau und Kampf steigen bis Stufe 10
 und machen Werkzeuge sparsamer, Ernten besser, die Wartezeit beim Angeln kürzer und die Gesundheit größer.
 
+**Die Mühle.** Alternativ lässt sie sich für 100.000.000 g sofort reparieren (Knopf im Mühlenfenster).
 **Die Mühle.** Acht Bündel aus Feld, Wald, Wasser, Tiefe und Stall. Jedes volle Bündel
 bringt eine Belohnung, alle zusammen bringen das Rad wieder zum Drehen.
 

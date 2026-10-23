@@ -338,6 +338,23 @@ gruppe('Dorf', () => {
     assert.ok(s.muehle);
     assert.ok(L.hat(s, 'medaille'));
   });
+  test('die Mühle lässt sich für 100.000.000 g reparieren', () => {
+    const s = neues(24);
+    const ort = L.ortVon(s, 'dorf');
+    assert.equal(G.MUEHLE_PREIS, 100000000);
+    s.spieler.gold = G.MUEHLE_PREIS - 1;
+    const zuWenig = G.muehleKaufen(s, ort);
+    assert.ok(zuWenig.grund && !s.muehle, 'ein Gold zu wenig: nichts passiert');
+    assert.equal(s.spieler.gold, G.MUEHLE_PREIS - 1);
+    s.spieler.gold = G.MUEHLE_PREIS + 5;
+    const erg = G.muehleKaufen(s, ort);
+    assert.ok(erg.ok && erg.muehle && s.muehle);
+    assert.equal(s.spieler.gold, 5);
+    assert.ok(L.hat(s, 'medaille'));
+    const nochmal = G.muehleKaufen(s, ort);
+    assert.ok(nochmal.grund && s.spieler.gold === 5, 'zweiter Kauf kostet nichts');
+    assert.equal(L.hat(s, 'medaille'), true);
+  });
   test('Briefe kommen an ihrem Tag', () => {
     const s = neues(23);
     for (const id of [...s.post]) L.briefGelesen(s, id);

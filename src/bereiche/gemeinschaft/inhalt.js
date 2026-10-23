@@ -51,12 +51,27 @@ export function spenden(s, bId, idx, ort) {
       L.geben(s, ort, s.spieler.x, s.spieler.y, { id: b.belohnung.id, n: b.belohnung.n }, erg);
     }
   }
-  if (!s.muehle && BUENDEL.every((x) => buendelFertig(s, x))) {
-    s.muehle = true;
-    erg.muehle = true;
-    L.geben(s, ort, s.spieler.x, s.spieler.y, { id: 'medaille', n: 1 }, erg);
-    for (const id of Object.keys(s.npcs)) L.freundschaft(s, id, 250);
-  }
+  if (!s.muehle && BUENDEL.every((x) => buendelFertig(s, x))) muehleFertig(s, ort, erg);
+  return erg;
+}
+
+/** Das Rad dreht sich: Medaille und Freundschaft, egal ob durch Bündel oder durch Kauf. */
+function muehleFertig(s, ort, erg) {
+  s.muehle = true;
+  erg.muehle = true;
+  L.geben(s, ort, s.spieler.x, s.spieler.y, { id: 'medaille', n: 1 }, erg);
+  for (const id of Object.keys(s.npcs)) L.freundschaft(s, id, 250);
+}
+
+/** Alternative zu den Bündeln: die Reparatur einfach bezahlen. */
+export const MUEHLE_PREIS = 100000000;
+
+export function muehleKaufen(s, ort) {
+  if (s.muehle) return { grund: 'Die Mühle läuft schon.', items: [] };
+  if (s.spieler.gold < MUEHLE_PREIS) return { grund: `Dafür fehlen dir noch ${(MUEHLE_PREIS - s.spieler.gold).toLocaleString('de-DE')} g.`, items: [] };
+  s.spieler.gold -= MUEHLE_PREIS;
+  const erg = { ok: true, items: [] };
+  muehleFertig(s, ort, erg);
   return erg;
 }
 

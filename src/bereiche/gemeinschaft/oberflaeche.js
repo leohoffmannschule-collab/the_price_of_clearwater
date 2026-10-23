@@ -8,7 +8,7 @@ import {
   fensterArt, menueReiter, fensterRahmen, fensterNeu, fensterOeffnen, fensterSchliessen, el, itemIcon, invGitter,
   meldung, fundeZeigen, dialog, ton, zahl, stil,
 } from '../../ui.js';
-import { buendelEintraege, buendelNoetig, buendelFertig, buendelPlatz, spenden, questAnnehmen } from './inhalt.js';
+import { buendelEintraege, buendelNoetig, buendelFertig, buendelPlatz, spenden, questAnnehmen, muehleKaufen, MUEHLE_PREIS } from './inhalt.js';
 
 stil('gemeinschaft-buendel', `
 .buendel-mini { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -25,6 +25,20 @@ stil('gemeinschaft-buendel', `
 `);
 
 // ─── Mühle ──────────────────────────────────────────────────────────────────
+
+function muehleBezahlen() {
+  const erg = muehleKaufen(S.s, S.ort);
+  if (erg.grund) { meldung(erg.grund, 'warn'); fensterNeu(); return; }
+  ton('fanfare');
+  meldung(`-${zahl.format(MUEHLE_PREIS)} g`, 'warn');
+  if (erg.items.length) fundeZeigen(erg.items);
+  fensterSchliessen();
+  dialog('frieda', [
+    `${S.s.spieler.name}! Hörst du das? Das Rad! Es dreht sich!`,
+    'Die Firma war schneller als gedacht. Ganz Klarwasser steht am Fluss und staunt.',
+    'Diese Medaille hat meine Großmutter für den Tag aufbewahrt, an dem die Mühle wieder läuft. Sie gehört dir.',
+  ]);
+}
 
 fensterArt('muehle', () => {
   const s = S.s;
@@ -43,6 +57,11 @@ fensterArt('muehle', () => {
   });
   return fensterRahmen('Die alte Mühle', el('div', {},
     el('p', { class: 'leise' }, s.muehle ? 'Das Mühlrad dreht sich wieder. Ganz Klarwasser kommt vorbei, um es zu sehen.' : 'Frieda hat eine Tafel aufgestellt. Jede Gabe bringt das alte Rad ein Stück näher ans Laufen. Leuchtende Plätze im Rucksack passen in ein Bündel.'),
+    s.muehle ? null : el('div', { class: 'buendel rahmen-leicht' },
+      el('div', { class: 'buendel-kopf' }, el('strong', {}, 'Oder einfach bezahlen'), el('span', { class: 'chip' }, `${zahl.format(MUEHLE_PREIS)} g`)),
+      el('p', { class: 'leise klein' }, 'Frieda lässt die Mühle von einer Firma instand setzen. Die Bündel entfallen, die Medaille gibt es trotzdem.'),
+      el('button', { type: 'button', class: 'knopf', disabled: s.spieler.gold < MUEHLE_PREIS, onclick: () => muehleBezahlen() },
+        s.spieler.gold < MUEHLE_PREIS ? `Es fehlen ${zahl.format(MUEHLE_PREIS - s.spieler.gold)} g` : 'Mühle reparieren lassen')),
     el('div', { class: 'buendel-gitter' }, karten),
     el('h3', {}, 'Rucksack'),
     invGitter((i) => {
