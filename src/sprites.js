@@ -503,7 +503,9 @@ bodenKunst({
 
 /** Wasser ('~') und Steg/Brücke ('h'); Farbe aus WASSER_FARBE[def.wasser]. */
 function wasserKachel(g, x0, y0, { tx, ty, z, def, winter, nachbarn }) {
-  const basis = WASSER_FARBE[def.wasser] || WASSER_FARBE.fluss;
+  // Gewässerart des Felds (gewaesser-Rechtecke der Karte, z. B. Waldsee neben dem Fluss), sonst def.wasser
+  const art = def.gewaesser?.find((r) => tx >= r.x && tx < r.x + r.b && ty >= r.y && ty < r.y + r.h)?.art ?? def.wasser;
+  const basis = WASSER_FARBE[art] || WASSER_FARBE.fluss;
   R(g, x0, y0, T, T, basis);
   for (let i = 0; i < 4; i++) {
     const x = Math.floor(hash(tx, ty, i) * 12);
