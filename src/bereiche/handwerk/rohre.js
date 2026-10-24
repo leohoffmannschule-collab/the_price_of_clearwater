@@ -142,16 +142,24 @@ export function rohreFliessen(s) {
     if (!alleNetze.length) continue;
     const deko = L.dekoListe(s, def);
     const senken = deko.filter((d) => d.typ === 'versandkiste');
-    if (!senken.length) continue;
     for (const netz of alleNetze) {
       const rand = anliegend(netz);
+      const oefen = [];
+      for (const [kk, o] of Object.entries(w.objekte)) if (rand.has(kk) && o.t === 'raeucherofen') oefen.push(o);
+      // Stufe 1, auch ohne Versandkiste im Netz: Fischfarmen füllen angrenzende Öfen (Farm → Rohr → Ofen).
+      // Was nicht mehr hineinpasst, bleibt in der Farm.
+      if (oefen.length) {
+        for (const [kk, o] of Object.entries(w.objekte)) {
+          if (!rand.has(kk) || o.t !== 'fischfarm') continue;
+          const vorrat = vorratVon(o);
+          if (vorrat > 0) o.fisch = inOefen(oefen, { id: FISCHFARM_FISCH, n: vorrat });
+        }
+      }
+      // Stufe 2: Netze an einer Versandkiste schieben alles Verkäufliche dorthin (Ofen → Rohr → Kiste).
       if (!senken.some((d) => [...fussabdruck(d)].some((kk) => rand.has(kk)))) continue;
       const waren = [];
-      const oefen = [];
       for (const [kk, o] of Object.entries(w.objekte)) {
-        if (!rand.has(kk)) continue;
-        if (o.t === 'raeucherofen') oefen.push(o);
-        if (QUELLEN[o.t]) waren.push(...QUELLEN[o.t](o, s));
+        if (rand.has(kk) && QUELLEN[o.t]) waren.push(...QUELLEN[o.t](o, s));
       }
       for (const d of deko) {
         if (d.typ === 'eierkiste' && [...fussabdruck(d)].some((kk) => rand.has(kk))) waren.push(...eierNehmen(s));

@@ -170,6 +170,48 @@ test('Kette über mehrere echte Nächte: Karpfen werden geräuchert und verkauft
   assert.ok(summen[3] === 200 * preis, 'ab dann jede Nacht 200 geräucherte Karpfen');
 });
 
+test('Farm → Rohr → Ofen → Rohr → Kiste: zwei getrennte Netze, der Ofen steht dazwischen', () => {
+  const { s, ort, kiste, ei } = hof();
+  s.stall.eier = { ei: 0, grossesei: 0 };
+  // Rohrstück A (Farm und Ofen), Rohrstück B (Ofen und Versandkiste), dazwischen steht der Ofen selbst
+  const y = ei.y + 5;
+  const farm = { t: 'fischfarm', fisch: 90 };
+  const ofen = { t: 'raeucherofen', ein: [], aus: [{ id: 'geraeuchert', von: 'karpfen', n: 15 }] };
+  const x0 = kiste.x + 10;
+  ort.welt.objekte[L.k(x0, y - 1)] = farm;
+  for (let x = x0; x <= x0 + 2; x++) ort.welt.belag[L.k(x, y)] = { t: ROHR }; // Netz A: Farm bis Ofen
+  ort.welt.objekte[L.k(x0 + 3, y)] = ofen;
+  for (let yy = y - 1; yy >= y - 3; yy--) ort.welt.belag[L.k(x0 + 3, yy)] = { t: ROHR }; // Netz B: vom Ofen zur Kiste
+  for (let x = x0 + 3; x >= kiste.x; x--) ort.welt.belag[L.k(x, y - 3)] = { t: ROHR };
+  for (let yy = y - 4; yy >= kiste.y + 1; yy--) ort.welt.belag[L.k(kiste.x, yy)] = { t: ROHR };
+  assert.equal(netze(ort.welt.belag).length, 2, 'zwei getrennte Netze');
+  rohreFliessen(s);
+  assert.equal(ofen.ein.reduce((n, v) => n + v.n, 0), 90, 'Fische aus der Farm im Ofen');
+  assert.equal(farm.fisch, 0);
+  assert.equal(menge(s, 'geraeuchert'), 15, 'Fertiges aus dem Ofen in der Versandkiste');
+  assert.equal(menge(s, 'karpfen'), 0, 'nichts roh verkauft');
+});
+
+test('zwei Netze über echte Nächte: Karpfen werden geräuchert und verkauft', () => {
+  const { s, ort, kiste, ei } = hof();
+  s.stall.eier = { ei: 0, grossesei: 0 };
+  const y = ei.y + 5;
+  const x0 = kiste.x + 10;
+  ort.welt.objekte[L.k(x0, y - 1)] = { t: 'fischfarm', fisch: 0 };
+  for (let x = x0; x <= x0 + 2; x++) ort.welt.belag[L.k(x, y)] = { t: ROHR };
+  ort.welt.objekte[L.k(x0 + 3, y)] = { t: 'raeucherofen', ein: [], aus: [] };
+  for (let yy = y - 1; yy >= y - 3; yy--) ort.welt.belag[L.k(x0 + 3, yy)] = { t: ROHR };
+  for (let x = x0 + 3; x >= kiste.x; x--) ort.welt.belag[L.k(x, y - 3)] = { t: ROHR };
+  for (let yy = y - 4; yy >= kiste.y + 1; yy--) ort.welt.belag[L.k(kiste.x, yy)] = { t: ROHR };
+  const summen = [];
+  for (let nacht = 0; nacht < 5; nacht++) summen.push(L.tagBeenden(s, { r: () => 0.5 }).summe);
+  const preis = L.preisVon({ id: 'geraeuchert', von: 'karpfen', n: 1 }, s);
+  assert.deepEqual(summen.slice(0, 2), [0, 0]);
+  assert.equal(summen[2], 200 * preis, 'ab der dritten Nacht 200 geräucherte Karpfen');
+  assert.equal(summen[3], 200 * preis);
+  assert.equal(summen[4], 200 * preis);
+});
+
 test('gleiche Ware wird in der Versandkiste zusammengezählt', () => {
   const s = L.neuesSpiel({ name: 'T', hof: 'H', seed: 2 });
   L.versandHinzu(s, { id: 'ei', n: 5 });
