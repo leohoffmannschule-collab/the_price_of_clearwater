@@ -121,6 +121,22 @@ function bodenStueck(def, jz, sx, sy) {
   return bild;
 }
 
+/** Höhe in CSS-Pixeln, die HUD-Leiste und Werkzeugleiste unten verdecken (alle halbe Sekunde neu gemessen). */
+let leistenCache = 0;
+let leistenStand = -1;
+function leistenHoehe() {
+  if (S.t - leistenStand < 0.5 && S.t >= leistenStand) return leistenCache;
+  leistenStand = S.t;
+  try {
+    const el = document.getElementById('hotbar');
+    const hud = document.getElementById('hud');
+    leistenCache = el && hud && !hud.hidden ? Math.max(0, Math.min(window.innerHeight * 0.4, window.innerHeight - el.getBoundingClientRect().top + 6)) : 0;
+  } catch {
+    leistenCache = 0;
+  }
+  return leistenCache;
+}
+
 function bodenZeichnen(def, jz, kamera) {
   const n = SP.BODEN_STUECK;
   const sx0 = Math.max(0, Math.floor(kamera.x / T / n));
@@ -162,8 +178,10 @@ export function zeichnen() {
     cx = fokus.x - vw / 2;
     cy = fokus.y - 10 - vh / 2;
   }
+  // Unten bleibt so viel Platz, wie die Werkzeugleiste verdeckt: die Kartenkante liegt sichtbar darüber.
+  const unten = leistenHoehe() * dpr / z;
   cx = mw <= vw ? (mw - vw) / 2 : klemme(cx, 0, mw - vw);
-  cy = mh <= vh ? (mh - vh) / 2 : klemme(cy, 0, mh - vh);
+  cy = mh <= vh - unten ? (mh - vh + unten) / 2 : klemme(cy, 0, mh - vh + unten);
   cx = Math.round(cx * z) / z;
   cy = Math.round(cy * z) / z;
   S.kamera.x = cx;
