@@ -150,12 +150,15 @@ function bodenZeichnen(def, jz, kamera) {
 
 // ─── Hauptfunktion ──────────────────────────────────────────────────────────
 
+const RAND_FARBE = { wald: '#1c3320', fels: '#34363d', mine: '#121317' };
+
 export function zeichnen() {
   const W = canvas.width;
   const H = canvas.height;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.imageSmoothingEnabled = false;
-  ctx.fillStyle = '#0d0b10';
+  // Hinter der Kartenkante (z. B. unter der Werkzeugleiste) läuft der Randton der Karte weiter
+  ctx.fillStyle = RAND_FARBE[S.ort?.def?.rand] ?? '#0d0b10';
   ctx.fillRect(0, 0, W, H);
   if (!S.ort || !S.s) return;
   const ort = S.ort;
