@@ -110,6 +110,27 @@ nicht dort bist. Mit der Aktionstaste (E, Rechtsklick, Aktion-Knopf) sammelst du
 Rucksack passt; leer hebst du sie mit Axt oder Spitzhacke wieder auf. Zahlen: `FISCHFARM_PRO_TAG`
 und `FISCHFARM_FISCH` in `src/bereiche/handwerk/fischfarm.js`.
 
+**Fabrik.** Eine kleine Automatisierung im Stil von Satisfactory, freigeschaltet über die Fähigkeit Bergbau
+(Band Stufe 2, Splitter, Zusammenführer, Lager und Erzbohrer Stufe 3, Schmelzer 4, Konstrukteur 5, Assembler 7; alles im
+Basteln-Menü K). Auf Hof, Berg, Wald und Strand liegen sichtbare **Vorkommen** (Kupfer, Eisen, Kohle, Stein, selten Gold;
+2×2 Felder) im Steinbruch am Berg, auf der Anhöhe des Hofs und am Rand von Wald und Strand. Ihre Reinheit (unrein 0,5×,
+normal 1×, rein 2×) sieht man an den Brocken und den Punkten darunter. Vorkommen sind unzerstörbar. Der **Erzbohrer** (Bohrer
+in die Hand, auf das Vorkommen benutzen) fördert allein ein Stück je 2 Sekunden mal Reinheit, ohne Strom und ohne Treibstoff.
+**Förderbänder** zeigen dorthin, wohin du beim Legen schaust; die Aktionstaste dreht sie im Uhrzeigersinn, Spitzhacke oder Axt
+nimmt sie samt Ladung wieder auf. Waren laufen mit 1,5 Feldern pro Sekunde (höchstens 4 je Feld), stauen sich am Ende, wenn
+das Ziel voll ist (nichts geht verloren) und rutschen in das nächste Band, in eine Maschine, ein **Lager** (48 Fächer, öffnet
+mit der Aktionstaste), eine Truhe oder die **Versandkiste** (verkauft über Nacht). Ein Band, das nur von der Seite gespeist wird,
+ist eine Kurve; Band gegen Band gegenüber nimmt nicht an. **Splitter** teilen eine Zufuhr gleichmäßig auf drei Ausgänge,
+**Zusammenführer** führen drei Zuflüsse reihum auf ein Band. Maschinen haben vorn (gelber Pfeil) den Ausgang und an den
+anderen Seiten (blaue Pfeile) den Eingang; ein Bild-Info-Fenster (Aktionstaste) zeigt Rezept, Status (arbeitet, wartet auf
+Eingang, Ausgang voll), Durchsatz pro Minute und Inhalt, dreht die Maschine und leert den Ausgang. **Schmelzer:** 5 Erz + 1 Kohle
+→ 1 Barren (4 / 6 / 10 s für Kupfer / Eisen / Gold). **Konstrukteur** (Rezept wählbar): Kupferbarren → 2 Kupferdraht, Eisenbarren
+→ 2 Eisenplatten, → 4 Schrauben oder → 1 Zahnrad. **Assembler** (Rezept wählbar): 2 Eisenplatten + 3 Kupferdraht → Maschinenteil,
+2 Zahnräder + 4 Schrauben → Antriebseinheit. Zwei Zutaten gehören auf getrennte Bänder oder Seiten, sonst blockieren sie sich bei
+falschem Verhältnis. Die Fabrik läuft in Echtzeit, solange du auf der Karte bist (ein Fenster oder die Pause hält sie an); auf
+anderen Karten und über Nacht holt sie nach, höchstens 10 Minuten Echtzeit-Äquivalent je Nachholen. Alle Zahlen stehen in
+`src/bereiche/handwerk/fabrik-daten.js`.
+
 **Fähigkeiten.** Landwirtschaft, Angeln, Sammeln, Bergbau und Kampf steigen bis Stufe 10
 und machen Werkzeuge sparsamer, Ernten besser, die Wartezeit beim Angeln kürzer und die Gesundheit größer.
 

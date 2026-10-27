@@ -6,6 +6,7 @@ import { kunst, objektKunst, P, R, E, L, mische, hell, dunkel, HOLZ } from '../.
 import './raeucherofen-grafik.js';
 import './fischfarm-kunst.js'; // Fischfarm (eigene Datei)
 import './rohre-grafik.js';
+import './fabrik-grafik.js'; // Fabrik: Bänder, Maschinen, Vorkommen, Warensymbole (fabrik-kunst*.js)
 
 function truhe(g) {
   R(g, 2, 6, 12, 8, '#9a6a3a'); R(g, 2, 3, 12, 4, '#b07a48'); R(g, 2, 3, 12, 1, '#c8925a');

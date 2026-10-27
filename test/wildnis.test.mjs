@@ -43,7 +43,9 @@ function erreichbar(s, id, sx, sy) {
 const hat = (ok, x, y) => ok.has(k(x, y));
 const zaehle = (s, id) => {
   const z = {};
-  for (const o of Object.values(L.welt(s, id).objekte)) z[o.t] = (z[o.t] || 0) + 1;
+  const objekte = L.welt(s, id).objekte;
+  // Teile von Vorkommen (Bereich handwerk, Fabrik) gehören nicht zum Wald
+  for (const o of Object.values(objekte)) if (!(o.t === 'teil' && objekte[o.haupt]?.t === 'vorkommen')) z[o.t] = (z[o.t] || 0) + 1;
   return z;
 };
 

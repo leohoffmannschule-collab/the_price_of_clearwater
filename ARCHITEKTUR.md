@@ -34,7 +34,7 @@ src/
 | pflanzen | Feldfrüchte samt Saat (mit `sorte`), Wildpflanzen und Strandfunde, Dünger, Säen/Düngen aus der Hand, Spezialware saatgut, Saatgut und Dünger bei Ottilie (Hook `ladenWare`), Krähen (tagEnde), Startsaat, Bäume (`objektTyp` baum, stumpf; `baumArt` eiche, kiefer) | – | – |
 | angeln | Angel (`werkzeugArt` angel), Fische, Köder, Laden „fischer" (Lene, im Fischladen), Lenes Angel-Geschenk (Hook gespraech), in Welle 1 auch **src/angeln.js** (Auswerfen, Warten, Biss, Einholen, Fischwahl, Fang, Schatzkisten; läuft über den Hook `eingabe`, siehe „Angeln" in 2.) | – | `s.flags.angelBekommen`, `s.angeln` (Fangbuch) |
 | mine | Erze, Barren, Mineralien, Schwert (`werkzeugArt` waffe), Monster, Minenebenen (`kartenAnbieter`), Gestein (`objektTyp` mstein, leiter, schatz), Förderkorb, Kampf, Alrik und Laden „gilde" (Platzhalter), in Welle 1 auch **src/mine.js** | mine0, mine1 … mine30 (dynamisch) | `s.mine`, `s.flags.mineOffen` |
-| handwerk | Rezepte, Aufstellbares (`objektTyp` truhe, vogelscheuche, sprenger, qsprenger, einmachglas, raeucherofen, fischfarm), Marmelade/Eingelegtes/Geräucherter Fisch, **Fischfarm** (eigene Dateien `fischfarm.js` und `fischfarm-kunst.js`: Item, Rezept 3 Holz, Platzregel „direkt am Wasser", jede Nacht `FISCHFARM_PRO_TAG` = 200 Karpfen je Farm auf jeder Karte über den Objekt-Hook `nacht`, Vorrat als Zahl `o.fisch` im Objekt, Einsammeln über `interagieren`, Aufheben nur leer), Deko-Aktion `kochen` (Platzhalter), Fenster truhe (für alle Behälter) | – | – |
+| handwerk | Rezepte, Aufstellbares (`objektTyp` truhe, vogelscheuche, sprenger, qsprenger, einmachglas, raeucherofen, fischfarm), Marmelade/Eingelegtes/Geräucherter Fisch, **Fischfarm** (eigene Dateien `fischfarm.js` und `fischfarm-kunst.js`: Item, Rezept 3 Holz, Platzregel „direkt am Wasser", jede Nacht `FISCHFARM_PRO_TAG` = 200 Karpfen je Farm auf jeder Karte über den Objekt-Hook `nacht`, Vorrat als Zahl `o.fisch` im Objekt, Einsammeln über `interagieren`, Aufheben nur leer), Deko-Aktion `kochen` (Platzhalter), Fenster truhe (für alle Behälter), **Fabrik** (`fabrik-*.js`, siehe 12.) | – | `s.fabrik` |
 | tiere | Hühnerstall (dynamisches Gebäude im Hof-Bereich „stall"), Küken in beliebiger Menge, die Herde als Zahlen (keine einzelnen Hühner, keine Tiere in der Welt), Eier, die Eierkiste vor dem Stall (dynamische Deko), Spezialware kueken/stall (in fremden Läden über `ladenWare`), Greta und Wilma samt Läden „zimmerei" und „ranch" (Platzhalter) | – | `s.stall` (siehe „Hühner und Eierkiste"); setzt `s.haus.stufe` |
 | npcs | die sechs Dorfbewohner (Ottilie, Bruno, Lene, Frieda, Mats, Hannes) – in Welle 1 unverändert | – | (`s.npcs` gehört dem Kern) |
 | npcs2 | weitere Dorfbewohner (leer) | – | – |
@@ -572,6 +572,8 @@ CHROMIUM=/opt/pw-browsers/chromium-1194/chrome-linux/chrome node test/fischfarm.
 | `raeucherofen.test.mjs` | der Räucherofen: Rezept genau 1 Holz + 1 Kohle, Aufstellen, Einlegen (Stapel größer/kleiner als 200, Gesamtgrenze über Vorgänge, Sorten und Qualitäten, Nicht-Fisch abgewiesen), Nacht (alle Karten, mehrere Nächte ohne Doppelverarbeitung), Preis genau zehnfach für jeden Fisch und jede Qualität (auch mit Modifikator), Versandkiste, Abholen (voll, teilweise, leer), Aufheben nur leer, Speichern und Laden, Bilder in jedem Zustand und jeder Jahreszeit |
 | `fischfarm.test.mjs` | Fischfarm: Rezept genau 3 Holz, Platzregel (Ufer ja; Wiese, Beet, Wasser, besetztes Feld nein; alle Karten mit Wasser), +200 Karpfen je Nacht und Farm (mehrere Nächte, mehrere Farmen, nicht aktive Karte, Ohnmacht, beschädigter Vorrat), Einsammeln (voll, teilweise, leer, Stapelgrenze), nur normaler Karpfen ohne `q`, kein Fangbuch/XP, Aufheben nur leer, Speichern und Laden |
 | `fischfarm.browser.mjs` | Browser-Test der Fischfarm: Holz, Basteln-Menü (K), Wiese abgelehnt, am Hofteich aufgestellt, schlafen, morgens einsammeln (200 Karpfen, Fund-Anzeige), Aktion-Knopf im Hochformat, Spiel läuft danach weiter, keine Konsolenfehler; läuft mit `npm run test:browser` nach dem Angeltest |
+| `fabrik.test.mjs` | Fabrik (handwerk): Band-Bewegung (1,5 Felder/s) und Rückstau ohne Verlust (Summe konstant, höchstens 4 je Feld), Kurve, Seiteneinspeisung, Band gegen Band, Ring; Vorkommen (unzerstörbar, aus dem Rucksack, Reinheit 0,5/1/2), Bohrer nur auf Vorkommen und Ausbeute, Schmelzer-Verhältnisse, Konstrukteur- und Assembler-Rezepte, Splitter verteilt gleich, Zusammenführer fair, Lager und Versandkiste als Senke, Nachholen gegen Echtzeit (±5 %), Karte betreten und Nacht, Pause, Determinismus, Zeitbudget (200 Bänder, 40 Maschinen: höchstens 3 ms je Bild), Taktfaktor `fabrikTempo`, Aufheben ohne Verlust, Drehen, Platzregeln, Info-Fenster, Rezeptwahl, Speichern und Laden, alter Stand, Vorkommen erreichbar und nicht auf Wegen |
+| `fabrik.browser.mjs` | Browser-Test der Fabrik: Förderband im Basteln-Menü (K, erst ab Bergbau 2), auf dem Hof Bänder, Schmelzer und Bohrer auf einem Vorkommen aus der Hand aufstellen (Blickrichtung), Erz läuft, Barren erreichen die Versandkiste, Info-Fenster, Band drehen, schlafen und verkaufen, Handy-Hochformat 390×844 mit Aktion-Knopf, keine Konsolenfehler, das Spiel läuft weiter; hängt in `npm run test:browser` hinter dem Hühnertest |
 | `angeln.browser.mjs` | Browser-Test des Angelns (Chromium, eigener Server): ans Wasser laufen, werfen, die Wartezeit abkürzen, einholen, Fang im Rucksack, Mausklick, Abbruch, Hochformat 390×844, keine Konsolenfehler; läuft mit `npm run test:browser` hinter dem Rauchtest |
 | `raeucherofen.browser.mjs` | Browser-Test des Räucherofens (Chromium, eigener Server): im Basteln-Menü herstellen (1 Holz + 1 Kohle), aufstellen, 300 Karpfen einlegen (200 gehen hinein), schlafen, abholen, Preis im Rucksack und in der Versandkiste zehnfach, Rucksack voll, Aufheben, keine Konsolenfehler, die Figur kann sich danach bewegen; läuft mit `npm run test:browser` hinter dem Angel-Test |
 | `browser.mjs` | Rauchtest in Chromium: neues Spiel, Feldarbeit, Menü, Rundgang bis in die Mine (Orte aus dem Punkte-Vertrag), jedes Item/jede Deko/jedes Gebäude/jedes Objekt/jede Pflanze malt ohne Ersatzbild (alle Jahreszeiten, Tag und Nacht), Ersatzbilder für Fehlendes, Kulling auf einer 100×72-Karte, große Objekte, Beläge, Pflanzenkunst mit `alle`, Kameraführung, alle Fenster öffnen sich mit ihren Beispieldaten, Schlafen, Speichern (v2), Einmachglas leeren (jede Sorte, voller Rucksack; danach muss sich die Spielerin noch bewegen können, denn „die Seite antwortet" genügt nicht: die Spielschleife kann stehen, während der Browser läuft), keine Konsolenfehler |
@@ -838,7 +840,7 @@ menueReiter({ id: 'tiere', name: 'Tiere', reihe: 45, bauen: () => el('div', { cl
 | pflanzen | Saatgut, Ernte, Wildpflanzen, Strandfunde, Dünger; Wuchsformen; Objekte baum, stumpf; Zeichner fallend | – |
 | angeln | Angel, Fische, Köder; Deko stand; Zeichner angelrute und angeln (Rute, Schnur, Schwimmer, Wellen, Blasenspur, Biss, Fang im Flug; anzeige.js) | – |
 | mine | Erze, Barren, Mineralien, Schwert; Minen-Bänder; Objekte mstein, leiter, schatz; Deko leiter_ab, leiter_auf, aufzug, schwertfund, wandlampe; Monster schleim, fledermaus; Zeichner monster | Fenster aufzug, Statistik tiefste |
-| handwerk | Truhe, Vogelscheuche, Sprenger, Einmachglas, Räucherofen, Marmelade, Eingelegtes, Geräucherter Fisch; Objekte einmachglas, raeucherofen (`raeucherofen.js`, Grafik `raeucherofen-grafik.js`) | Fenster truhe (alle Behälter) |
+| handwerk | Truhe, Vogelscheuche, Sprenger, Einmachglas, Räucherofen, Marmelade, Eingelegtes, Geräucherter Fisch; Objekte einmachglas, raeucherofen (`raeucherofen.js`, Grafik `raeucherofen-grafik.js`); Fabrik (`fabrik-kunst*.js`): Bauteile und Waren, Objekte vorkommen, foerderband, splitter, zusammenfuehrer, erzbohrer, schmelzer, konstrukteur, assembler, lager, Warensymbole auf dem Band | Fenster truhe (alle Behälter), handwerk_fabrik (Maschinen-Info) |
 | tiere | Eier; Gebäude stall; Deko eierkiste (Bild nach Bestand); Küken-Symbol (Tierbild huhn) für den Laden | Warenbilder kueken, stall |
 | gemeinschaft | Medaille; Gebäude muehle (verfallen/repariert); Deko brett; Zeichner muehlrad | Fenster muehle, brett; Menüreiter aufgaben; Stil gemeinschaft-buendel |
 | npcs, npcs2, feste | – (Figuren und Porträts malt der Kern aus `aussehen`) | – |
@@ -928,3 +930,43 @@ meisten Teile auf passenden Feldern landen; Zusammenstöße rücken aufs nächst
 Ackerboden, die Fischfarm nur ans Ufer); was nirgends hinpasst, geht in den Rucksack zurück. Neue Spiele
 setzen `s.hof = { kartenV: 2 }` in `neuesSpiel` und ziehen nicht um. `test/umzug.test.mjs` lädt dazu den mit
 dem alten Code erzeugten Stand `test/alter-hof-stand.json`. Der Hinweis erscheint einmal beim ersten Betreten.
+
+
+## 12. Die Fabrik (Bereich handwerk, `fabrik-*.js`)
+
+Satisfactory im Kleinen, ohne Kernänderung (nur Register, Hooks `update`, `vorVerkauf`, `ergaenzen`, `neuesSpiel`, `tagEnde`,
+große Objekte `flaeche`, Behälter-Fenster `truhe`). Alle Zahlen: `fabrik-daten.js` (`FABRIK`, `SORTEN`, `REINHEIT`,
+`*_REZEPTE`, `MASCHINEN`, `FREISCHALT`, `PREISE`, `VORKOMMEN_PREIS`).
+
+| Datei | Inhalt |
+|---|---|
+| `fabrik-daten.js` | Konstanten, Gegenstände (Bauteile, Waren, `vorkommen_<sorte>`), Bastelrezepte mit Bergbau-Stufen |
+| `fabrik-sim.js` | Simulation: Verbindungs-Cache je Karte (WeakMap auf `welt`, neu bei `fabrikAenderung()` und alle 120 Schritte), Band-, Splitter-, Zusammenführer-, Maschinen- und Lagerschritt, `simuliere` (Nachholen mit Zeitbudget), Modifikator `fabrikTempo` |
+| `fabrik-objekte.js` | Objekttypen `vorkommen`, `foerderband`, `splitter`, `zusammenfuehrer`, `erzbohrer`, `schmelzer`, `konstrukteur`, `assembler`, `lager`; Platzregeln, Drehen, `fabrikAufheben`, `rezeptWaehlen`, `ausgangLeeren` |
+| `fabrik-vorkommen.js` | Vorkommen anlegen (`ANLAGE`), `erreichbarePunkte` |
+| `fabrik-system.js` | System `handwerk-fabrik`: `s.fabrik`, Hook `update`, Nachholen (`nachholen`, `nacht`), Vorkommen anlegen |
+| `fabrik-info.js` | Inhalt des Info-Fensters (`maschinenInfo`), erweiterbar mit `fabrikInfoZeile(fn)` |
+| `fabrik-kunst*.js`, `fabrik-grafik.js`, `fabrik-fenster.js` | Pixelkunst (Band mit Rollen und Kurven, Warensymbole, Maschinen mit Animation), Fenster `handwerk_fabrik` |
+
+**Zustand** (Format v2, alles Zahlen und kleine Listen in den Objekten): `s.fabrik = { t, zeit: { <karte>: Zahl }, vk, vkb }`.
+`t` ist die Fabrik-Uhr (Sekunden Echtzeit-Äquivalent; läuft im Spiel mit `dt`, springt über Nacht um die verschlafene Zeit
+mal `FABRIK.sekProMinute` = 0,7); `zeit[karte]` ist der Stand der Simulation einer Karte (sie beginnt beim ersten Bau); der
+Rückstand `t − zeit` wird beim Betreten und über Nacht (Hook `vorVerkauf`, vor dem Verkauf) nachgeholt, höchstens `FABRIK.nachholMax`
+= 600 s, in Schritten von `FABRIK.nachholSchritt` = 0,5 s; im Spiel hat das Nachholen ein Budget von `FABRIK.budgetMs` je Bild.
+`vk`/`vkb`: Vorkommen angelegt (Berg im Hook `ergaenzen`, vor dem Auffüllen des Bergs; Hof, Wald, Strand in `neuesSpiel`, bei
+älteren Ständen in `ergaenzen`/`tagEnde`).
+Objekte: Band `{ t, r, w: [{ id, p, q?, von? }], kv }` (`r` 0..3 = oben, rechts, unten, links; `p` 0..1 im Feld; `kv` −1/0/+1 = Kurve
+von links/gerade/rechts, wird beim Verbinden berechnet), Splitter/Zusammenführer `{ r, pf, z, nx }`, Maschinen `{ r, ein: { id: n },
+aus: { id: n }, arb, f, rez, st, dr, … }` (Bohrer zusätzlich `erz`, `rein`), Lager `{ r, inv }`, Vorkommen `{ erz, rein }` (`rein` =
+Ausbeute-Faktor 0,5 / 1 / 2).
+
+**Anschlüsse.** Jede Maschine hat eine Ausgangsrichtung `r`; vorn ist der Ausgang, an den anderen drei Seiten der Eingang
+(Bohrer: kein Eingang). Ein Band übergibt an das Feld vor seinem Ende (Band: von hinten oder seitlich, nicht von vorn; Maschine, Lager,
+Truhe, Versandkiste: sofern Platz). Maschinen und Lager geben an die Felder vor ihrer Ausgangsseite ab (Band, Maschine, Lager,
+Versandkiste), reihum.
+
+**Stufe 2 (Strom) kann ergänzen:** jede Maschine hat `leistung` (MW; `MASCHINEN[t].leistung` und `OBJEKT_TYPEN[t].leistung`,
+`leistungVon(s, ort)` summiert sie, erzwungen wird sie nicht); der Takt läuft über `tempoVon` = Modifikator `fabrikTempo`
+(Kontext `{ s, o, ort, leistung }`, Wert 0..1, Stufe 1 immer 1; bei 0 steht die Maschine mit Status „steht still"); Info-Zeilen über
+`fabrikInfoZeile`. Vorkommen lassen sich aus dem Rucksack aufstellen (Items `vorkommen_kupfer` … , Platzregel wie Aufstellbares,
+Reinheit als Faktor `o.rein`); Preise je Reinheit stehen in `VORKOMMEN_PREIS`.

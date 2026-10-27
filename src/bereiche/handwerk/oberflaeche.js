@@ -18,3 +18,4 @@ fensterArt('truhe', (d) => {
     el('h3', {}, 'Rucksack'),
     invGitter((i) => { L.umlagern(s.spieler.inv, i, t.inv); ton('menue'); fensterNeu(); })), { klasse: 'breit' });
 }, { beispiele: () => [{ truhe: { t: 'truhe', inv: Array(24).fill(null) } }] });
+import './fabrik-fenster.js'; // Fabrik: Info-Fenster der Maschinen
