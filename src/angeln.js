@@ -36,6 +36,7 @@ export const ANGELN = {
   fangZeit: 0.7, // s: der Fang über dem Kopf, bevor die Figur die Angel senkt
   schatz: { grund: 0.03, jeStufe: 0.004 }, // Chance auf eine Schatzkiste
   muell: { grund: 0.10, jeStufe: -0.005, min: 0.05 }, // Chance auf Müll statt Fisch
+  legendaer: 4, // Gewicht eines legendären Fisches in der Fischwahl (ein gewöhnlicher: 110 − Seltenheit)
 };
 
 /** Was eine Rute ohne eigene Zahlen (`rute` am Item) mitbringt: Faktor auf die Wartezeit, Zusätze. */
@@ -91,7 +92,16 @@ export function muellChance(s) {
   return Math.max(m.min, m.grund + m.jeStufe * L.stufeWirksam(s, 'angeln'));
 }
 
-/** Fische, die jetzt an diesem Gewässer beißen (Gewässerart, Jahreszeit, Uhrzeit, Wetter). */
+/**
+ * Legendäre Fische (Item-Feld `legendaer: true`) beißen nur ab `abStufe` (Angelstufe, Standard 0) und
+ * nur, solange sie noch nicht im Fangbuch stehen: jeden gibt es genau einmal.
+ */
+export function legendaerFrei(s, f) {
+  if (!f.legendaer) return true;
+  return !s.angeln?.gefangen?.[f.id] && L.stufeWirksam(s, 'angeln') >= (f.abStufe ?? 0);
+}
+
+/** Fische, die jetzt an diesem Gewässer beißen (Gewässerart, Jahreszeit, Uhrzeit, Wetter; Legendäre nur einmal). */
 export function fischePassend(s, art) {
   const jz = L.jahreszeit(s);
   const m = s.zeit.minute;
@@ -99,7 +109,7 @@ export function fischePassend(s, art) {
   const wetter = L.regnet(s) ? 'regen' : 'sonne';
   return FISCHE.filter((f) => {
     const d = f.fisch;
-    return d.orte.includes(art) && d.jz.includes(jz) && uhr >= d.zeit[0] && uhr < d.zeit[1] && (!d.wetter || d.wetter === wetter);
+    return d.orte.includes(art) && d.jz.includes(jz) && uhr >= d.zeit[0] && uhr < d.zeit[1] && (!d.wetter || d.wetter === wetter) && legendaerFrei(s, f);
   });
 }
 
@@ -107,7 +117,7 @@ export function fischePassend(s, art) {
 export function fischWaehlen(s, art, r = Math.random) {
   const pool = fischePassend(s, art);
   if (!pool.length || r() < muellChance(s)) return { muell: waehle(r, muellFuer(art)) };
-  const gewicht = pool.map((f) => 110 - f.fisch.seltenheit);
+  const gewicht = pool.map((f) => (f.legendaer ? ANGELN.legendaer : 110 - f.fisch.seltenheit));
   let z = r() * gewicht.reduce((a, b) => a + b, 0);
   for (let i = 0; i < pool.length; i++) {
     z -= gewicht[i];
@@ -166,6 +176,10 @@ export function fangGeben(s, ort, id, { perfekt = false, r = Math.random, feld =
   erg.perfekt = perfekt;
   erg.laenge = fischLaenge(it, q, r);
   fangBuchen(s, id, erg.laenge);
+  if (it.legendaer) {
+    erg.legendaer = true;
+    erg.text = `Legendär! ${it.name} – ${erg.laenge} cm. So einen fängt man nur einmal im Leben.`;
+  }
   return erg;
 }
 
