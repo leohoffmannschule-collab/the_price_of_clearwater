@@ -36,6 +36,11 @@ export const FABRIK = {
   durchsatzFenster: 60, // Zeitkonstante (s) des gleitenden Mittels für „Durchsatz pro Minute"
 };
 
+/** Bandstufen: Felder pro Sekunde (Mk1 wie bisher). Ein Band trägt seine Stufe als `mk` (fehlt = 1). */
+export const BAND_TEMPO = { 1: FABRIK.bandTempo, 2: 3, 3: 5 };
+/** Tempo eines Bandes in Feldern pro Sekunde. */
+export const bandTempoVon = (o) => BAND_TEMPO[o?.mk] ?? FABRIK.bandTempo;
+
 /** Vorkommen: Sorten (Erz → Gegenstand) und Reinheit (Ausbeute-Faktor). */
 export const SORTEN = {
   kupfer: { name: 'Kupfer', item: 'kupfererz', farbe: '#d98a4e' },
@@ -68,8 +73,10 @@ export const ASSEMBLER_REZEPTE = {
 };
 
 /**
- * Die Maschinen. `leistung` (MW) liest die Simulation, erzwungen wird sie in Stufe 1 nicht (kein Stromnetz).
- * `flaeche` ist quadratisch, damit Drehen die Fläche nicht ändert.
+ * Die Maschinen. `leistung` (MW) ist der Strombedarf, solange die Maschine arbeitet (Stromnetz: fabrik-strom*.js).
+ * `flaeche` ist quadratisch, damit Drehen die Fläche nicht ändert. `puffer` (optional): so viel nimmt die Maschine je
+ * Zutat an (sonst 3× Bedarf, mindestens 4) – Generatoren halten so einen Vorrat an Brennstoff. Die Generatoren trägt
+ * fabrik-strom-daten.js hier ein (Brennstoff als „Rezept" ohne Ergebnis).
  */
 export const MASCHINEN = {
   erzbohrer: { name: 'Erzbohrer', flaeche: [2, 2], leistung: 5 },
@@ -111,7 +118,7 @@ bauteil('foerderband', 'Förderband', 'Transportiert Waren. Richtung = Blickrich
 bauteil('splitter', 'Splitter', 'Teilt eine Zufuhr (hinten) gleichmäßig auf drei Ausgänge (vorn, links, rechts). Aktionstaste dreht.');
 bauteil('zusammenfuehrer', 'Zusammenführer', 'Führt drei Zuflüsse (hinten, links, rechts) auf ein Band (vorn) zusammen. Aktionstaste dreht.');
 bauteil('lager', 'Lager', `Nimmt Waren vom Band an (Eingang hinten und seitlich), hat ${FABRIK.lagerFaecher} Fächer und gibt vorn wieder ab. Aktionstaste öffnet.`);
-bauteil('erzbohrer', 'Erzbohrer', 'Muss auf einem Vorkommen stehen: im Rucksack wählen und auf das Vorkommen benutzen. Fördert allein, ohne Strom und Treibstoff.');
+bauteil('erzbohrer', 'Erzbohrer', 'Muss auf einem Vorkommen stehen: im Rucksack wählen und auf das Vorkommen benutzen. Braucht Strom (5 MW): mit einem Kabel an ein Stromnetz anschließen.');
 bauteil('schmelzer', 'Schmelzer', 'Erz und Kohle zu Barren: 5 Erz + 1 Kohle ergeben 1 Barren. Eingang hinten und seitlich, Ausgang vorn.');
 bauteil('konstrukteur', 'Konstrukteur', 'Ein Eingang, ein Ausgang. Rezept wählbar: Draht, Platte, Schraube, Zahnrad.');
 bauteil('assembler', 'Assembler', 'Zwei Zutaten zu einem Bauteil: Maschinenteil oder Antriebseinheit. Rezept wählbar.');

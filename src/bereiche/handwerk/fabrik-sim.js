@@ -15,12 +15,21 @@
 import { ITEMS } from '../../daten.js';
 import * as L from '../../logik.js';
 import { mod } from '../../system.js';
-import { FABRIK, MASCHINEN, FABRIK_TYPEN, BAND, SPLITTER, MERGER, DX, DY, SORTEN } from './fabrik-daten.js';
+import { FABRIK, MASCHINEN, FABRIK_TYPEN, BAND, SPLITTER, MERGER, DX, DY, SORTEN, bandTempoVon } from './fabrik-daten.js';
 
 const CACHES = new WeakMap();
 let aenderung = 1;
 /** Meldet, dass sich Fabrikobjekte geändert haben (aufgestellt, gedreht, entfernt): Verbindungen neu berechnen. */
 export const fabrikAenderung = () => { aenderung++; };
+/** Stand der Änderungen (für Caches anderer Fabrik-Dateien: Strom, Rohrleitungen). */
+export const aenderungsStand = () => aenderung;
+
+/**
+ * Erweiterung: fn(s, ort, dt, c) läuft zu Beginn jedes Schritts, vor Bändern und Maschinen (auch beim Nachholen und auf
+ * Karten ohne Bänder). Strom (Leistung, Sicherung) und Rohrleitungen (Wasser) rechnen so im selben Takt wie die Fabrik.
+ */
+const VORHER = [];
+export function fabrikSchrittVorher(fn) { VORHER.push(fn); }
 
 const hinten = (r) => (r + 2) % 4;
 
@@ -53,7 +62,7 @@ function randFelder(x, y, n, r) {
 
 function bauen(s, ort) {
   const { welt, def } = ort;
-  const c = { ver: aenderung, welt, def, s, ort, alter: 0, fluss: [], maschinen: [], versand: new Set(), leistung: 0, anzahl: 0 };
+  const c = { ver: aenderung, welt, def, s, ort, alter: 0, fluss: [], maschinen: [], versand: new Set(), leistung: 0, anzahl: 0, tempoMax: FABRIK.bandTempo };
   const flussKnoten = new Map();
   for (const kk in welt.objekte) {
     const o = welt.objekte[kk];
@@ -64,6 +73,7 @@ function bauen(s, ort) {
     c.anzahl++;
     if (o.t === BAND || o.t === SPLITTER || o.t === MERGER) {
       n.zk = L.k(x + DX[o.r], y + DY[o.r]);
+      if (o.t === BAND) c.tempoMax = Math.max(c.tempoMax, bandTempoVon(o));
       flussKnoten.set(kk, n);
     } else {
       const f = MASCHINEN[o.t].flaeche[0];
@@ -184,7 +194,7 @@ export function zutatenGrenze(o, id) {
   if (!def?.rezepte) return 0;
   const liste = def.waehlbar ? [def.rezepte[o.rez ?? def.standard]].filter(Boolean) : Object.values(def.rezepte);
   let grenze = 0;
-  for (const r of liste) if (r.ein[id]) grenze = Math.max(grenze, Math.max(4, r.ein[id] * 3));
+  for (const r of liste) if (r.ein[id]) grenze = Math.max(grenze, def.puffer ?? Math.max(4, r.ein[id] * 3));
   return grenze;
 }
 
@@ -235,7 +245,7 @@ function splitterWeiter(c, tk, o, ware, d, ueber, tiefe) {
 function zuflussWartet(c, x, y, sd) {
   const b = hauptAn(c.welt, L.k(x + DX[sd], y + DY[sd]));
   if (!b || b.t !== BAND || b.r !== hinten(sd) || !b.w?.length) return false;
-  return b.w[0].p + FABRIK.bandTempo * c.dt >= 1 - 1e-9;
+  return b.w[0].p + bandTempoVon(b) * c.dt >= 1 - 1e-9;
 }
 function hatZufluss(c, x, y, sd) {
   return gibtAb(hauptAn(c.welt, L.k(x + DX[sd], y + DY[sd])), hinten(sd));
@@ -285,7 +295,7 @@ function bandSchritt(c, n, dt) {
   const o = n.o;
   const w = o.w;
   if (!w || !w.length) return;
-  const v = FABRIK.bandTempo * dt;
+  const v = bandTempoVon(o) * dt;
   const A = FABRIK.abstand;
   let vorn = null;
   for (let i = 0; i < w.length;) {
@@ -339,7 +349,8 @@ function guthaben(o, n, dt) {
 function abgeben(c, n, dt, naechste) {
   const o = n.o;
   if (!n.rand.length) return;
-  const ueber = FABRIK.bandTempo * dt;
+  // zurückgelegter Weg im Zielband: Tempo des Zielbands mal dt (schnelle Bänder nehmen je Schritt mehr Waren auf)
+  const ueber = (tk) => { const z = c.welt.objekte[tk]; return (z?.t === BAND ? bandTempoVon(z) : FABRIK.bandTempo) * dt; };
   guthaben(o, n, dt);
   while (o.ak >= 1) {
     const ware = naechste();
@@ -347,7 +358,7 @@ function abgeben(c, n, dt, naechste) {
     let ok = false;
     for (let j = 0; j < n.rand.length; j++) {
       const i = ((o.ei | 0) + j) % n.rand.length;
-      if (annehmen(c, n.rand[i], ware, o.r, ueber)) { o.ei = (i + 1) % n.rand.length; ok = true; break; }
+      if (annehmen(c, n.rand[i], ware, o.r, ueber(n.rand[i]))) { o.ei = (i + 1) % n.rand.length; ok = true; break; }
     }
     if (!ok) return;
     ware.weg();
@@ -451,8 +462,9 @@ function maschinenSchritt(c, n, dt) {
  */
 export function schritt(s, ort, dt) {
   const c = cacheVon(s, ort);
-  if (!c.anzahl) return c;
   c.dt = dt;
+  for (const fn of VORHER) fn(s, ort, dt, c);
+  if (!c.anzahl) return c;
   for (const n of c.fluss) {
     if (n.t === BAND) bandSchritt(c, n, dt);
     else teilerLeeren(c, n);
@@ -498,7 +510,8 @@ const jetzt = () => (typeof performance !== 'undefined' ? performance.now() : Da
  * Mit `opt.budgetMs` hört es früher auf; zurück kommt, was noch aussteht.
  */
 export function simuliere(s, ort, sek, opt = {}) {
-  const gross = opt.schritt ?? FABRIK.nachholSchritt;
+  // Schnelle Bänder (Mk2, Mk3): kleinere Schritte, damit eine Ware je Schritt höchstens ein Feld weit kommt
+  const gross = Math.min(opt.schritt ?? FABRIK.nachholSchritt, 0.9 / cacheVon(s, ort).tempoMax);
   const t0 = opt.budgetMs ? jetzt() : 0;
   let rest = sek;
   while (rest > 1e-9) {

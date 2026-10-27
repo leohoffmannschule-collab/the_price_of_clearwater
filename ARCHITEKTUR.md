@@ -34,7 +34,7 @@ src/
 | pflanzen | Feldfrüchte samt Saat (mit `sorte`), Wildpflanzen und Strandfunde, Dünger, Säen/Düngen aus der Hand, Spezialware saatgut, Saatgut und Dünger bei Ottilie (Hook `ladenWare`), Krähen (tagEnde), Startsaat, Bäume (`objektTyp` baum, stumpf; `baumArt` eiche, kiefer) | – | – |
 | angeln | Angel (`werkzeugArt` angel), Fische, Köder, Laden „fischer" (Lene, im Fischladen), Lenes Angel-Geschenk (Hook gespraech), in Welle 1 auch **src/angeln.js** (Auswerfen, Warten, Biss, Einholen, Fischwahl, Fang, Schatzkisten; läuft über den Hook `eingabe`, siehe „Angeln" in 2.) | – | `s.flags.angelBekommen`, `s.angeln` (Fangbuch) |
 | mine | Erze, Barren, Mineralien, Schwert (`werkzeugArt` waffe), Monster, Minenebenen (`kartenAnbieter`), Gestein (`objektTyp` mstein, leiter, schatz), Förderkorb, Kampf, Alrik und Laden „gilde" (Platzhalter), in Welle 1 auch **src/mine.js** | mine0, mine1 … mine30 (dynamisch) | `s.mine`, `s.flags.mineOffen` |
-| handwerk | Rezepte, Aufstellbares (`objektTyp` truhe, vogelscheuche, sprenger, qsprenger, einmachglas, raeucherofen, fischfarm), Marmelade/Eingelegtes/Geräucherter Fisch, **Fischfarm** (eigene Dateien `fischfarm.js` und `fischfarm-kunst.js`: Item, Rezept 3 Holz, Platzregel „direkt am Wasser", jede Nacht `FISCHFARM_PRO_TAG` = 200 Karpfen je Farm auf jeder Karte über den Objekt-Hook `nacht`, Vorrat als Zahl `o.fisch` im Objekt, Einsammeln über `interagieren`, Aufheben nur leer), Deko-Aktion `kochen` (Platzhalter), Fenster truhe (für alle Behälter), **Fabrik** (`fabrik-*.js`, siehe 12.) | – | `s.fabrik` |
+| handwerk | Rezepte, Aufstellbares (`objektTyp` truhe, vogelscheuche, sprenger, qsprenger, einmachglas, raeucherofen, fischfarm), Marmelade/Eingelegtes/Geräucherter Fisch, **Fischfarm** (eigene Dateien `fischfarm.js` und `fischfarm-kunst.js`: Item, Rezept 3 Holz, Platzregel „direkt am Wasser", jede Nacht `FISCHFARM_PRO_TAG` = 200 Karpfen je Farm auf jeder Karte über den Objekt-Hook `nacht`, Vorrat als Zahl `o.fisch` im Objekt, Einsammeln über `interagieren`, Aufheben nur leer), Deko-Aktion `kochen` (Platzhalter), Fenster truhe (für alle Behälter), **Fabrik** (`fabrik-*.js`, siehe 12.), **Stromnetz, Rohrleitungen, Handy** (`fabrik-strom*.js`, `fabrik-rohre*.js`, `fabrik-handy*.js`, siehe 13.) | – | `s.fabrik` (mit `strom`, `paket`, `handy`) |
 | tiere | Hühnerstall (dynamisches Gebäude im Hof-Bereich „stall"), Küken in beliebiger Menge, die Herde als Zahlen (keine einzelnen Hühner, keine Tiere in der Welt), Eier, die Eierkiste vor dem Stall (dynamische Deko), Spezialware kueken/stall (in fremden Läden über `ladenWare`), Greta und Wilma samt Läden „zimmerei" und „ranch" (Platzhalter) | – | `s.stall` (siehe „Hühner und Eierkiste"); setzt `s.haus.stufe` |
 | npcs | die sechs Dorfbewohner (Ottilie, Bruno, Lene, Frieda, Mats, Hannes) – in Welle 1 unverändert | – | (`s.npcs` gehört dem Kern) |
 | npcs2 | weitere Dorfbewohner (leer) | – | – |
@@ -367,6 +367,7 @@ modifikator('energieKosten', (wert, k) => (k.s.flags.buffKaffee ? wert * 0.8 : w
 | `maxEnergie` / `maxGesundheit` | `L.werteAktualisieren` (Laden, Stufenaufstieg, Morgen) | `s` |
 | `glueck` | Tagesglück `s.zeit.glueck` (Morgen), wirkt auf Leitern in der Mine | `s, r` |
 | `erzMenge` | Erz aus Gestein und Felsbrocken | `s, id` |
+| `fabrikTempo` | Takt 0..1 einer Fabrikmaschine (handwerk; Stufe 2: Strom) | `s, o, ort, leistung` |
 
 ---
 
@@ -574,6 +575,8 @@ CHROMIUM=/opt/pw-browsers/chromium-1194/chrome-linux/chrome node test/fischfarm.
 | `fischfarm.browser.mjs` | Browser-Test der Fischfarm: Holz, Basteln-Menü (K), Wiese abgelehnt, am Hofteich aufgestellt, schlafen, morgens einsammeln (200 Karpfen, Fund-Anzeige), Aktion-Knopf im Hochformat, Spiel läuft danach weiter, keine Konsolenfehler; läuft mit `npm run test:browser` nach dem Angeltest |
 | `fabrik.test.mjs` | Fabrik (handwerk): Band-Bewegung (1,5 Felder/s) und Rückstau ohne Verlust (Summe konstant, höchstens 4 je Feld), Kurve, Seiteneinspeisung, Band gegen Band, Ring; Vorkommen (unzerstörbar, aus dem Rucksack, Reinheit 0,5/1/2), Bohrer nur auf Vorkommen und Ausbeute, Schmelzer-Verhältnisse, Konstrukteur- und Assembler-Rezepte, Splitter verteilt gleich, Zusammenführer fair, Lager und Versandkiste als Senke, Nachholen gegen Echtzeit (±5 %), Karte betreten und Nacht, Pause, Determinismus, Zeitbudget (200 Bänder, 40 Maschinen: höchstens 3 ms je Bild), Taktfaktor `fabrikTempo`, Aufheben ohne Verlust, Drehen, Platzregeln, Info-Fenster, Rezeptwahl, Speichern und Laden, alter Stand, Vorkommen erreichbar und nicht auf Wegen |
 | `fabrik.browser.mjs` | Browser-Test der Fabrik: Förderband im Basteln-Menü (K, erst ab Bergbau 2), auf dem Hof Bänder, Schmelzer und Bohrer auf einem Vorkommen aus der Hand aufstellen (Blickrichtung), Erz läuft, Barren erreichen die Versandkiste, Info-Fenster, Band drehen, schlafen und verkaufen, Handy-Hochformat 390×844 mit Aktion-Knopf, keine Konsolenfehler, das Spiel läuft weiter; hängt in `npm run test:browser` hinter dem Hühnertest |
+| `fabrik-strom.test.mjs` | Fabrik Stufe 2: Daten und Preise, Netzbildung, Kabelreichweite, Kosten und Kupferdraht, Anschlussgrenzen, Kabel-Werkzeug, Maschinen ohne Strom stehen und mit Strom laufen, Überlast und Sicherung (auch wieder einschalten), Brennstoff nach Brennwert und Last, Brennstoff vom Band und aus der Hand, Info-Zeile, Wasserrad, Ufer-Regel, Wasser über Rohre zum Kraftwerk (Anfahren mit dem Brenner), Kraftwerk-Verbrauch, Durchflussgrenze Mk1/Mk2/gemischt, volles Netz, Nachholen über Nacht gleich live, Bericht bei Überlast, Übergang 7 Tage, alter Stand (Starterpaket, Handy, Brief), neues Spiel mit Handy, Speichern und Laden, Aufheben gibt Kabel zurück, Bänder Mk2/Mk3, Handy-Kauf (Gold, Mengen, voller Rucksack), Vorkommen kaufen und aufstellen |
+| `fabrik-strom.browser.mjs` | Browser-Test Stufe 2: Handy benutzen, Teile und Vorkommen kaufen, Brenner, Mast, Bohrer und Lager aufstellen, Kabel mit dem Werkzeug, Strom fließt, Überlast und Sicherung im Netzfenster, Kabel lösen, Pumpe am Teich, Rohre, Kohlekraftwerk mit Wasser, Rohrfenster, Hochformat 390×844 mit Touch, keine Konsolenfehler, Spiel läuft weiter; hängt in `npm run test:browser` hinter dem Fabriktest |
 | `angeln.browser.mjs` | Browser-Test des Angelns (Chromium, eigener Server): ans Wasser laufen, werfen, die Wartezeit abkürzen, einholen, Fang im Rucksack, Mausklick, Abbruch, Hochformat 390×844, keine Konsolenfehler; läuft mit `npm run test:browser` hinter dem Rauchtest |
 | `raeucherofen.browser.mjs` | Browser-Test des Räucherofens (Chromium, eigener Server): im Basteln-Menü herstellen (1 Holz + 1 Kohle), aufstellen, 300 Karpfen einlegen (200 gehen hinein), schlafen, abholen, Preis im Rucksack und in der Versandkiste zehnfach, Rucksack voll, Aufheben, keine Konsolenfehler, die Figur kann sich danach bewegen; läuft mit `npm run test:browser` hinter dem Angel-Test |
 | `browser.mjs` | Rauchtest in Chromium: neues Spiel, Feldarbeit, Menü, Rundgang bis in die Mine (Orte aus dem Punkte-Vertrag), jedes Item/jede Deko/jedes Gebäude/jedes Objekt/jede Pflanze malt ohne Ersatzbild (alle Jahreszeiten, Tag und Nacht), Ersatzbilder für Fehlendes, Kulling auf einer 100×72-Karte, große Objekte, Beläge, Pflanzenkunst mit `alle`, Kameraführung, alle Fenster öffnen sich mit ihren Beispieldaten, Schlafen, Speichern (v2), Einmachglas leeren (jede Sorte, voller Rucksack; danach muss sich die Spielerin noch bewegen können, denn „die Seite antwortet" genügt nicht: die Spielschleife kann stehen, während der Browser läuft), keine Konsolenfehler |
@@ -840,7 +843,7 @@ menueReiter({ id: 'tiere', name: 'Tiere', reihe: 45, bauen: () => el('div', { cl
 | pflanzen | Saatgut, Ernte, Wildpflanzen, Strandfunde, Dünger; Wuchsformen; Objekte baum, stumpf; Zeichner fallend | – |
 | angeln | Angel, Fische, Köder; Deko stand; Zeichner angelrute und angeln (Rute, Schnur, Schwimmer, Wellen, Blasenspur, Biss, Fang im Flug; anzeige.js) | – |
 | mine | Erze, Barren, Mineralien, Schwert; Minen-Bänder; Objekte mstein, leiter, schatz; Deko leiter_ab, leiter_auf, aufzug, schwertfund, wandlampe; Monster schleim, fledermaus; Zeichner monster | Fenster aufzug, Statistik tiefste |
-| handwerk | Truhe, Vogelscheuche, Sprenger, Einmachglas, Räucherofen, Marmelade, Eingelegtes, Geräucherter Fisch; Objekte einmachglas, raeucherofen (`raeucherofen.js`, Grafik `raeucherofen-grafik.js`); Fabrik (`fabrik-kunst*.js`): Bauteile und Waren, Objekte vorkommen, foerderband, splitter, zusammenfuehrer, erzbohrer, schmelzer, konstrukteur, assembler, lager, Warensymbole auf dem Band | Fenster truhe (alle Behälter), handwerk_fabrik (Maschinen-Info) |
+| handwerk | Truhe, Vogelscheuche, Sprenger, Einmachglas, Räucherofen, Marmelade, Eingelegtes, Geräucherter Fisch; Objekte einmachglas, raeucherofen (`raeucherofen.js`, Grafik `raeucherofen-grafik.js`); Fabrik (`fabrik-kunst*.js`): Bauteile und Waren, Objekte vorkommen, foerderband, splitter, zusammenfuehrer, erzbohrer, schmelzer, konstrukteur, assembler, lager, Warensymbole auf dem Band; Stufe 2 (`fabrik-strom-grafik.js`): Generatoren, Strommast, Kabel (Zeichner handwerk_strom_kabel), Pumpe, Rohrleitungen, Bänder Mk2/Mk3, Handy-Symbole | Fenster truhe (alle Behälter), handwerk_fabrik (Maschinen-Info), handwerk_strom (Netz), handwerk_rohrnetz; Menüreiter handy |
 | tiere | Eier; Gebäude stall; Deko eierkiste (Bild nach Bestand); Küken-Symbol (Tierbild huhn) für den Laden | Warenbilder kueken, stall |
 | gemeinschaft | Medaille; Gebäude muehle (verfallen/repariert); Deko brett; Zeichner muehlrad | Fenster muehle, brett; Menüreiter aufgaben; Stil gemeinschaft-buendel |
 | npcs, npcs2, feste | – (Figuren und Porträts malt der Kern aus `aussehen`) | – |
@@ -983,9 +986,59 @@ Lager öffnet das Truhenfenster mit Ein- und Ausgang und dem Knopf Drehen. Das I
 Truhe, Versandkiste: sofern Platz). Maschinen und Lager geben an die Felder vor ihrer Ausgangsseite ab (Band, Maschine, Lager,
 Versandkiste), reihum.
 
-**Stufe 2 (Strom) kann ergänzen:** jede Maschine hat `leistung` (MW; `MASCHINEN[t].leistung` und `OBJEKT_TYPEN[t].leistung`,
-`leistungVon(s, ort)` summiert sie, erzwungen wird sie nicht); der Takt läuft über `tempoVon` = Modifikator `fabrikTempo`
-(Kontext `{ s, o, ort, leistung }`, Wert 0..1, Stufe 1 immer 1; bei 0 steht die Maschine mit Status „steht still"); Info-Zeilen über
-`fabrikInfoZeile`. Vorkommen zum Kaufen: je Sorte und Reinheit ein Gegenstand (`vorkommenItem(erz, rein)` →
-`vorkommen_eisen_rein` …, mit `erz` und `rein` im Item), Platzregel wie Aufstellbares, aufgestellt mit `gk: 1` und wieder aufnehmbar;
-Preise je Reinheit stehen in `VORKOMMEN_PREIS`.
+**Stufe 2 (Strom) nutzt das:** `leistung` ist der Bedarf, solange eine Maschine arbeitet; der Takt kommt über `fabrikTempo` aus dem
+Stromnetz (Abschnitt 13), die Info-Zeile „Strom" über `fabrikInfoZeile`, die Vorkommen-Gegenstände verkauft das Handy.
+
+
+## 13. Fabrik Stufe 2: Strom, Rohrleitungen, Handy (Bereich handwerk, `fabrik-strom*.js`, `fabrik-rohre*.js`, `fabrik-handy*.js`)
+
+Satisfactory-Mechanik ohne Kernänderung. Je eine Importzeile in `handwerk/inhalt.js` (`fabrik-strom-inhalt.js`), `grafik.js`
+(`fabrik-strom-grafik.js`) und `oberflaeche.js` (`fabrik-strom-oberflaeche.js`). Alle Zahlen: `fabrik-strom-daten.js` (`STROM`,
+`GENERATOREN`, `PUMPE`, `ROHR`, `STROM_VERBRAUCHER`, `FREISCHALT_STROM`, `HANDY_PREISE`, `HANDY_GRUPPEN`, `HANDY_MENGEN`, `STARTER`);
+Bandstufen `BAND_TEMPO` in `fabrik-daten.js`.
+
+| Datei | Inhalt |
+|---|---|
+| `fabrik-strom-daten.js` | Zahlen, Gegenstände (Bänder Mk2/Mk3, Biomasse-Brenner, Kohlekraftwerk, Wasserrad, Strommast, Wasserpumpe, Rohrleitung Mk1/Mk2, Stromkabel mit `werkzeug: 'handwerk_kabel'`, Handy mit `werkzeug: 'handwerk_handy'`), Bastelrezepte ab Bergbau 4–7; trägt Biomasse-Brenner und Kohlekraftwerk als Maschinen in `MASCHINEN` ein (Brennstoff als Rezept ohne Ergebnis, `zeit = Brennwert / Leistung`, `puffer`) |
+| `fabrik-strom.js` | Zustand `s.fabrik.strom`, Netze (Union-Find über die Kabel, Cache je Karte), Strom-Schritt, Sicherung, Kabel verlegen/lösen, Modifikator `fabrikTempo`, Abfragen für Fenster und Kunst (`anschlussStatus`, `netzUebersicht`) |
+| `fabrik-rohre.js` | Rohrnetze (Cache je Karte), Wasser-Schritt, Objekte `rohrleitung` (begehbar) und `wasserpumpe`, Ufer-Platzregel, Rohr-Info |
+| `fabrik-handy.js` | Katalog, Kauf (`handyKaufen`, `vorkommenKaufen`, `hoechstens`), Paketfach |
+| `fabrik-strom-objekte.js` | Objekte `strommast`, `biomassebrenner`, `kohlekraftwerk`, `wasserrad`; Kabel-Werkzeug (`kabelWaehlen`), Handy-Werkzeug, Info-Zeile, Starterpaket und Briefe, System `handwerk-strom` (`ergaenzen`, `neuesSpiel`, `karteBetreten`, `vorVerkauf`) |
+| `fabrik-strom-kunst.js`, `fabrik-rohre-kunst.js`, `fabrik-handy-kunst.js` | Pixelkunst: Gegenstände, Mast mit Statuslampe, Brenner (Glut, Rauch), Kraftwerk (Kühlturm, Dampf, Tankanzeige, Fenster nachts), Wasserrad (dreht sich), Pumpe (Kolben, Saugrohr zur Wasserseite), Rohre mit Verbindungsbild und Fluss; Zeichner `handwerk_strom_kabel` (Ebene `ueber`, Kabel mit Durchhang, nachts dezent, Vorschau beim Verlegen); Lichtquelle der arbeitenden Generatoren; Symbole der Handy-Apps |
+| `fabrik-strom-fenster.js`, `fabrik-handy-fenster.js` | Fenster `handwerk_strom` (Netz), `handwerk_rohrnetz` (Rohre, Pumpe); Menüreiter `handy` (Reihe 85) |
+
+**Zustand** (Format v2, JSON): `s.fabrik.strom = { frist, starter, kabel: { <karte>: [[a, b, n]…] } }` – `a`, `b` = `"x,y"` der
+Hauptobjekte, `n` = verbaute Kabel (kommen beim Lösen zurück). `s.fabrik.paket = [{ id, n }]` (Paketfach), `s.fabrik.handy = 1`
+(ausgegeben), `s.fabrik.handyPost` (Handy lag im Paketfach). In Objekten: Generatoren `fl` (Sicherung geflogen), Kraftwerk `wa`
+(Wasser im Tank, m³), Rohr `{ mk?, fl, dq, da }` (Wasser m³, Zu-/Abfluss m³/min gleitend), Pumpe und Wasserrad `st`, Band `mk`.
+`ergaenzen` glättet alles (kaputte Kabel fallen weg, `frist` wird Zahl).
+
+**Ein Schritt** (`fabrikSchrittVorher` in `fabrik-sim.js`; läuft in jedem `schritt`, also live, beim Nachholen und über Nacht, auch
+auf Karten ohne Bänder): zuerst Strom, dann Wasser, dann Bänder und Maschinen wie in Stufe 1.
+* *Strom:* je Netz Kapazität = Generatoren, die liefern können (Brennstoff in Arbeit oder im Eingang, Kraftwerk mit Wasser; Wasserrad
+  immer); Bedarf = Verbraucher, die arbeiten wollen (`willArbeiten`: Rezept kann starten und Ausgang hat Platz, Bohrer mit Platz im
+  Puffer, Pumpe mit Platz im Rohrnetz – `stromWill`). Bedarf > Kapazität > 0 → `fl` an allen Generatoren, das Netz steht, bis
+  `sicherungEin`. Kapazität 0 → kein Strom ohne Sicherung. Sonst Takt 1 für die Verbraucher und Auslastung = Bedarf/Kapazität als
+  Takt der Generatoren: die Rezept-Mechanik verbrennt dann genau Leistung·Auslastung·dt MJ; das Kraftwerk zieht
+  `wasser/60·Auslastung·dt` m³ aus dem Tank. Verbraucher ohne Kabel: Takt 1 in der Übergangszeit, sonst 0.
+* *Wasser:* je Rohrnetz (Rohre über die 4er-Nachbarschaft; Pumpen und Kraftwerke an jeder Seite gehören dazu) Zufluss = min(Pumpen
+  · Strom-Takt, freies Volumen, Grenze·dt), Abfluss = min(Inhalt, Grenze·dt, freier Tankplatz) anteilig auf die Tanks; der Inhalt
+  wird gleich auf die Rohre verteilt. Grenze = schwächstes Rohr (300 bzw. 600 m³/min).
+* Der Takt geht über `fabrikTempo` an die Fabrik (`tempoVon`); ohne Strom-Zustand bleibt er 1.
+
+**Kabel:** Reichweite `STROM.kabelReichweite` = 10 Felder Mitte zu Mitte, Kosten ein Kabel je angefangenes Feld (Kupferdraht als
+Ersatz), Anschlüsse `STROM.anschluesse` (Mast 4, Generatoren und Assembler 2, sonst 1). Das Werkzeug ist eine `werkzeugArt` mit
+`benutzen`, damit es vor dem Befüllen (`einlegen`) einer Maschine greift. Beim Aufheben lösen sich alle Kabel des Teils (Hook
+`fabrikBeimAufheben` in `fabrik-objekte.js`), die Kabel kommen zurück.
+
+**Übergang für alte Stände und den Einstieg (entschieden):** `frist` = Tag des ersten Ladens mit Stufe 2 (neues Spiel: Tag 1)
++ 6 – sieben Tage laufen Maschinen ohne Netz weiter („Übergangsstrom aus dem Dorf", im Info-Fenster und im Handy mit Resttagen);
+der Morgenbericht sagt, wann er endet. Sobald es irgendwo eine Maschine mit Strombedarf gibt, liegt einmal das Starterpaket im
+Paketfach (Brief `handwerk_strom_starter`). Maschinen mit Kabel folgen immer ihrem Netz.
+
+**Stufe-1-Dateien, die Stufe 2 erweitert** (klein und allgemein, alles in handwerk): `fabrik-daten.js` (`BAND_TEMPO`,
+`bandTempoVon`, Texte), `fabrik-sim.js` (`fabrikSchrittVorher`, `aenderungsStand`, Bandtempo je Stufe auch beim Abgeben, `puffer`
+in `zutatenGrenze`, kleinere Nachhol-Schritte bei schnellen Bändern: höchstens 0,9 Felder je Schritt), `fabrik-objekte.js`
+(`BAU_TYPEN` für Vorschau und Aufstellen weiterer Typen, `fabrikBeimAufheben`, `itemVonObjekt`, Bandstufe beim Legen, `blickR` und
+`platzPruefen` exportiert), `fabrik-info.js` (Leistung ohne „noch ohne Stromnetz"), `fabrik-kunst-objekte.js` (Bandfarbe und
+-tempo je Stufe). **Kernänderungen: keine.**

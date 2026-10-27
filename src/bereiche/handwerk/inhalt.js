@@ -9,6 +9,7 @@ import './raeucherofen.js';
 import './fischfarm.js'; // Fischfarm: Item, Rezept, Objekt (eigene Datei)
 import './rohre.js'; // Holzrohre: Rohrnetz von Kisten zur Versandkiste
 import './fabrik-inhalt.js'; // Fabrik: Vorkommen, Förderbänder, Maschinen (fabrik-*.js)
+import './fabrik-strom-inhalt.js'; // Fabrik Stufe 2: Stromnetz, Rohrleitungen, Handy (fabrik-strom*.js, fabrik-rohre*.js, fabrik-handy*.js)
 
 kategorie('artisan', 'Handwerksware');
 kategorie('platz', 'Aufstellbar');

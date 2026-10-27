@@ -1,5 +1,6 @@
 // Bereich „handwerk" – Fabrik: was das Info-Fenster einer Maschine zeigt (DOM-frei, damit Tests es lesen).
-// Erweiterbar: `fabrikInfoZeile(fn)` hängt eine Zeile an (fn(o, s) → [Bezeichnung, Wert] oder null), z. B. „Strom: …".
+// Erweiterbar: `fabrikInfoZeile(fn)` hängt eine Zeile an (fn(o, s) → [Bezeichnung, Wert] oder null), z. B. „Strom: …"
+// (fabrik-strom.js).
 
 import { ITEMS } from '../../daten.js';
 import { FABRIK, MASCHINEN, RICHTUNGEN, SORTEN, reinName } from './fabrik-daten.js';
@@ -84,7 +85,8 @@ export function maschinenInfo(o, s) {
     const r = def.rezepte[o.arb];
     info.zeilen.push(['Fortschritt', `${Math.min(100, Math.round(((o.f || 0) / r.zeit) * 100))} %`]);
   }
-  info.zeilen.push(['Leistung', `${def.leistung} MW (noch ohne Stromnetz)`]);
+  if (def.leistung) info.zeilen.push(['Leistung', `${def.leistung} MW, solange sie arbeitet`]);
+  else info.zeilen.push(['Leistung', 'braucht keinen Strom']);
   for (const fn of ZEILEN) {
     const z = fn(o, s);
     if (z) info.zeilen.push(z);

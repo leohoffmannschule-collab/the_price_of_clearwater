@@ -856,7 +856,8 @@ test('alter Stand ohne Fabrik: Format v2 bleibt gültig, die Fabrik und ihre Vor
   const roh = JSON.parse(text);
   assert.equal(roh.fabrik, undefined);
   const s = L.deserialisieren(text);
-  assert.deepEqual(Object.keys(s.fabrik).sort(), ['t', 'vk', 'vkb', 'zeit']);
+  // Stufe 1: t, vk, vkb, zeit; Stufe 2 (fabrik-strom*.js): strom, paket, handy
+  assert.deepEqual(Object.keys(s.fabrik).filter((k) => !['strom', 'paket', 'handy'].includes(k)).sort(), ['t', 'vk', 'vkb', 'zeit']);
   assert.equal(s.fabrik.t, 0);
   // jeder Stand ohne s.fabrik, mitten im Spiel gespeichert
   const { s: n } = neues();

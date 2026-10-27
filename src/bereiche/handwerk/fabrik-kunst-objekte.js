@@ -10,7 +10,7 @@ import { zeichner } from '../../render.js';
 import { T } from '../../daten.js';
 import { S } from '../../spiel.js';
 import { bauVorschau } from './fabrik-objekte.js';
-import { SORTEN } from './fabrik-daten.js';
+import { SORTEN, bandTempoVon } from './fabrik-daten.js';
 import { STAHL, STAHL_H, STAHL_D, STAHL_DD, GELB, ORANGE, Pr, platte, anschluesse, schnee, miniBild } from './fabrik-kunst.js';
 
 const winter = (k) => k?.jz === 'winter';
@@ -24,15 +24,20 @@ function walze(s, frame) {
   return m < 1 ? '#555a65' : m < 2 ? '#41454f' : '#34373f';
 }
 
+/** Schienenfarben je Bandstufe: Mk1 Stahl, Mk2 Gelb, Mk3 Blau (Kante innen, Kante außen). */
+const BAND_KANTE = { 1: ['#a9b0bb', STAHL], 2: ['#f2d070', '#c89a2a'], 3: ['#8ac8f0', '#3a7ab8'] };
+
 /** Band in „vorn = oben"-Koordinaten, dann um r gedreht. kv: 0 gerade, −1 Kurve von links, +1 Kurve von rechts. */
-function bandFlaeche(g, r, kv, frame, schneit) {
+function bandFlaeche(g, r, kv, frame, schneit, mk = 1) {
+  const [kh, km] = BAND_KANTE[mk] ?? BAND_KANTE[1];
+  const kd = mk > 1 ? dunkel(km, 0.25) : STAHL_D;
   const spiegel = kv > 0;
   const f = (x, y, c) => Pr(g, 16, r, spiegel ? 15 - x : x, y, c);
   if (!kv) {
     for (let y = 0; y < 16; y++) {
       const c = walze(15 - y, frame);
       for (let x = 2; x < 14; x++) f(x, y, c);
-      f(0, y, '#a9b0bb'); f(1, y, STAHL); f(14, y, STAHL_D); f(15, y, STAHL_DD);
+      f(0, y, kh); f(1, y, km); f(14, y, kd); f(15, y, STAHL_DD);
     }
     for (const y of [3, 11]) { f(0, y, STAHL_D); f(15, y, STAHL_D); }
     for (const [x, y] of [[7, 6], [8, 6], [6, 7], [9, 7], [5, 8], [10, 8]]) f(x, y, '#8a7a3a');
@@ -40,9 +45,9 @@ function bandFlaeche(g, r, kv, frame, schneit) {
     for (let y = 0; y < 16; y++) {
       for (let x = 0; x < 16; x++) {
         const d = Math.hypot(x + 0.5, y + 0.5);
-        if (d < 2) f(x, y, x + y === 0 ? '#a9b0bb' : STAHL);
+        if (d < 2) f(x, y, x + y === 0 ? kh : km);
         else if (d <= 14) f(x, y, walze((Math.PI / 2 - Math.atan2(y + 0.5, x + 0.5)) * 8, frame));
-        else if (d < 15) f(x, y, STAHL_D);
+        else if (d < 15) f(x, y, kd);
         else if (d < 16.2) f(x, y, STAHL_DD);
       }
     }
@@ -69,6 +74,9 @@ export function bandPosition(r, kv, p) {
   }
 }
 
+/** Bild der Walzen (4 Stufen); schnellere Bänder laufen sichtbar schneller (Mk1 wie bisher 24 Bilder/s). */
+const bandFrame = (o, k) => Math.floor(zeit(k) * 16 * bandTempoVon(o)) % 4;
+
 function warenZeichnen(g, lage, o, liste) {
   for (const e of liste) {
     const [cx, cy] = bandPosition(o.r, o.kv || 0, e.p);
@@ -78,8 +86,8 @@ function warenZeichnen(g, lage, o, liste) {
 
 objektKunst('foerderband', {
   b: 16, h: 16, umriss: false, tiefe: -15, wackeln: false,
-  schluessel: (o, k) => `${o.r | 0}:${o.kv || 0}:${Math.floor(zeit(k) * 24) % 4}:${winter(k) ? 1 : 0}`,
-  malen(g, o, k) { bandFlaeche(g, o.r | 0, o.kv || 0, Math.floor(zeit(k) * 24) % 4, winter(k)); },
+  schluessel: (o, k) => `${o.r | 0}:${o.kv || 0}:${bandFrame(o, k)}:${winter(k) ? 1 : 0}:${o.mk || 1}`,
+  malen(g, o, k) { bandFlaeche(g, o.r | 0, o.kv || 0, bandFrame(o, k), winter(k), o.mk || 1); },
   danach(g, o, lage) { if (o.w?.length) warenZeichnen(g, lage, o, o.w); },
 });
 

@@ -115,7 +115,7 @@ und `FISCHFARM_FISCH` in `src/bereiche/handwerk/fischfarm.js`.
 Basteln-Menü K). Auf Hof, Berg, Wald und Strand liegen sichtbare **Vorkommen** (Kupfer, Eisen, Kohle, Stein, selten Gold;
 2×2 Felder) im Steinbruch am Berg, auf der Anhöhe des Hofs und am Rand von Wald und Strand. Ihre Reinheit (unrein 0,5×,
 normal 1×, rein 2×) sieht man an den Brocken und den Punkten darunter. Vorkommen sind unzerstörbar. Der **Erzbohrer** (Bohrer
-in die Hand, auf das Vorkommen benutzen) fördert allein ein Stück je 2 Sekunden mal Reinheit, ohne Strom und ohne Treibstoff.
+in die Hand, auf das Vorkommen benutzen) fördert ein Stück je 2 Sekunden mal Reinheit; wie alle Maschinen braucht er Strom (siehe **Strom**).
 **Förderbänder** zeigen dorthin, wohin du beim Legen schaust; die erste Aktionstaste (oder das erste Antippen) wählt ein Band,
 jede weitere dreht es im Uhrzeigersinn. Spitzhacke oder Axt nimmt es samt Ladung wieder auf (was nicht in den Rucksack passt,
 liegt danach am Boden). Hältst du ein Fabrikteil in der Hand, zeigt eine Vorschau die ganze Fläche mit Ein- und Ausgängen,
@@ -132,7 +132,43 @@ Eingang, Ausgang voll), Durchsatz pro Minute und Inhalt, dreht die Maschine und 
 Info-Fenster zeigt den Überschuss). Mit einer passenden Zutat in der Hand befüllst du Maschinen auch von Hand. In Wohnhäusern
 lässt sich keine Fabrik bauen. Die Fabrik läuft in Echtzeit, solange du auf der Karte bist (ein Fenster oder die Pause hält sie an); auf
 anderen Karten und über Nacht holt sie nach, höchstens 10 Minuten Echtzeit-Äquivalent je Nachholen. Alle Zahlen stehen in
-`src/bereiche/handwerk/fabrik-daten.js`.
+`src/bereiche/handwerk/fabrik-daten.js`. Bänder gibt es in drei Stufen: **Mk1** 1,5 Felder/s, **Mk2** 3 Felder/s, **Mk3**
+5 Felder/s (bis 6, 12 und 20 Waren pro Sekunde; Basteln ab Bergbau 5 und 7 oder im Handy).
+
+**Handy.** Du hast es von Anfang an im Rucksack (letzter Platz der Leiste; ältere Spielstände bekommen es beim Laden, bei vollem
+Rucksack liegt es im Paketfach). Benutzen öffnet es, ebenso Menü › Handy (auf dem Handy-Bildschirm über den Menü-Knopf). Die App
+**Fabrikbedarf** verkauft jederzeit – nachts, in der Mine, unterwegs – alle Fabrikteile gegen Gold: Bänder 0,1 / 0,25 / 0,6 Mio,
+Splitter und Zusammenführer 0,3 Mio, Lager 0,8 Mio, Erzbohrer 2,5 Mio, Schmelzer 2 Mio, Konstrukteur 3 Mio, Assembler 8 Mio,
+Biomasse-Brenner 4 Mio, Wasserrad 1,5 Mio, Kohlekraftwerk 25 Mio, Strommast 0,5 Mio, Stromkabel 0,1 Mio, Wasserpumpe 3 Mio,
+Rohrleitung 0,15 / 0,4 Mio (je Stück). Mengen ×1, ×10, ×100 oder Max; geliefert wird sofort in den Rucksack, und bezahlt wird nur,
+was hineinpasst und was das Gold hergibt. Die App **Vorkommen** liefert ein Vorkommen deiner Wahl: Sorte (Kupfer, Eisen, Kohle,
+Stein, Gold) und Reinheit – unrein 25 Mio, normal 50 Mio, rein 100 Mio. In die Hand nehmen und benutzen stellt es auf (2×2),
+Spitzhacke oder Axt nimmt es wieder auf. Dazu das **Paketfach** (Starterpaket) und **Stromnetz** (Netze der aktuellen Karte).
+Preise: `HANDY_PREISE` in `src/bereiche/handwerk/fabrik-strom-daten.js`.
+
+**Strom.** Wie in Satisfactory: Erzbohrer (5 MW), Schmelzer (4 MW), Konstrukteur (4 MW), Assembler (15 MW) und Wasserpumpe
+(20 MW) brauchen Strom, solange sie arbeiten; Bänder, Splitter, Zusammenführer und Lager nicht. Strom liefern der
+**Biomasse-Brenner** (30 MW; Holz 100 MJ, Hartholz 300 MJ, Faser 15 MJ – vom Band oder aus der Hand, bis 100 Stück Vorrat),
+das **Wasserrad** (6 MW ohne Brennstoff, nur direkt am Wasser) und das **Kohlekraftwerk** (75 MW; Kohle 300 MJ und Wasser
+45 m³/min bei voller Last). Bei Teillast hält ein Brennstoff entsprechend länger (ein Brenner unter voller Last verbrennt 18 Holz
+pro Minute, bei einem Sechstel Last 3). **Kabel** verlegst du mit dem Stromkabel in der Hand: auf den ersten Anschluss benutzen
+(Strommast, Generator, Maschine), dann auf den zweiten; eine gestrichelte Linie zeigt vorher, ob es passt. Ein Kabel ist höchstens
+10 Felder lang und kostet je angefangenes Feld ein Stromkabel (fehlen welche, Kupferdraht). Ein **Strommast** hat 4 Anschlüsse,
+Generatoren und der Assembler 2, alle anderen Maschinen 1. Was über Kabel zusammenhängt, ist ein Netz. Will das Netz mehr
+Leistung, als die Generatoren gerade liefern können, **fliegt die Sicherung**: das ganze Netz steht, bis du sie im Netzfenster
+(Aktionstaste am Mast oder Generator) wieder einschaltest – und das hält nur, wenn der Verbrauch passt. Das Netzfenster zeigt
+Erzeugung, Verbrauch, Kapazität, Höchstbedarf, Brennstoff, Wassertank und die Kabel (zum Lösen); das Info-Fenster jeder Maschine
+zeigt ihren Strom. Alles läuft auch beim Nachholen auf anderen Karten und über Nacht mit; eine geflogene Sicherung steht morgens
+im Bericht. **Übergang:** Damit ältere Fabriken nicht schlagartig stehen, laufen Maschinen ohne Netz noch 7 Tage mit
+„Übergangsstrom aus dem Dorf" (ab dem ersten Laden, bei neuen Spielen ab Spielbeginn). Sobald es die erste Maschine gibt, liegt
+einmal ein Starterpaket im Paketfach (Biomasse-Brenner, 2 Strommasten, 30 Kabel, 60 Holz), dazu ein Brief von Bruno.
+
+**Rohrleitungen.** Für Wasser (die Holzrohre für Waren sind etwas anderes). Die **Wasserpumpe** steht direkt am Ufer und fördert
+120 m³/min in angrenzende Rohrleitungen. Rohre verbinden sich mit ihren Nachbarn, mit Pumpen und mit dem Kohlekraftwerk (jede
+Seite); man kann darüber gehen. Ein Rohrnetz ist ein Behälter (1 m³ je Rohr) mit Zu- und Abfluss; **Mk1** schafft 300 m³/min,
+**Mk2** 600 m³/min, und ein Netz ist so stark wie sein schwächstes Rohr. Ist das Netz voll, steht die Pumpe und zieht keinen
+Strom. Fließt Wasser, sieht man es im Rohr; die Aktionstaste am Rohr oder an der Pumpe zeigt Füllstand, Zu- und Abfluss und die
+Grenze. Die Pumpe braucht selbst Strom: Ein Kohlekraftwerk fährt man mit einem Biomasse-Brenner oder Wasserrad im selben Netz an.
 
 **Fähigkeiten.** Landwirtschaft, Angeln, Sammeln, Bergbau und Kampf steigen bis Stufe 10
 und machen Werkzeuge sparsamer, Ernten besser, die Wartezeit beim Angeln kürzer und die Gesundheit größer.
@@ -203,7 +239,7 @@ tools/server.mjs Kleiner Dateiserver
 
 ```bash
 npm test                 # alle Tests in Node (test/alle.mjs)
-npm run test:browser     # Rauchtest im Browser (Playwright, optional CHROMIUM=/pfad/zu/chrome)
+npm run test:browser     # Browser-Tests (Rauchtest, Angeln, Räucherofen, Fischfarm, Hühner, Fabrik, Strom; Playwright, optional CHROMIUM=/pfad/zu/chrome)
 ```
 
 ### Karten bearbeiten

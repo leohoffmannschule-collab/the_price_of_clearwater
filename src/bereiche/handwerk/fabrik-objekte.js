@@ -17,7 +17,7 @@ const ORTE = ['berg', 'wald', 'strand'];
 export const fabrikErlaubt = (def) => !def.zuhause && !!(def.farmbar || def.aufstellen || ORTE.includes(def.id));
 
 /** Blickrichtung der Spielerin als r (beim Legen); ohne laufendes Spiel: rechts. */
-function blickR() {
+export function blickR() {
   return S.s && S.sp ? rVonBlick(S.sp.blick) : 1;
 }
 
@@ -35,7 +35,7 @@ function spielerImFeld(ort, x, y, b, h) {
 }
 
 /** Platzregel: freie Fläche b×h auf einer erlaubten Karte (Bänder dürfen auf Belag, der Rest nicht). */
-function platzPruefen({ s, ort, x, y }, b, h, belagOk) {
+export function platzPruefen({ s, ort, x, y }, b, h, belagOk) {
   const { def, welt: w } = ort;
   if (!fabrikErlaubt(def)) return def.zuhause ? 'Im Haus ist kein Platz für eine Fabrik.' : 'Hier lässt sich keine Fabrik bauen. Auf dem Hof, am Berg, im Wald und am Strand geht es.';
   for (let dy = 0; dy < h; dy++) {
@@ -50,11 +50,14 @@ function platzPruefen({ s, ort, x, y }, b, h, belagOk) {
 
 // ─── Aufstellen in Blickrichtung und Vorschau ───────────────────────────────
 
+/** Weitere Objekttypen mit Vorschau und Aufstellen in Blickrichtung (Strommast, Pumpe, Rohrleitung …: fabrik-strom*.js). */
+export const BAU_TYPEN = new Set();
+
 /** Objekttyp, den ein Gegenstand aufstellt (oder null). */
 export function bauTyp(it) {
   if (!it?.aufstellbar) return null;
   const t = typeof it.aufstellbar === 'string' ? it.aufstellbar : it.id;
-  return MASCHINEN[t] || t === BAND || t === SPLITTER || t === MERGER || t === 'vorkommen' ? t : null;
+  return MASCHINEN[t] || t === BAND || t === SPLITTER || t === MERGER || t === 'vorkommen' || BAU_TYPEN.has(t) ? t : null;
 }
 const flaeche = (t) => OBJEKT_TYPEN[t]?.flaeche ?? [1, 1];
 
@@ -87,6 +90,7 @@ export function bauVorschau(s, ort, x, y, blick, slot) {
   const p = OBJEKT_TYPEN[t].platz({ s, ort, x: a.x, y: a.y, kk: L.k(a.x, a.y), slot, it });
   const o = { t, r };
   if (t === 'vorkommen') Object.assign(o, { erz: it.erz, rein: it.rein });
+  if (it.mk > 1) o.mk = it.mk;
   return { t, ...a, b, h, r, ok: p === true, grund: p === true ? null : p, o };
 }
 
@@ -123,6 +127,13 @@ export function inhaltVon(o) {
 
 const istLeitung = (o) => o.t === BAND || o.t === SPLITTER || o.t === MERGER;
 
+/** Gegenstand, den ein Fabrikobjekt beim Aufheben zurückgibt (Bänder nach Stufe). */
+export const itemVonObjekt = (o) => (o.t === BAND && o.mk > 1 ? `foerderband_mk${o.mk}` : o.t);
+
+/** Erweiterung: fn(c) läuft, nachdem ein Fabrikobjekt aufgehoben wurde (der Strom löst dann seine Kabel). */
+const BEIM_AUFHEBEN = [];
+export function fabrikBeimAufheben(fn) { BEIM_AUFHEBEN.push(fn); }
+
 /**
  * Fabrikobjekt einsammeln (Spitzhacke/Axt). Das Objekt kommt in den Rucksack, der Inhalt ebenfalls.
  * Maschinen und Lager: nur, wenn alles hineinpasst, sonst bleibt alles stehen. Bänder: was nicht mehr hineinpasst,
@@ -130,7 +141,7 @@ const istLeitung = (o) => o.t === BAND || o.t === SPLITTER || o.t === MERGER;
  */
 export function fabrikAufheben(c) {
   const { s, ort, x, y, o, erg } = c;
-  const itemId = o.t;
+  const itemId = itemVonObjekt(o);
   const waren = inhaltVon(o);
   const kopie = s.spieler.inv.map((z) => (z ? { ...z } : null));
   if (L.inBehaelter(kopie, { id: itemId, n: 1 }) > 0) { erg.grund = 'Dein Rucksack ist voll.'; return true; }
@@ -147,6 +158,7 @@ export function fabrikAufheben(c) {
   L.geben(s, ort, x, y, { id: itemId, n: 1 }, erg);
   for (const w of waren) L.geben(s, ort, x, y, w, erg); // Rest als Fund auf den Boden (erg.voll)
   erg.treffer = 'aufheben';
+  for (const fn of BEIM_AUFHEBEN) fn(c);
   fabrikAenderung();
   return true;
 }
@@ -229,7 +241,12 @@ export function leitungBedienen({ ort, x, y, o }) {
 const leitung = (name) => ({
   ...abbauen,
   platz: (c) => platzPruefen(c, 1, 1, true),
-  anlegen(o) { o.r = blickR(); if (o.t === BAND) o.w = []; else { o.pf = null; o.nx = 0; } uhrStarten(); fabrikAenderung(); },
+  anlegen(o, slot) {
+    o.r = blickR();
+    if (o.t === BAND) { o.w = []; const mk = ITEMS[slot?.id]?.mk; if (mk > 1) o.mk = mk; } else { o.pf = null; o.nx = 0; }
+    uhrStarten();
+    fabrikAenderung();
+  },
   interagieren: leitungBedienen,
   hinweis({ s, ort, x, y, o }) {
     const was = istGewaehlt(ort, x, y) ? `${name} drehen ↻` : `${name} wählen (zeigt ${RICHTUNGEN[o.r | 0]})`;
