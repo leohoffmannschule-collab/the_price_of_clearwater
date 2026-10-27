@@ -306,9 +306,14 @@ export function erwartet(...ids) {
 }
 
 export const ITEM_BENUTZEN = [];
-/** Gegenstand aus der Hand benutzen: der erste Handler, dessen pruefen(ctx) stimmt, läuft. */
-export function itemBenutzen(pruefen, fn) {
-  ITEM_BENUTZEN.push({ pruefen, fn });
+/**
+ * Gegenstand aus der Hand benutzen: der erste Handler, dessen pruefen(ctx) stimmt, läuft.
+ * `{ vorn: true }` stellt den Handler vor die bisherigen (ein Bereich übernimmt einen Sonderfall eines anderen,
+ * z. B. große Bauteile, die in Blickrichtung aufgestellt werden).
+ */
+export function itemBenutzen(pruefen, fn, opt = {}) {
+  if (opt.vorn) ITEM_BENUTZEN.unshift({ pruefen, fn });
+  else ITEM_BENUTZEN.push({ pruefen, fn });
 }
 
 // ─── Fertig-Phase ───────────────────────────────────────────────────────────

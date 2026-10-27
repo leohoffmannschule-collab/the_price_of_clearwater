@@ -40,6 +40,7 @@ export const BEKANNTE_MODIFIKATOREN = [
   'energieKosten', 'laufTempo', 'verkaufspreis', 'xp', 'ernteQualitaet', 'wachstum',
   'bissZeit', 'bissFenster', 'schatzChance', 'schaden', 'verteidigung', 'maxEnergie', 'maxGesundheit',
   'glueck', 'erzMenge', 'stufe', 'sammelRadius',
+  'fabrikTempo', // (handwerk, Fabrik) Taktfaktor 0..1 einer Maschine; Kontext { s, o, ort, leistung }
 ];
 
 export const SYSTEME = [];

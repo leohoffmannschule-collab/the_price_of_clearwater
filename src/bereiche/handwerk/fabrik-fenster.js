@@ -54,7 +54,7 @@ fensterArt('handwerk_fabrik', (d) => {
     }))
     : null;
   return fensterRahmen(info.name, el('div', { class: 'fabrik-info' },
-    el('div', { class: 'fabrik-status' }, el('span', { class: `fabrik-led ${STATUS_KLASSE[info.status] ?? ''}` }), el('strong', {}, info.status)),
+    el('div', { class: 'fabrik-status' }, el('span', { class: `fabrik-led ${info.code ?? STATUS_KLASSE[info.status] ?? ''}` }), el('strong', {}, info.status)),
     el('dl', { class: 'fabrik-zeilen' },
       el('dt', {}, 'Durchsatz'), el('dd', {}, `${info.durchsatz} pro Minute`),
       info.zeilen.map(([a, b]) => [el('dt', {}, a), el('dd', {}, b)])),

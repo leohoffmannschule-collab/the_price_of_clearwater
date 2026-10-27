@@ -21,17 +21,19 @@ export const FABRIK = {
   bandTempo: 1.5, // Felder pro Sekunde
   abstand: 0.25, // kleinster Abstand zweier Waren auf einem Band (Feld = 1) → höchstens 4 je Feld
   maxJeFeld: 4,
-  teilerZeit: 0.15, // Splitter/Zusammenführer halten eine Ware so lange
+  ausgabeRate: 8, // Maschinen und Lager geben höchstens so viel pro Sekunde und Ausgangsfeld ab
+  ueberlaufMax: 999, // eine ausgehungerte Maschine nimmt eine Zutat bis hierhin über ihre Grenze an (gemischte Bänder)
   bohrerZeit: 2, // Sekunden je Stück bei normaler Reinheit
   bohrerPuffer: 4, // Stücke im Ausgang des Bohrers
   ausPuffer: 24, // Stücke im Ausgang von Schmelzer, Konstrukteur, Assembler
   lagerFaecher: 48,
+  drehFenster: 4, // Sekunden: so lange bleibt ein Band gewählt; jede weitere Aktion dreht es
   schritt: 0.1, // größter Schritt im Echtzeit-Betrieb (s)
   nachholSchritt: 0.5, // Schritt beim Nachholen (s)
   nachholMax: 600, // höchstens so viel Echtzeit-Äquivalent (s) wird je Nachholen nachgeholt
   budgetMs: 4, // Zeitbudget für Rückstand je Bild (ms)
   sekProMinute: MS_PRO_MINUTE / 1000, // Spielminute in Echtzeit-Sekunden
-  durchsatzFenster: 10, // Sekunden für „Durchsatz pro Minute"
+  durchsatzFenster: 60, // Zeitkonstante (s) des gleitenden Mittels für „Durchsatz pro Minute"
 };
 
 /** Vorkommen: Sorten (Erz → Gegenstand) und Reinheit (Ausbeute-Faktor). */
@@ -114,12 +116,16 @@ bauteil('schmelzer', 'Schmelzer', 'Erz und Kohle zu Barren: 5 Erz + 1 Kohle erge
 bauteil('konstrukteur', 'Konstrukteur', 'Ein Eingang, ein Ausgang. Rezept wählbar: Draht, Platte, Schraube, Zahnrad.');
 bauteil('assembler', 'Assembler', 'Zwei Zutaten zu einem Bauteil: Maschinenteil oder Antriebseinheit. Rezept wählbar.');
 
+/** Gegenstand eines Vorkommens je Sorte und Reinheit (für den Kauf in Stufe 2; aufgestellt wieder aufnehmbar). */
+export const vorkommenItem = (erz, rein = 1) => `vorkommen_${erz}_${reinName(rein)}`;
 for (const id of Object.keys(SORTEN)) {
-  item(`vorkommen_${id}`, {
-    name: `${SORTEN[id].name}-Vorkommen`, kat: 'platz', bild: { art: 'vorkommen', f: SORTEN[id].farbe, sorte: id },
-    aufstellbar: 'vorkommen', verkaufbar: false, stapel: true,
-    text: 'Ein Rohstoffvorkommen (2×2 Felder) für den Hof. Darauf kann ein Erzbohrer stehen.',
-  });
+  for (const [rn, f] of Object.entries(REINHEIT)) {
+    item(vorkommenItem(id, f), {
+      name: `${SORTEN[id].name}-Vorkommen (${rn})`, kat: 'platz', bild: { art: 'vorkommen', f: SORTEN[id].farbe, rein: f },
+      aufstellbar: 'vorkommen', verkaufbar: false, erz: id, rein: f,
+      text: `Ein Rohstoffvorkommen (2×2 Felder, Ausbeute ${String(f).replace('.', ',')}×). Darauf kann ein Erzbohrer stehen; mit Spitzhacke oder Axt wieder aufnehmen.`,
+    });
+  }
 }
 
 // ─── Bastelrezepte (gestaffelt) ─────────────────────────────────────────────

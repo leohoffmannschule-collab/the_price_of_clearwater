@@ -5,19 +5,19 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import '../src/bereiche/inhalt.js';
-import { ITEMS, REZEPTE, OBJEKT_TYPEN, STAPEL_MAX } from '../src/daten.js';
+import { ITEMS, REZEPTE, OBJEKT_TYPEN, STAPEL_MAX, ITEM_BENUTZEN, BELAG_TYPEN } from '../src/daten.js';
 import { KARTEN } from '../src/karten.js';
 import * as L from '../src/logik.js';
 import { S } from '../src/spiel.js';
-import { modifikator } from '../src/system.js';
+import { modifikator, BEKANNTE_MODIFIKATOREN } from '../src/system.js';
 import {
   FABRIK, MASCHINEN, SORTEN, PREISE, FREISCHALT, VORKOMMEN_PREIS, SCHMELZ_REZEPTE, KONSTRUKTEUR_REZEPTE, ASSEMBLER_REZEPTE,
 } from '../src/bereiche/handwerk/fabrik-daten.js';
-import { schritt, simuliere, warenSumme, fabrikAenderung, leistungVon, tempoVon, cacheVon } from '../src/bereiche/handwerk/fabrik-sim.js';
+import { schritt, simuliere, warenSumme, fabrikAenderung, leistungVon, tempoVon, cacheVon, bandStau } from '../src/bereiche/handwerk/fabrik-sim.js';
 import { maschinenInfo, fabrikInfoZeile } from '../src/bereiche/handwerk/fabrik-info.js';
-import { fabrikAufheben, rezeptWaehlen, ausgangLeeren, maschineDrehen } from '../src/bereiche/handwerk/fabrik-objekte.js';
+import { fabrikAufheben, rezeptWaehlen, ausgangLeeren, maschineDrehen, bauVorschau, befuellen, lagerOeffnen, fabrikErlaubt } from '../src/bereiche/handwerk/fabrik-objekte.js';
 import { fabrikZustand, nachholen, nacht } from '../src/bereiche/handwerk/fabrik-system.js';
-import { vorkommenAnlegen, erreichbarePunkte, ANLAGE } from '../src/bereiche/handwerk/fabrik-vorkommen.js';
+import { vorkommenAnlegen, erreichbarePunkte, ANLAGE, ABRAUM } from '../src/bereiche/handwerk/fabrik-vorkommen.js';
 
 let bestanden = 0;
 let fehlgeschlagen = 0;
@@ -89,7 +89,7 @@ test('alle Bauteile und Waren sind Gegenstände; Bauteile aufstellbar mit Objekt
     assert.ok(OBJEKT_TYPEN[id], id);
   }
   for (const id of Object.keys(PREISE)) assert.equal(ITEMS[id].preis, PREISE[id]);
-  for (const id of Object.keys(SORTEN)) assert.ok(ITEMS[`vorkommen_${id}`].aufstellbar);
+  for (const id of Object.keys(SORTEN)) for (const rn of ['unrein', 'normal', 'rein']) assert.ok(ITEMS[`vorkommen_${id}_${rn}`].aufstellbar);
 });
 test('Verkaufspreise: Bauteile bringen mehr als ihre Barren, ein Barren wird nie entwertet', () => {
   const barren = (id) => ITEMS[id].preis;
@@ -223,19 +223,20 @@ test('Vorkommen: 2×2-Objekt mit Sorte und Reinheit (0,5 / 1 / 2), unzerstörbar
   assert.ok(erg2.grund);
   assert.equal(ort.welt.objekte[L.k(X0 + 1, Y0)].t, 'teil');
 });
-test('Vorkommen aus dem Rucksack: eigener Gegenstand je Sorte, Platzregel wie Aufstellbares, Reinheit 1× im Objekt', () => {
+test('Vorkommen aus dem Rucksack: eigener Gegenstand je Sorte und Reinheit, Platzregel wie Aufstellbares, Reinheit als Faktor im Objekt', () => {
   const { s, ort } = neues();
   let frei = null;
   for (let y = 8; y < 60 && !frei; y++) for (let x = 8; x < 70 && !frei; x++) if (L.flaecheFrei(s, ort, x, y, 2, 2)) frei = { x, y };
   assert.ok(frei);
-  L.hinzufuegen(s, { id: 'vorkommen_gold', n: 2 });
-  const idx = s.spieler.inv.findIndex((z) => z?.id === 'vorkommen_gold');
+  L.hinzufuegen(s, { id: 'vorkommen_gold_rein', n: 2 });
+  const idx = s.spieler.inv.findIndex((z) => z?.id === 'vorkommen_gold_rein');
   const r = L.aufstellen(s, ort, frei.x, frei.y, idx);
   assert.ok(r.ok, r.grund);
   const o = ort.welt.objekte[L.k(frei.x, frei.y)];
   assert.equal(o.t, 'vorkommen');
   assert.equal(o.erz, 'gold');
-  assert.equal(o.rein, 1);
+  assert.equal(o.rein, 2);
+  assert.equal(o.gk, 1, 'gekauft');
   // auf Beeten und Belag nicht
   ort.welt.felder[L.k(frei.x + 5, frei.y)] = { nass: false };
   assert.ok(L.aufstellen(s, ort, frei.x + 5, frei.y, idx).grund);
@@ -312,8 +313,11 @@ test('Schmelzer nimmt vom Band nur Erz und Kohle an (Rest bleibt auf dem Band), 
   const sm = maschine(ort, X0 + 3, Y0, 'schmelzer', RECHTS);
   let gelegt = 0;
   for (let i = 0; i < 40; i++) { if (auflegen(reihe[0], 'kupfererz')) gelegt++; simuliere(s, ort, 0.2, { schritt: 0.1 }); }
-  assert.equal(sm.ein.kupfererz, 3 * 5, 'Grenze 3× Bedarf');
-  assert.equal(sm.ein.kupfererz + reihe.reduce((n, b) => n + b.w.length, 0), gelegt, 'Rest staut auf dem Band');
+  // ohne Kohle ist der Schmelzer ausgehungert: er nimmt Erz über die Grenze (3× Bedarf) hinaus, nichts geht verloren
+  assert.ok(sm.ein.kupfererz > 3 * 5, `über die Grenze: ${sm.ein.kupfererz}`);
+  assert.equal(sm.ein.kupfererz + reihe.reduce((n, b) => n + b.w.length, 0), gelegt, 'nichts verloren');
+  assert.ok(maschinenInfo(sm, s).zeilen.some(([a]) => a === 'Überschuss'), 'Info zeigt den Überschuss');
+  assert.match(maschinenInfo(sm, s).status, /es fehlt Kohle/);
   reihe.forEach((b) => { b.w = []; });
   auflegen(reihe[0], 'hartholz');
   simuliere(s, ort, 5, { schritt: 0.1 });
@@ -655,7 +659,7 @@ test('Band aufheben: Band und Ware zurück in den Rucksack, nichts doppelt (Summ
   assert.equal(L.anzahl(s, 'foerderband'), 1);
   assert.equal(L.anzahl(s, 'kohle'), 2);
 });
-test('Band aufheben bei vollem Rucksack bis auf den Platz für das Band: Rest fällt weg, kein Duplikat', () => {
+test('Band aufheben bei vollem Rucksack bis auf den Platz für das Band: der Rest liegt als Fund am Boden, kein Duplikat', () => {
   const { s, ort } = neues();
   s.spieler.inv = s.spieler.inv.map((_, i) => (i === 0 ? null : { id: 'holz', n: 1 }));
   s.spieler.inv[1] = { id: 'kohle', n: STAPEL_MAX - 1 }; // ein Stück Platz für Kohle
@@ -665,8 +669,10 @@ test('Band aufheben bei vollem Rucksack bis auf den Platz für das Band: Rest f�
   const vorher = L.anzahl(s, 'kohle');
   fabrikAufheben({ s, ort, x: X0, y: Y0, o: b, erg });
   assert.equal(L.anzahl(s, 'foerderband'), 1);
-  assert.ok(L.anzahl(s, 'kohle') - vorher <= 2);
-  assert.equal(ort.welt.funde.length, 0, 'nichts auf den Boden');
+  const amBoden = ort.welt.funde.reduce((n, f) => n + (f.slot.id === 'kohle' ? f.slot.n : 0), 0);
+  assert.equal(L.anzahl(s, 'kohle') - vorher + amBoden, 2, 'beide Kohlen: Rucksack + Boden');
+  assert.equal(amBoden, 1);
+  assert.ok(erg.voll);
 });
 test('Maschine aufheben: nur wenn der Inhalt zurückgegeben werden kann, sonst bleibt alles stehen', () => {
   const { s, ort } = neues();
@@ -716,9 +722,10 @@ test('Band drehen im Uhrzeigersinn mit der Aktionstaste', () => {
   const { s, ort } = neues();
   const b = band(ort, X0, Y0, OBEN);
   const gesehen = [];
-  for (let i = 0; i < 4; i++) { OBJEKT_TYPEN.foerderband.interagieren({ s, ort, o: b }); gesehen.push(b.r); }
-  assert.deepEqual(gesehen, [RECHTS, UNTEN, LINKS, OBEN]);
-  assert.match(OBJEKT_TYPEN.foerderband.hinweis({ o: b }), /drehen/);
+  assert.match(OBJEKT_TYPEN.foerderband.hinweis({ s, ort, x: X0, y: Y0, o: b }), /Band wählen/);
+  for (let i = 0; i < 5; i++) { OBJEKT_TYPEN.foerderband.interagieren({ s, ort, x: X0, y: Y0, o: b }); gesehen.push(b.r); }
+  assert.deepEqual(gesehen, [OBEN, RECHTS, UNTEN, LINKS, OBEN], 'erst wählen, dann drehen');
+  assert.match(OBJEKT_TYPEN.foerderband.hinweis({ s, ort, x: X0, y: Y0, o: b }), /Band drehen/);
 });
 test('Platzregeln: Bänder auch auf Belag, Maschinen nicht auf Beeten; nicht im Dorf', () => {
   const { s, ort } = neues();
@@ -759,6 +766,7 @@ test('Info-Fenster: Name, Rezept, Status, Durchsatz, Inhalt, Ein- und Ausgang in
   const i = maschinenInfo(k, s);
   assert.equal(i.name, 'Konstrukteur');
   assert.equal(i.status, 'arbeitet');
+  assert.equal(i.code, 'a');
   assert.equal(i.durchsatz, 12);
   assert.equal(i.gewaehlt, 'zahnrad');
   assert.equal(i.rezepte.length, 4);
@@ -769,7 +777,7 @@ test('Info-Fenster: Name, Rezept, Status, Durchsatz, Inhalt, Ein- und Ausgang in
   fabrikInfoZeile((o) => (o === k ? ['Strom', '4 MW'] : null));
   assert.ok(maschinenInfo(k, s).zeilen.some(([a, b]) => a === 'Strom' && b === '4 MW'));
   for (const st of ['a', 'e', 'v']) assert.notEqual(maschinenInfo({ ...k, st }, s).status, undefined);
-  assert.equal(maschinenInfo(maschine(ort, X0 + 5, Y0, 'schmelzer'), s).status, 'wartet auf Eingang');
+  assert.match(maschinenInfo(maschine(ort, X0 + 5, Y0, 'schmelzer'), s).status, /^wartet auf Eingang/);
 });
 test('Rezept wählen: Zutaten des alten Rezepts gehen zurück, bei vollem Rucksack bleibt es beim alten; Wahl bleibt im Stand', () => {
   const { s, ort } = neues();
@@ -918,6 +926,300 @@ test('Vorkommen werden nur einmal angelegt (Laden legt keine neuen an) und sind 
   const gleich = L.neuesSpiel({ name: 'V', hof: 'H', seed: 9 });
   assert.equal(JSON.stringify(gleich.welt.berg.objekte), JSON.stringify(s.welt.berg.objekte));
   assert.deepEqual(vorkommenAnlegen(s).length >= 0, true);
+});
+
+console.log('\nBefunde Stufe 1: Durchsatz beim Nachholen, Senken, Aufstellen, Wohnhaus, Vorkommen, gemischte Bänder');
+
+/** Quelle (Lager voller Stein) → Bänder → [mitte] → Bänder → Lager. */
+function schnelleLinie(mitte) {
+  const { s, ort } = neues();
+  const q = maschine(ort, 10, 20, 'lager', RECHTS);
+  for (let i = 0; i < 40; i++) q.inv[i] = { id: 'stein', n: 999 };
+  band(ort, 12, 20, RECHTS); band(ort, 13, 20, RECHTS);
+  if (mitte === 'band') band(ort, 14, 20, RECHTS);
+  else L.objektSetzen(ort, 14, 20, { t: mitte, r: RECHTS, pf: null, nx: 0 });
+  band(ort, 15, 20, RECHTS); band(ort, 16, 20, RECHTS);
+  fabrikAenderung();
+  return { s, ort, ziel: maschine(ort, 17, 20, 'lager', RECHTS) };
+}
+const lebend = (s, ort, sek, fps = 60) => { for (let t = 0; t < sek - 1e-9; t += 1 / fps) simuliere(s, ort, 1 / fps, { schritt: 0.1 }); };
+const summeLager = (o) => o.inv.reduce((n, f) => n + (f ? f.n : 0), 0);
+
+test('1: schnelle Linie (6/s) mit Band, Splitter und Zusammenführer: Nachholen = Echtzeit (±5 %)', () => {
+  for (const mitte of ['band', 'splitter', 'zusammenfuehrer']) {
+    const a = schnelleLinie(mitte); lebend(a.s, a.ort, 60);
+    const b = schnelleLinie(mitte); simuliere(b.s, b.ort, 60, { schritt: FABRIK.nachholSchritt });
+    const x = summeLager(a.ziel);
+    const y = summeLager(b.ziel);
+    assert.ok(x > 320, `${mitte} live ${x} (Soll ~6/s)`);
+    assert.ok(Math.abs(x - y) / x < 0.05, `${mitte}: live ${x}, nachgeholt ${y}`);
+  }
+});
+test('1: Echtzeit unabhängig von der Bildrate (20, 60, 144 Bilder/s, ±5 %)', () => {
+  const werte = [20, 60, 144].map((fps) => { const a = schnelleLinie('band'); lebend(a.s, a.ort, 60, fps); return summeLager(a.ziel); });
+  for (const w of werte) assert.ok(Math.abs(w - werte[1]) / werte[1] < 0.05, werte.join(' / '));
+});
+test('1: drei reine Bohrer über einen Zusammenführer: Nachholen = Echtzeit (±5 %)', () => {
+  const bauen = () => {
+    const { s, ort } = neues();
+    L.objektSetzen(ort, 20, 20, { t: 'zusammenfuehrer', r: RECHTS, pf: null, nx: 0 });
+    maschine(ort, 14, 19, 'erzbohrer', RECHTS, { erz: 'eisen', rein: 2 });
+    for (let x = 16; x <= 19; x++) band(ort, x, 20, RECHTS);
+    maschine(ort, 20, 14, 'erzbohrer', UNTEN, { erz: 'eisen', rein: 2 });
+    for (let y = 16; y <= 19; y++) band(ort, 20, y, UNTEN);
+    maschine(ort, 20, 25, 'erzbohrer', OBEN, { erz: 'eisen', rein: 2 });
+    for (let y = 24; y >= 21; y--) band(ort, 20, y, OBEN);
+    for (let x = 21; x <= 24; x++) band(ort, x, 20, RECHTS);
+    return { s, ort, ziel: maschine(ort, 25, 20, 'lager', RECHTS) };
+  };
+  const a = bauen(); lebend(a.s, a.ort, 300);
+  const b = bauen(); simuliere(b.s, b.ort, 300, { schritt: FABRIK.nachholSchritt });
+  const x = summeLager(a.ziel);
+  const y = summeLager(b.ziel);
+  assert.ok(x > 850, `live ${x} (Soll ~900)`);
+  assert.ok(Math.abs(x - y) / x < 0.05, `live ${x}, nachgeholt ${y}`);
+});
+test('2: die Versandkiste nimmt nur Verkäufliches an, der Rest bleibt im Rückstau (mit Hinweis)', () => {
+  const { s, ort } = neues();
+  const kiste = L.dekoListe(s, ort.def).find((d) => d.typ === 'versandkiste');
+  const b = band(ort, kiste.x - 1, kiste.y, RECHTS);
+  auflegen(b, 'erzbohrer');
+  simuliere(s, ort, 3, { schritt: 0.1 });
+  assert.equal(s.versand.length, 0, 'nichts in der Kiste');
+  assert.equal(b.w.length, 1, 'bleibt auf dem Band');
+  assert.match(bandStau(s, ort, kiste.x - 1, kiste.y, b), /nicht verkaufen/);
+  b.w = []; auflegen(b, 'kohle');
+  simuliere(s, ort, 3, { schritt: 0.1 });
+  assert.equal(s.versand[0]?.id, 'kohle');
+});
+test('4: große Teile in alle vier Richtungen aufstellen: die Fläche liegt vor der Spielerin, nie auf ihr', () => {
+  const { s, ort } = neues();
+  S.s = s; S.ort = ort;
+  const P = { x: 30, y: 30 };
+  for (const [blick, dx, dy] of [['oben', 0, -1], ['rechts', 1, 0], ['unten', 0, 1], ['links', -1, 0]]) {
+    for (const id of ['schmelzer', 'assembler']) {
+      ort.welt.objekte = {}; fabrikAenderung();
+      s.spieler.inv = Array(24).fill(null);
+      L.hinzufuegen(s, { id, n: 1 });
+      S.sp = { ...S.sp, x: P.x * 16 + 8, y: P.y * 16 + 13, blick };
+      const x = P.x + dx;
+      const y = P.y + dy;
+      const c = { s, ort, x, y, kk: L.k(x, y), o: undefined, slot: s.spieler.inv[0], idx: 0, it: ITEMS[id], f: P, S };
+      const v = bauVorschau(s, ort, x, y, blick, c.slot);
+      assert.ok(v.ok, `${id} ${blick}: Vorschau grün (${v.grund})`);
+      ITEM_BENUTZEN.find((e) => e.pruefen(c)).fn(c);
+      const teile = Object.entries(ort.welt.objekte);
+      assert.equal(L.anzahl(s, id), 0, `${id} ${blick} aufgestellt`);
+      assert.ok(teile.some(([kk]) => kk === L.k(x, y)), `${id} ${blick}: Zielfeld gehört dazu`);
+      assert.ok(!ort.welt.objekte[L.k(P.x, P.y)], `${id} ${blick}: nicht auf der Spielerin`);
+      const haupt = teile.find(([, o]) => o.t === id);
+      assert.equal(haupt[1].r, ['oben', 'rechts', 'unten', 'links'].indexOf(blick), 'Ausgang in Blickrichtung');
+      assert.equal(`${v.x},${v.y}`, haupt[0], 'Vorschau = aufgestellte Fläche');
+    }
+  }
+  S.s = null; S.ort = null;
+});
+test('9: Vorschau rot ohne Platz, für Bänder, Vorkommen-Gegenstände und den Bohrer (nur auf Vorkommen grün)', () => {
+  const { s, ort } = neues();
+  L.objektSetzen(ort, X0 + 1, Y0, { t: 'fels', hp: 6 });
+  const v = bauVorschau(s, ort, X0, Y0, 'rechts', { id: 'konstrukteur', n: 1 });
+  assert.equal(v.ok, false);
+  assert.ok(v.grund);
+  assert.equal(bauVorschau(s, ort, X0, Y0 + 4, 'unten', { id: 'foerderband', n: 1 }).ok, true);
+  assert.equal(bauVorschau(s, ort, X0, Y0 + 4, 'unten', { id: 'erzbohrer', n: 1 }).ok, false);
+  L.objektSetzen(ort, X0 + 5, Y0 + 5, { t: 'vorkommen', erz: 'kohle', rein: 1 });
+  const b = bauVorschau(s, ort, X0 + 6, Y0 + 6, 'oben', { id: 'erzbohrer', n: 1 });
+  assert.ok(b.ok && b.x === X0 + 5 && b.y === Y0 + 5, 'Bohrer rastet auf dem Vorkommen ein');
+  assert.equal(bauVorschau(s, ort, X0, Y0 + 10, 'oben', { id: 'vorkommen_eisen_rein', n: 1 }).o.rein, 2);
+  assert.equal(bauVorschau(s, ort, X0, Y0, 'oben', { id: 'holz', n: 1 }), null, 'kein Fabrikteil: keine Vorschau');
+});
+test('5: Lager drehen: Knopf im Lagerfenster, dazu Ein- und Ausgang in Worten', () => {
+  const { s, ort } = neues();
+  const lager = maschine(ort, X0, Y0, 'lager', RECHTS);
+  let geoeffnet = null;
+  const alt = S.hooks;
+  S.hooks = { fenster: (name, d) => { geoeffnet = { name, d }; } };
+  lagerOeffnen({ s, ort, x: X0, y: Y0, o: lager });
+  S.hooks = alt;
+  assert.equal(geoeffnet.name, 'truhe');
+  assert.match(geoeffnet.d.zeilen()[0], /Ausgang: vorn \(rechts\)/);
+  geoeffnet.d.knoepfe.find((k) => k.aktion === 'drehen').tun();
+  assert.equal(lager.r, UNTEN);
+  assert.match(geoeffnet.d.zeilen()[0], /unten/);
+});
+test('6: keine Fabrik im Wohnhaus (sie ginge beim Ausbau verloren)', () => {
+  const { s } = neues();
+  let geprueft = 0;
+  for (const id of ['haus', 'haus1', 'haus2']) {
+    if (!KARTEN[id]) continue;
+    assert.equal(fabrikErlaubt(KARTEN[id]), false, id);
+    const ort = L.ortVon(s, id);
+    let frei = null;
+    for (let y = 0; y < ort.def.h && !frei; y++) for (let x = 0; x < ort.def.w && !frei; x++) if (L.feldFrei(s, ort, x, y)) frei = { x, y };
+    L.hinzufuegen(s, { id: 'foerderband', n: 1 });
+    const r = L.aufstellen(s, ort, frei.x, frei.y, s.spieler.inv.findIndex((z) => z?.id === 'foerderband'));
+    assert.match(r.grund ?? '', /Haus/, id);
+    geprueft++;
+  }
+  assert.ok(geprueft >= 1);
+  assert.ok(fabrikErlaubt(KARTEN.hof) && fabrikErlaubt(KARTEN.berg));
+});
+test('7: jeder Hof bekommt seine drei Vorkommen (60 Spielstände), alle Karten vollständig', () => {
+  const soll = {};
+  for (const a of ANLAGE) soll[a.karte] = (soll[a.karte] || 0) + a.liste.length;
+  const fehlt = [];
+  for (let seed = 1; seed <= 60; seed++) {
+    const s = L.neuesSpiel({ name: 'T', hof: 'H', seed });
+    for (const k of Object.keys(soll)) {
+      const n = Object.values(L.welt(s, k).objekte).filter((o) => o.t === 'vorkommen').length;
+      if (n < soll[k]) fehlt.push(`${k} seed ${seed}: ${n}`);
+    }
+  }
+  assert.deepEqual(fehlt, []);
+});
+test('8: Erz und Kohle auf einem Band (Zusammenführer) verklemmen den Schmelzer nicht (600 s)', () => {
+  const { s, ort } = neues();
+  L.objektSetzen(ort, 20, 20, { t: 'zusammenfuehrer', r: RECHTS, pf: null, nx: 0 });
+  maschine(ort, 14, 19, 'erzbohrer', RECHTS, { erz: 'kupfer', rein: 1 });
+  for (let x = 16; x <= 19; x++) band(ort, x, 20, RECHTS);
+  maschine(ort, 20, 14, 'erzbohrer', UNTEN, { erz: 'kohle', rein: 1 });
+  for (let y = 16; y <= 19; y++) band(ort, 20, y, UNTEN);
+  for (let x = 21; x <= 23; x++) band(ort, x, 20, RECHTS);
+  const sm = maschine(ort, 24, 20, 'schmelzer', RECHTS);
+  const ziel = maschine(ort, 26, 20, 'lager', RECHTS);
+  lebend(s, ort, 600);
+  const barren = lagerN(ziel, 'kupferbarren');
+  assert.ok(barren >= 55, `Barren ${barren} (Soll ~60: 0,5 Erz/s ÷ 5)`);
+  assert.ok(maschinenInfo(sm, s).zeilen.some(([a, b]) => a === 'Überschuss' && /Kohle/.test(b)), 'Überschuss an Kohle wird erklärt');
+});
+test('8: auch im richtigen Verhältnis (5:1 gemischt) läuft der Schmelzer durch', () => {
+  const { s, ort } = neues();
+  const reihe = bandReihe(ort, X0, Y0, 3);
+  const sm = maschine(ort, X0 + 3, Y0, 'schmelzer', RECHTS);
+  const ziel = maschine(ort, X0 + 5, Y0, 'lager', RECHTS);
+  const folge = ['kohle', 'eisenerz', 'eisenerz', 'eisenerz', 'eisenerz', 'eisenerz'];
+  let i = 0;
+  for (let t = 0; t < 3000; t++) { if (i < 120 && auflegen(reihe[0], folge[i % 6])) i++; simuliere(s, ort, 0.1, { schritt: 0.1 }); }
+  assert.equal(lagerN(ziel, 'eisenbarren'), 20);
+  assert.equal(sm.st, 'e');
+});
+
+console.log('\nBefunde Stufe 1: Bedienung');
+
+test('10: Band drehen erst nach dem Wählen; ein anderes Band wählt neu', () => {
+  const { s, ort } = neues();
+  const Y = Y0 + 20; // eigene Felder (die Wahl gilt einige Sekunden)
+  const a = band(ort, X0, Y, RECHTS);
+  const b = band(ort, X0 + 3, Y, RECHTS);
+  const tippen = (x, o) => OBJEKT_TYPEN.foerderband.interagieren({ s, ort, x, y: Y, o });
+  tippen(X0, a);
+  assert.equal(a.r, RECHTS, 'erstes Antippen wählt nur');
+  tippen(X0 + 3, b);
+  assert.equal(b.r, RECHTS, 'anderes Band: wieder nur wählen');
+  tippen(X0 + 3, b);
+  assert.equal(b.r, UNTEN);
+  assert.equal(a.r, RECHTS);
+});
+test('11: der Hinweis erklärt Stau: Band gegen Band, Ausgangsseite, falsche Ware, Bandende', () => {
+  const { s, ort } = neues();
+  const a = band(ort, X0, Y0, RECHTS); band(ort, X0 + 1, Y0, LINKS);
+  a.w = [{ id: 'kohle', p: 1 }];
+  assert.match(bandStau(s, ort, X0, Y0, a), /Band gegen Band/);
+  const b = band(ort, X0, Y0 + 3, RECHTS);
+  maschine(ort, X0 + 1, Y0 + 3, 'schmelzer', LINKS);
+  b.w = [{ id: 'kohle', p: 1 }];
+  assert.match(bandStau(s, ort, X0, Y0 + 3, b), /Ausgangsseite/);
+  const c = band(ort, X0, Y0 + 7, RECHTS);
+  const k = maschine(ort, X0 + 1, Y0 + 7, 'konstrukteur', RECHTS, { rez: 'schraube' });
+  c.w = [{ id: 'kupferbarren', p: 0.99 }];
+  simuliere(s, ort, 0.1, { schritt: 0.1 });
+  assert.match(bandStau(s, ort, X0, Y0 + 7, c), /Kupferbarren passt nicht/);
+  assert.ok(maschinenInfo(k, s).zeilen.some(([z, w]) => z === 'Blockiert' && /Kupferbarren/.test(w)));
+  const d = band(ort, X0, Y0 + 11, RECHTS);
+  d.w = [{ id: 'kohle', p: 1 }];
+  assert.match(bandStau(s, ort, X0, Y0 + 11, d), /nichts/);
+  assert.match(OBJEKT_TYPEN.foerderband.hinweis({ s, ort, x: X0, y: Y0 + 11, o: d }), /Stau/);
+});
+test('12: Maschinen aus der Hand befüllen (passende Zutat bis zur Grenze), Lager nimmt den Stapel', () => {
+  const { s, ort } = neues();
+  const sm = maschine(ort, X0, Y0, 'schmelzer', RECHTS);
+  L.hinzufuegen(s, { id: 'eisenerz', n: 40 });
+  const erg = befuellen(s, sm, 0);
+  assert.ok(erg.ok);
+  assert.equal(sm.ein.eisenerz, 15);
+  assert.equal(L.anzahl(s, 'eisenerz'), 25);
+  s.spieler.inv[1] = { id: 'hartholz', n: 3 };
+  assert.ok(befuellen(s, sm, 1).grund);
+  const lager = maschine(ort, X0 + 4, Y0, 'lager', RECHTS);
+  assert.ok(befuellen(s, lager, 0).ok);
+  assert.equal(lagerN(lager, 'eisenerz'), 25);
+  assert.equal(typeof OBJEKT_TYPEN.schmelzer.einlegen, 'function');
+});
+test('13: Durchsatz als gleitendes Mittel über eine Minute, gleich bei Echtzeit und Nachholen', () => {
+  const a = neues();
+  const b1 = maschine(a.ort, X0, Y0, 'erzbohrer', RECHTS, { erz: 'eisen', rein: 1 });
+  maschine(a.ort, X0 + 2, Y0, 'lager', RECHTS);
+  lebend(a.s, a.ort, 300);
+  const b = neues();
+  const b2 = maschine(b.ort, X0, Y0, 'erzbohrer', RECHTS, { erz: 'eisen', rein: 1 });
+  maschine(b.ort, X0 + 2, Y0, 'lager', RECHTS);
+  simuliere(b.s, b.ort, 300, { schritt: FABRIK.nachholSchritt });
+  const x = maschinenInfo(b1, a.s).durchsatz;
+  const y = maschinenInfo(b2, b.s).durchsatz;
+  assert.ok(nahe(x, 30, 1.5), `live ${x}/min`);
+  assert.ok(nahe(y, 30, 1.5), `nachgeholt ${y}/min`);
+});
+test('15: Steinbruch-Vorkommen haben eine freie Seite (Abraum) und kein Vorkommen liegt auf Deko', () => {
+  assert.ok(BELAG_TYPEN[ABRAUM]);
+  for (const seed of [5, 32, 58]) {
+    const s = L.neuesSpiel({ name: 'T', hof: 'H', seed });
+    for (const id of ['berg', 'strand', 'wald', 'hof']) {
+      const ort = L.ortVon(s, id);
+      for (const [kk, o] of Object.entries(ort.welt.objekte)) {
+        if (o.t !== 'vorkommen') continue;
+        const [x, y] = L.ausK(kk);
+        for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) assert.ok(!L.dekoAn(s, ort.def, x + dx, y + dy), `${id} ${kk}: keine Deko`);
+        if (id !== 'berg') continue;
+        const seiten = [[[x, y + 2], [x + 1, y + 2]], [[x - 1, y], [x - 1, y + 1]], [[x + 2, y], [x + 2, y + 1]], [[x, y - 1], [x + 1, y - 1]]];
+        assert.ok(seiten.some((f) => f.every(([fx, fy]) => L.begehbar(s, ort.def, ort.welt, fx, fy))), `seed ${seed} ${kk}: eine Seite frei`);
+      }
+    }
+  }
+});
+test('16: Bohrer zeigt Erz und Reinheit; Rezeptwechsel sagt, dass die Zutaten zurückgehen', () => {
+  const { s, ort } = neues();
+  const b = maschine(ort, X0, Y0, 'erzbohrer', RECHTS, { erz: 'kupfer', rein: 2 });
+  assert.match(OBJEKT_TYPEN.erzbohrer.hinweis({ s, ort, o: b }), /Kupfer, rein/);
+  const k = maschine(ort, X0 + 4, Y0, 'konstrukteur', RECHTS, { rez: 'schraube', ein: { eisenbarren: 2 } });
+  assert.match(rezeptWaehlen(s, k, 'zahnrad').text, /zurück im Rucksack/);
+});
+
+console.log('\nBefunde Stufe 1: Vorbereitung Stufe 2');
+
+test('17: gekaufte Vorkommen je Reinheit (eigene Gegenstände), wieder aufnehmbar; natürliche nicht', () => {
+  const { s, ort } = neues();
+  for (const [rn, f] of [['unrein', 0.5], ['normal', 1], ['rein', 2]]) {
+    assert.equal(ITEMS[`vorkommen_eisen_${rn}`].rein, f);
+    assert.equal(ITEMS[`vorkommen_eisen_${rn}`].erz, 'eisen');
+  }
+  L.hinzufuegen(s, { id: 'vorkommen_kohle_unrein', n: 1 });
+  assert.ok(L.aufstellen(s, ort, X0, Y0, s.spieler.inv.findIndex((z) => z?.id === 'vorkommen_kohle_unrein')).ok);
+  const v = ort.welt.objekte[L.k(X0, Y0)];
+  assert.deepEqual([v.erz, v.rein, v.gk], ['kohle', 0.5, 1]);
+  const bohrer = { t: 'erzbohrer', r: 1, erz: v.erz, rein: v.rein, gk: 1, ein: {}, aus: {}, f: 0 };
+  L.objektSetzen(ort, X0, Y0, bohrer);
+  fabrikAufheben({ s, ort, x: X0, y: Y0, o: bohrer, erg: L.neuesErgebnis() });
+  assert.equal(ort.welt.objekte[L.k(X0, Y0)].gk, 1, 'bleibt gekauft');
+  s.spieler.werkzeug.spitzhacke = 0;
+  const erg = L.spitzhackeHieb(s, ort, X0 + 1, Y0 + 1);
+  assert.equal(erg.treffer, 'aufheben');
+  assert.equal(L.anzahl(s, 'vorkommen_kohle_unrein'), 1);
+  assert.equal(ort.welt.objekte[L.k(X0, Y0)], undefined);
+  L.objektSetzen(ort, X0, Y0, { t: 'vorkommen', erz: 'gold', rein: 1 });
+  assert.match(L.spitzhackeHieb(s, ort, X0, Y0).grund, /unzerstörbar/);
+});
+test('18: fabrikTempo ist ein bekannter Modifikator', () => {
+  assert.ok(BEKANNTE_MODIFIKATOREN.includes('fabrikTempo'));
 });
 
 console.log(`\n${bestanden} bestanden, ${fehlgeschlagen} fehlgeschlagen\n`);

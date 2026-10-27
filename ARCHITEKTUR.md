@@ -117,7 +117,7 @@ Objekte/Listen und werden über die Funktionen gefüllt. Abgeleitetes (`SAAT_ZU_
 | `objektTyp(t, def)` | Objekte auf der Karte (`welt.objekte["x,y"] = { t, … }`): `blockiert, axt(c), spitzhacke(c), sense(c), hacke(c), waffe(c)` (geben `true` zurück, wenn getroffen; die Hacke erreicht Objekte auf jeder Karte, z. B. Artefaktstellen), `interagieren(c), einlegen(c)` (Gegenstand aus der Hand), `aufnehmen(c) → erg` (Aktionstaste und Drüberlaufen), `nacht(c)` (c mit `bericht, r, nachtMinuten`), `minuten(c, n), hinweis` (Text oder `(c) => Text`), `licht, anlegen(o, slot), nichtLeer(o) → Grund, item` (was man beim Aufheben bekommt), `kraehenSchutz` (Radius), `flaeche: [b, h]` (großes Objekt, siehe unten), `platz(c) → true \| 'Grund' \| undefined` (eigene Platzregel beim Aufstellen: true = erlaubt, Text = abgelehnt, undefined = Standard) | `objektTyp('fass', { blockiert: true, axt: L.aufheben, spitzhacke: L.aufheben, minuten(c, n) {…} })` |
 | `bedingung(name, fn(s))` | für `nurWenn`, `tuerWenn`, `npcWenn`, `bedingung` an Ware. Statt eines Namens geht auch `'!name'`, eine Funktion oder eine Liste (alle) | `bedingung('scheune', (s) => !!s.tiere?.scheune)` |
 | `werkzeugArt(art, def)` | `skill` (Energiekosten), `wiederholbar, aufladbar, dauer, schwungTon, schaden: [von, bis], upgradeText, felder(zx, zy, blick, ladung)`, `wirkung(ctx) → erg` (ctx: `s, ort, id, art, felder, zx, zy, ladung, S`), oder `benutzen(ctx)` statt Schwung; `haltung: 'giessen'` (Kanne statt Schwungbogen), `anzeige(s, slot) → Text` (Zusatz im Hinweis, z. B. Wasserstand). Eigene Schwung-Bilder: `schwungKunst` (9.2). | `werkzeugArt('melkeimer', { wirkung(c) {…} })`; Item: `werkzeug: 'melkeimer'` |
-| `itemBenutzen(pruefen, fn)` | Gegenstand aus der Hand benutzen (Leertaste). Der erste Handler, dessen `pruefen(c)` stimmt, läuft. c: `s, ort, x, y, kk, o, slot, idx, it, f` (Spielerfeld), `S` | `itemBenutzen((c) => c.it.id === 'totem', (c) => …)` |
+| `itemBenutzen(pruefen, fn, { vorn })` | Gegenstand aus der Hand benutzen (Leertaste). Der erste Handler, dessen `pruefen(c)` stimmt, läuft; `vorn: true` stellt ihn vor die bisherigen (die Fabrik stellt große Teile in Blickrichtung auf, bevor basis allgemein aufstellt). c: `s, ort, x, y, kk, o, slot, idx, it, f` (Spielerfeld), `S` | `itemBenutzen((c) => c.it.id === 'totem', (c) => …)` |
 | `baumArt(id, def)` | Arten des Objekts `{ t: 'baum', art, hp }`: `name, holz: [von, bis], beute: [[id, chance, von, bis]…], samen, zapfen: { item, tage }` (liest der Zapfhahn), `stufen` und weitere Felder des Bereichs pflanzen | `baumArt('ahorn', { name: 'Ahorn', samen: 'ahornsamen', zapfen: { item: 'ahornsirup', tage: 9 } })` |
 | `belagTyp(id, def)` | Bodenbelag (Wege, Böden) in `welt.belag["x,y"] = { t }`: `name, item` (kommt beim Aufheben zurück), `tempo` (Lauf-Faktor). Liegt unter Objekten, verhindert Beete; legen über ein Item mit `belag: id` (basis), aufheben mit der Spitzhacke (Kern). Bild: `belagKunst` (9.1). | `belagTyp('kiesweg', { name: 'Kiesweg', tempo: 1.1 })` |
 | `erwartet(...ids)` | IDs anderer Bereiche, auf die man schon verweist (Rezept-Zutaten, Geschenke, Ware), bevor sie zusammengeführt sind. Die Tests lassen sie gelten (außer mit `STRENG=1`), der Kern blendet Rezepte und Ware mit fehlenden Gegenständen aus. | `erwartet('milch', 'wein')` |
@@ -934,19 +934,20 @@ dem alten Code erzeugten Stand `test/alter-hof-stand.json`. Der Hinweis erschein
 
 ## 12. Die Fabrik (Bereich handwerk, `fabrik-*.js`)
 
-Satisfactory im Kleinen, ohne Kernänderung (nur Register, Hooks `update`, `vorVerkauf`, `ergaenzen`, `neuesSpiel`, `tagEnde`,
-große Objekte `flaeche`, Behälter-Fenster `truhe`). Alle Zahlen: `fabrik-daten.js` (`FABRIK`, `SORTEN`, `REINHEIT`,
+Satisfactory im Kleinen über Register, Hooks (`update`, `vorVerkauf`, `ergaenzen`, `neuesSpiel`, `tagEnde`), große Objekte
+`flaeche` und das Behälter-Fenster `truhe` (mit `zeilen` und `knoepfe` für das Lager). Zwei kleine Kernänderungen:
+`itemBenutzen(…, { vorn: true })` (daten.js) und `fabrikTempo` in `BEKANNTE_MODIFIKATOREN` (system.js). Alle Zahlen: `fabrik-daten.js` (`FABRIK`, `SORTEN`, `REINHEIT`,
 `*_REZEPTE`, `MASCHINEN`, `FREISCHALT`, `PREISE`, `VORKOMMEN_PREIS`).
 
 | Datei | Inhalt |
 |---|---|
-| `fabrik-daten.js` | Konstanten, Gegenstände (Bauteile, Waren, `vorkommen_<sorte>`), Bastelrezepte mit Bergbau-Stufen |
-| `fabrik-sim.js` | Simulation: Verbindungs-Cache je Karte (WeakMap auf `welt`, neu bei `fabrikAenderung()` und alle 120 Schritte), Band-, Splitter-, Zusammenführer-, Maschinen- und Lagerschritt, `simuliere` (Nachholen mit Zeitbudget), Modifikator `fabrikTempo` |
-| `fabrik-objekte.js` | Objekttypen `vorkommen`, `foerderband`, `splitter`, `zusammenfuehrer`, `erzbohrer`, `schmelzer`, `konstrukteur`, `assembler`, `lager`; Platzregeln, Drehen, `fabrikAufheben`, `rezeptWaehlen`, `ausgangLeeren` |
-| `fabrik-vorkommen.js` | Vorkommen anlegen (`ANLAGE`), `erreichbarePunkte` |
+| `fabrik-daten.js` | Konstanten, Gegenstände (Bauteile, Waren, `vorkommen_<sorte>_<unrein\|normal\|rein>`), Bastelrezepte mit Bergbau-Stufen |
+| `fabrik-sim.js` | Simulation: Verbindungs-Cache je Karte (WeakMap auf `welt`, neu bei `fabrikAenderung()` und alle 120 Schritte), Band- und Maschinenschritt, Splitter und Zusammenführer reichen sofort weiter, `simuliere` (Nachholen mit Zeitbudget), `bandStau` (Hinweis, warum ein Band staut), Modifikator `fabrikTempo` |
+| `fabrik-objekte.js` | Objekttypen `vorkommen`, `foerderband`, `splitter`, `zusammenfuehrer`, `erzbohrer`, `schmelzer`, `konstrukteur`, `assembler`, `lager`; Platzregeln (nicht im Wohnhaus), Aufstellen in Blickrichtung (`anker`), Vorschau-Daten (`bauVorschau`), Drehen mit Wählen (`leitungBedienen`), Befüllen aus der Hand (`befuellen`), Lagerfenster (`lagerOeffnen`), `fabrikAufheben`, `rezeptWaehlen`, `ausgangLeeren` |
+| `fabrik-vorkommen.js` | Vorkommen anlegen (`ANLAGE`, mit Ersatzradius), `erreichbarePunkte`, Belag `handwerk_abraum` (hält im Steinbruch eine Seite frei) |
 | `fabrik-system.js` | System `handwerk-fabrik`: `s.fabrik`, Hook `update`, Nachholen (`nachholen`, `nacht`), Vorkommen anlegen |
 | `fabrik-info.js` | Inhalt des Info-Fensters (`maschinenInfo`), erweiterbar mit `fabrikInfoZeile(fn)` |
-| `fabrik-kunst*.js`, `fabrik-grafik.js`, `fabrik-fenster.js` | Pixelkunst (Band mit Rollen und Kurven, Warensymbole, Maschinen mit Animation), Fenster `handwerk_fabrik` |
+| `fabrik-kunst*.js`, `fabrik-grafik.js`, `fabrik-fenster.js` | Pixelkunst (Band mit Rollen und Kurven, Warensymbole 8×8 mit hellem Rand, Maschinen mit Animation, Reinheit am Bohrer), Zeichner `handwerk_fabrik_vorschau` (Ebene `ueber`: halb durchsichtige Fläche mit Pfeilen, grün/rot), Fenster `handwerk_fabrik` |
 
 **Zustand** (Format v2, alles Zahlen und kleine Listen in den Objekten): `s.fabrik = { t, zeit: { <karte>: Zahl }, vk, vkb }`.
 `t` ist die Fabrik-Uhr (Sekunden Echtzeit-Äquivalent; läuft im Spiel mit `dt`, springt über Nacht um die verschlafene Zeit
@@ -957,8 +958,25 @@ Rückstand `t − zeit` wird beim Betreten und über Nacht (Hook `vorVerkauf`, v
 älteren Ständen in `ergaenzen`/`tagEnde`).
 Objekte: Band `{ t, r, w: [{ id, p, q?, von? }], kv }` (`r` 0..3 = oben, rechts, unten, links; `p` 0..1 im Feld; `kv` −1/0/+1 = Kurve
 von links/gerade/rechts, wird beim Verbinden berechnet), Splitter/Zusammenführer `{ r, pf, z, nx }`, Maschinen `{ r, ein: { id: n },
-aus: { id: n }, arb, f, rez, st, dr, … }` (Bohrer zusätzlich `erz`, `rein`), Lager `{ r, inv }`, Vorkommen `{ erz, rein }` (`rein` =
-Ausbeute-Faktor 0,5 / 1 / 2).
+aus: { id: n }, arb, f, rez, st, dr, ak, abg, … }` (Bohrer zusätzlich `erz`, `rein`, `gk`), Lager `{ r, inv }`, Vorkommen `{ erz, rein, gk? }`
+(`rein` = Ausbeute-Faktor 0,5 / 1 / 2; `gk` = aus dem Rucksack aufgestellt, mit Spitzhacke/Axt wieder aufnehmbar; natürliche sind
+unzerstörbar). `dr` ist der Durchsatz pro Minute als gleitendes Mittel (Zeitkonstante `FABRIK.durchsatzFenster` = 60 s), `ak` das
+Ausgabe-Guthaben, `abg` die zuletzt abgewiesene Ware (für das Info-Fenster).
+
+**Gleich schnell live und beim Nachholen.** Splitter und Zusammenführer halten nichts fest, sie reichen eine Ware im selben Schritt
+weiter (Zusammenführer reihum: eine Seite, die nicht dran ist, kommt nur durch, wenn auf der Seite, die dran ist, gerade nichts
+ankommt). Maschinen und Lager geben nach den Bändern ab; eine abgegebene Ware hat im Zielband schon bis zu Tempo·dt zurückgelegt,
+so passen bei jeder Schrittweite gleich viele Waren mit dem Abstand 0,25 aufs Band. Live (20–144 Bilder/s) und Nachholen in
+0,5-s-Schritten liegen damit innerhalb von 1 % (Band 6/s).
+
+**Gemischte Bänder.** Eine Maschine nimmt je Zutat bis 3× Bedarf an; ist sie ausgehungert (nichts in Arbeit, kein Rezept kann
+starten), nimmt sie auch darüber hinaus an (bis `FABRIK.ueberlaufMax`), damit ein gemischtes Band (Erz und Kohle über einen
+Zusammenführer) nicht hinter der Zutat stehen bleibt, von der genug da ist. Den Überschuss zeigt das Info-Fenster.
+
+**Bedienung.** Große Teile liegen vom Zielfeld aus in Blickrichtung (Blick oben: Ecke (x, y−h+1), links: (x−b+1, y)), nie auf der
+Spielerin. Bänder, Splitter, Zusammenführer: die erste Aktionstaste wählt, jede weitere innerhalb von `FABRIK.drehFenster` = 4 s dreht.
+Mit passender Zutat in der Hand befüllt die Aktionstaste (oder Benutzen) eine Maschine; Benutzen legt einen Stapel ins Lager. Das
+Lager öffnet das Truhenfenster mit Ein- und Ausgang und dem Knopf Drehen. Das Info-Fenster pausiert das Spiel (wie jedes Fenster).
 
 **Anschlüsse.** Jede Maschine hat eine Ausgangsrichtung `r`; vorn ist der Ausgang, an den anderen drei Seiten der Eingang
 (Bohrer: kein Eingang). Ein Band übergibt an das Feld vor seinem Ende (Band: von hinten oder seitlich, nicht von vorn; Maschine, Lager,
@@ -968,5 +986,6 @@ Versandkiste), reihum.
 **Stufe 2 (Strom) kann ergänzen:** jede Maschine hat `leistung` (MW; `MASCHINEN[t].leistung` und `OBJEKT_TYPEN[t].leistung`,
 `leistungVon(s, ort)` summiert sie, erzwungen wird sie nicht); der Takt läuft über `tempoVon` = Modifikator `fabrikTempo`
 (Kontext `{ s, o, ort, leistung }`, Wert 0..1, Stufe 1 immer 1; bei 0 steht die Maschine mit Status „steht still"); Info-Zeilen über
-`fabrikInfoZeile`. Vorkommen lassen sich aus dem Rucksack aufstellen (Items `vorkommen_kupfer` … , Platzregel wie Aufstellbares,
-Reinheit als Faktor `o.rein`); Preise je Reinheit stehen in `VORKOMMEN_PREIS`.
+`fabrikInfoZeile`. Vorkommen zum Kaufen: je Sorte und Reinheit ein Gegenstand (`vorkommenItem(erz, rein)` →
+`vorkommen_eisen_rein` …, mit `erz` und `rein` im Item), Platzregel wie Aufstellbares, aufgestellt mit `gk: 1` und wieder aufnehmbar;
+Preise je Reinheit stehen in `VORKOMMEN_PREIS`.

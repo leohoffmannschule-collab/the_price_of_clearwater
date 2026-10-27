@@ -189,11 +189,62 @@ try {
   const vorher = (await objekte(page, 'foerderband')).find((b) => b.kk === `${kx - 1},${ky}`).r;
   await page.keyboard.press('e');
   await page.waitForTimeout(150);
+  const gewaehlt = (await objekte(page, 'foerderband')).find((b) => b.kk === `${kx - 1},${ky}`).r;
+  pruefe(gewaehlt === vorher && /drehen/.test(await page.evaluate(() => window.__klarwasser.S.hinweis)), 'Erste Aktionstaste wählt das Band nur (Hinweis „Band drehen")');
+  await page.keyboard.press('e');
+  await page.waitForTimeout(150);
   const nachher = (await objekte(page, 'foerderband')).find((b) => b.kk === `${kx - 1},${ky}`).r;
-  pruefe(nachher === (vorher + 1) % 4, 'Aktionstaste dreht das Band im Uhrzeigersinn');
+  pruefe(nachher === (vorher + 1) % 4, 'Zweite Aktionstaste dreht das Band im Uhrzeigersinn');
   for (let i = 0; i < 3; i++) { await page.keyboard.press('e'); await page.waitForTimeout(150); }
   const zurueck = (await objekte(page, 'foerderband')).find((b) => b.kk === `${kx - 1},${ky}`).r;
   pruefe(zurueck === vorher, 'Nach vier Mal Drehen zeigt das Band wieder nach rechts');
+
+  console.log('\nAufstellen in allen vier Richtungen, mit Vorschau');
+  const flaeche = await page.evaluate(({ kx, ky }) => {
+    const { S, L } = window.__klarwasser;
+    const ort = L.ortVon(S.s, 'hof');
+    for (let y = ky + 4; y <= ky + 16; y++) for (let x = kx - 14; x <= kx + 3; x++) { const kk = L.k(x, y); delete ort.welt.objekte[kk]; delete ort.welt.felder[kk]; delete ort.welt.belag[kk]; }
+    L.kartenGeaendert();
+    let frei = true;
+    for (let y = ky + 5; y <= ky + 15; y++) for (let x = kx - 13; x <= kx + 2; x++) if (!L.begehbar(S.s, ort.def, ort.welt, x, y)) frei = false;
+    S.s.spieler.inv = S.s.spieler.inv.map(() => null);
+    L.hinzufuegen(S.s, { id: 'konstrukteur', n: 6 });
+    return frei;
+  }, { kx, ky });
+  pruefe(flaeche, 'Freie Fläche für die vier Richtungen');
+  const richtungen = [['oben', kx - 11, ky + 9, 0, -1], ['rechts', kx - 7, ky + 9, 1, 0], ['unten', kx - 2, ky + 6, 0, 1], ['links', kx - 8, ky + 14, -1, 0]];
+  for (const [blick, px, py, dx, dy] of richtungen) {
+    await page.evaluate(async ({ px, py, blick }) => {
+      const { S } = window.__klarwasser;
+      const m = await import('/src/spiel.js');
+      S.s.spieler.wahl = S.s.spieler.inv.findIndex((i) => i?.id === 'konstrukteur');
+      m.karteBetreten('hof', px, py, blick);
+    }, { px, py, blick });
+    await page.waitForTimeout(250);
+    const v = await page.evaluate(async ({ blick }) => {
+      const { S } = window.__klarwasser;
+      const o = await import('/src/bereiche/handwerk/fabrik-objekte.js');
+      const r = o.bauVorschau(S.s, S.ort, S.ziel.x, S.ziel.y, blick, S.s.spieler.inv[S.s.spieler.wahl]);
+      return { x: r.x, y: r.y, ok: r.ok };
+    }, { blick });
+    await page.screenshot({ path: `${'/tmp/claude-0/-home-user-the-price-of-clearwater/97d8fb58-e058-5e55-b265-4e4b15c06457/scratchpad/fabrik/'}vorschau-${blick}.png` });
+    await page.keyboard.press('Space');
+    await page.waitForTimeout(150);
+    const k = (await objekte(page, 'konstrukteur')).find((o) => o.kk === `${v.x},${v.y}`);
+    const deckt = k && px >= v.x && px <= v.x + 1 && py >= v.y && py <= v.y + 1;
+    pruefe(v.ok && !!k && !deckt && k.r === ['oben', 'rechts', 'unten', 'links'].indexOf(blick) && ((dx && (dx > 0 ? v.x === px + 1 : v.x === px - 2)) || (dy && (dy > 0 ? v.y === py + 1 : v.y === py - 2))),
+      `Blick ${blick}: Vorschau grün, Konstrukteur steht vor der Spielerin (${v.x},${v.y}), Ausgang ${blick}`);
+  }
+  // Vorschau rot: noch einmal auf dieselbe Stelle
+  await page.evaluate(async ({ px, py }) => { const m = await import('/src/spiel.js'); m.karteBetreten('hof', px, py, 'oben'); }, { px: richtungen[0][1], py: richtungen[0][2] });
+  await page.waitForTimeout(250);
+  const rot = await page.evaluate(async () => {
+    const { S } = window.__klarwasser;
+    const o = await import('/src/bereiche/handwerk/fabrik-objekte.js');
+    return o.bauVorschau(S.s, S.ort, S.ziel.x, S.ziel.y, 'oben', S.s.spieler.inv[S.s.spieler.wahl]).ok;
+  });
+  await page.screenshot({ path: `${'/tmp/claude-0/-home-user-the-price-of-clearwater/97d8fb58-e058-5e55-b265-4e4b15c06457/scratchpad/fabrik/'}vorschau-rot.png` });
+  pruefe(rot === false, 'Vorschau ohne Platz ist rot');
 
   console.log('\nSchlafen und Verkauf');
   const gold = await page.evaluate(() => window.__klarwasser.S.s.spieler.gold);
@@ -239,6 +290,31 @@ try {
   await hp.waitForTimeout(150);
   pruefe((await hp.evaluate(() => Object.values(window.__klarwasser.S.s.welt.hof.objekte).find((o) => o.t === 'konstrukteur').rez)) === 'zahnrad', 'Rezept auf dem Handy gewählt (bleibt im Spielstand)');
   await hp.screenshot({ path: '/tmp/claude-0/-home-user-the-price-of-clearwater/97d8fb58-e058-5e55-b265-4e4b15c06457/scratchpad/fabrik/handy-info.png' });
+  await hp.locator('.fenster .schliessen, .fenster button[aria-label="Schließen"]').first().tap().catch(async () => { await hp.keyboard.press('Escape'); });
+  await hp.waitForTimeout(200);
+  if (await hp.locator('.fabrik-info').count()) { await hp.keyboard.press('Escape'); await hp.waitForTimeout(200); }
+  // Band auf dem Handy: erstes Antippen wählt, zweites dreht
+  await hp.evaluate(async ({ kx, ky }) => { const m = await import('/src/spiel.js'); m.karteBetreten('hof', kx - 3, ky + 1, 'oben'); }, hplan);
+  await hp.waitForTimeout(400);
+  const bandR = () => hp.evaluate(({ kx, ky }) => window.__klarwasser.S.s.welt.hof.objekte[`${kx - 3},${ky}`].r, hplan);
+  const r0 = await bandR();
+  await hp.tap('#tAktion');
+  await hp.waitForTimeout(200);
+  pruefe((await bandR()) === r0, 'Handy: erstes Antippen dreht das Band nicht (es wählt nur)');
+  await hp.tap('#tAktion');
+  await hp.waitForTimeout(200);
+  pruefe((await bandR()) === (r0 + 1) % 4, 'Handy: zweites Antippen dreht das Band');
+  await hp.screenshot({ path: '/tmp/claude-0/-home-user-the-price-of-clearwater/97d8fb58-e058-5e55-b265-4e4b15c06457/scratchpad/fabrik/handy-band.png' });
+  // Vorschau auf dem Handy
+  await hp.evaluate(async ({ kx, ky }) => {
+    const { S, L } = window.__klarwasser;
+    const m = await import('/src/spiel.js');
+    S.s.spieler.inv[0] = { id: 'assembler', n: 1 };
+    S.s.spieler.wahl = 0;
+    m.karteBetreten('hof', kx - 4, ky + 2, 'unten');
+  }, hplan);
+  await hp.waitForTimeout(400);
+  await hp.screenshot({ path: '/tmp/claude-0/-home-user-the-price-of-clearwater/97d8fb58-e058-5e55-b265-4e4b15c06457/scratchpad/fabrik/handy-vorschau.png' });
   await handy.close();
 
   pruefe(fehler.length === 0, `Keine Fehler in der Konsole${fehler.length ? `: ${fehler.slice(0, 3).join(' | ')}` : ''}`);

@@ -3,6 +3,7 @@
 
 import { ITEMS } from '../../daten.js';
 import { FABRIK, MASCHINEN, RICHTUNGEN, SORTEN, reinName } from './fabrik-daten.js';
+import { zutatenGrenze } from './fabrik-sim.js';
 
 const ZEILEN = [];
 /** Eine zusätzliche Zeile im Info-Fenster (Stufe 2: Strom …). fn(o, s) → [Bezeichnung, Wert] | null. */
@@ -19,10 +20,9 @@ export const STATUS_TEXT = {
   x: 'steht still',
 };
 
-/** Durchsatz pro Minute: letzter Messwert, sonst die laufende Schätzung. */
+/** Durchsatz pro Minute (gleitendes Mittel über etwa eine Minute), eine Nachkommastelle. */
 export function durchsatzVon(o) {
-  if (o.dr != null) return o.dr;
-  return o.zt > 1 ? Math.round(((o.zn || 0) / o.zt) * 600) / 10 : 0;
+  return Math.round((Number(o.dr) || 0) * 10) / 10;
 }
 
 /** Eingang und Ausgang in Worten. */
@@ -62,6 +62,23 @@ export function maschinenInfo(o, s) {
     const belegt = (o.inv || []).filter(Boolean).length;
     info.zeilen.push(['Fächer', `${belegt} von ${FABRIK.lagerFaecher} belegt`]);
     info.status = belegt >= FABRIK.lagerFaecher ? 'voll' : 'bereit';
+  }
+  info.code = o.t === 'lager' ? null : (o.st ?? 'e');
+  if (def.rezepte && !o.arb && info.code === 'e') {
+    // Was fehlt? (gewähltes Rezept; beim Schmelzer das Rezept, zu dem schon etwas da ist)
+    const ein = o.ein || {};
+    const liste = def.waehlbar ? [def.rezepte[o.rez ?? def.standard]].filter(Boolean) : Object.values(def.rezepte);
+    const r = liste.find((x) => Object.keys(x.ein).some((z) => z !== 'kohle' && ein[z] > 0)) ?? liste[0];
+    const fehlt = r ? Object.entries(r.ein).filter(([z, n]) => (ein[z] || 0) < n).map(([z, n]) => `${name(z)} ${ein[z] || 0}/${n}`) : [];
+    if (fehlt.length) info.status = `wartet auf Eingang: es fehlt ${fehlt.join(', ')}`;
+  }
+  if (o.abg && def.rezepte) {
+    info.zeilen.push(o.abg.g === 'f'
+      ? ['Blockiert', `${name(o.abg.id)} passt nicht zum Rezept – das Band davor staut.`]
+      : ['Eingang voll', `${name(o.abg.id)}: genug im Eingang, das Band davor wartet.`]);
+  }
+  for (const [z, n] of Object.entries(o.ein || {})) {
+    if (def.rezepte && n > zutatenGrenze(o, z) && zutatenGrenze(o, z) > 0) info.zeilen.push(['Überschuss', `${n}× ${name(z)} (mehr als gebraucht – Verhältnis der Zutaten prüfen)`]);
   }
   if (o.arb && def.rezepte?.[o.arb]) {
     const r = def.rezepte[o.arb];

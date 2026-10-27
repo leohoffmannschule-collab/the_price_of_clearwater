@@ -8,22 +8,26 @@
 // prüft eine Wegsuche, dass alle bisher erreichbaren benannten Punkte erreichbar bleiben. Im Steinbruch weichen Steine,
 // Felsen und Erzbrocken (sie wachsen nach). Zufall nur seedbar (zufall.js).
 
+import { belagTyp } from '../../daten.js';
 import * as L from '../../logik.js';
 import { karteHolen, punkt, bereichVon } from '../../karten.js';
 import { zufall } from '../../zufall.js';
 
-/** Wo welche Vorkommen entstehen: [Sorte, Reinheit]. rMin/rMax = Abstand vom Punkt in Feldern. */
+/**
+ * Wo welche Vorkommen entstehen: [Sorte, Reinheit]. rMin/rMax = Abstand vom Punkt in Feldern; `ersatz` = größerer Radius,
+ * falls nahe am Punkt kein Platz ist (der Hof ist dicht bewachsen). `raeumen`: Steine, Äste und Unkraut weichen.
+ */
 export const ANLAGE = [
   { karte: 'berg', bereich: 'steinbruch', raeumen: true, liste: [['eisen', 1], ['eisen', 2], ['kupfer', 1], ['kupfer', 0.5], ['kohle', 1], ['stein', 1], ['stein', 1], ['gold', 1]] },
-  { karte: 'hof', punkt: 'anhoehe', raeumen: true, rMin: 3, rMax: 14, liste: [['kupfer', 1], ['stein', 1], ['eisen', 0.5]] },
-  { karte: 'wald', punkt: 'lichtung', rMin: 4, rMax: 14, liste: [['kohle', 1]] },
-  { karte: 'wald', punkt: 'fluss1', rMin: 4, rMax: 14, liste: [['kupfer', 0.5]] },
-  { karte: 'strand', punkt: 'strand1', rMin: 4, rMax: 14, liste: [['stein', 1]] },
-  { karte: 'strand', punkt: 'strand2', rMin: 4, rMax: 14, liste: [['eisen', 0.5]] },
+  { karte: 'hof', punkt: 'anhoehe', raeumen: true, rMin: 3, rMax: 14, ersatz: 40, liste: [['kupfer', 1], ['stein', 1], ['eisen', 0.5]] },
+  { karte: 'wald', punkt: 'lichtung', rMin: 4, rMax: 14, ersatz: 30, liste: [['kohle', 1]] },
+  { karte: 'wald', punkt: 'fluss1', rMin: 4, rMax: 14, ersatz: 30, liste: [['kupfer', 0.5]] },
+  { karte: 'strand', punkt: 'strand1', rMin: 4, rMax: 14, ersatz: 30, liste: [['stein', 1]] },
+  { karte: 'strand', punkt: 'strand2', rMin: 4, rMax: 14, ersatz: 30, liste: [['eisen', 0.5]] },
 ];
 
 const WEG = ':=hT_tm';
-const SPERR_BEREICHE = ['bauland', 'stall', 'auslauf'];
+const SPERR_BEREICHE = ['bauland', 'stall', 'auslauf', 'fest'];
 const WEICH = new Set(['stein', 'fels', 'mstein', 'ast', 'unkraut']); // weicht, wo `raeumen` gilt (Steinbruch, Anhöhe)
 
 const ueberlappt = (a, b, rand = 0) => a.x < b.x + b.w + rand && a.x + a.w > b.x - rand && a.y < b.y + b.h + rand && a.y + a.h > b.y - rand;
@@ -86,6 +90,8 @@ export function vorkommenPasst(s, ort, x, y, sperren = [], raeumen = false) {
     }
   }
   if (fehlt > (raeumen ? 4 : 2)) return false;
+  // keine Deko darunter oder direkt daneben (Muscheln, Dünengras, Loren …)
+  for (let dy = -1; dy <= 2; dy++) for (let dx = -1; dx <= 2; dx++) if (L.dekoAn(s, def, x + dx, y + dy)) return false;
   for (const p of Object.values(def.punkte)) if (ueberlappt(block, { x: p[0], y: p[1], w: 1, h: 1 }, 2)) return false;
   for (const w of def.warps) if (ueberlappt(block, w, 3)) return false;
   for (const g of L.gebaeudeListe(s, def)) if (ueberlappt(block, g, 2)) return false;
@@ -93,30 +99,56 @@ export function vorkommenPasst(s, ort, x, y, sperren = [], raeumen = false) {
   return true;
 }
 
-function kandidaten(s, ort, a, r) {
+function kandidaten(s, ort, a, r, rMax = a.rMax) {
   const { def } = ort;
-  const liste = [];
   if (a.bereich) {
     const b = bereichVon(a.karte, a.bereich, s);
-    if (!b) return liste;
-    for (let y = b.y; y < b.y + b.h - 1; y++) for (let x = b.x; x < b.x + b.w - 1; x++) liste.push([x, y]);
-  } else {
-    const p = punkt(a.karte, a.punkt, s);
-    if (!p) return liste;
-    for (let y = p.y - a.rMax; y <= p.y + a.rMax; y++) {
-      for (let x = p.x - a.rMax; x <= p.x + a.rMax; x++) {
-        const d = Math.max(Math.abs(x + 0.5 - p.x), Math.abs(y + 0.5 - p.y));
-        if (d >= a.rMin && d <= a.rMax && x >= 1 && y >= 1 && x < def.w - 2 && y < def.h - 2) liste.push([x, y]);
-      }
+    const liste = [];
+    if (b) for (let y = b.y; y < b.y + b.h - 1; y++) for (let x = b.x; x < b.x + b.w - 1; x++) liste.push([x, y]);
+    return mischen(r, liste);
+  }
+  const p = punkt(a.karte, a.punkt, s);
+  if (!p) return [];
+  // nach Abstand gestaffelt (Stufen zu 4 Feldern): erst nah am Punkt, innerhalb einer Stufe gemischt
+  const stufen = [];
+  for (let y = p.y - rMax; y <= p.y + rMax; y++) {
+    for (let x = p.x - rMax; x <= p.x + rMax; x++) {
+      const d = Math.max(Math.abs(x + 0.5 - p.x), Math.abs(y + 0.5 - p.y));
+      if (d >= a.rMin && d <= rMax && x >= 1 && y >= 1 && x < def.w - 2 && y < def.h - 2) (stufen[Math.floor(d / 4)] ??= []).push([x, y]);
     }
   }
-  return mischen(r, liste);
+  return stufen.filter(Boolean).flatMap((st) => mischen(r, st));
 }
 
 /** Setzt ein Vorkommen; weichende Steine werden entfernt. */
 function setzen(ort, x, y, v) {
   for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) delete ort.welt.objekte[L.k(x + dx, y + dy)];
   L.objektSetzen(ort, x, y, v);
+}
+
+/** Belag „Abraum": hält eine Seite eines Vorkommens im Steinbruch frei (der Berg füllt nur freie Felder nach). */
+export const ABRAUM = 'handwerk_abraum';
+belagTyp(ABRAUM, { name: 'Abraum', item: null, tempo: 1 });
+
+/**
+ * Eine Seite des Vorkommens zugänglich halten: liegt dort schon ein Weg, genügt das; sonst bekommen die zwei Felder
+ * (unten, links, rechts oder oben, das erste, das geht) Abraum, und Steine darauf weichen.
+ */
+function schuerze(s, ort, x, y) {
+  const { def, welt } = ort;
+  const seiten = [[[x, y + 2], [x + 1, y + 2]], [[x - 1, y], [x - 1, y + 1]], [[x + 2, y], [x + 2, y + 1]], [[x, y - 1], [x + 1, y - 1]]];
+  for (const felder of seiten) {
+    const geht = felder.every(([fx, fy]) => L.begehbar(s, def, LEER, fx, fy) && !L.dekoAn(s, def, fx, fy) && !L.warpAn(def, fx, fy)
+      && (!welt.objekte[L.k(fx, fy)] || WEICH.has(welt.objekte[L.k(fx, fy)].t)) && !welt.felder[L.k(fx, fy)]);
+    if (!geht) continue;
+    if (felder.every(([fx, fy]) => WEG.includes(def.grid[fy][fx]))) return;
+    for (const [fx, fy] of felder) {
+      const kk = L.k(fx, fy);
+      delete welt.objekte[kk];
+      if (!welt.belag[kk] && !WEG.includes(def.grid[fy][fx])) welt.belag[kk] = { t: ABRAUM };
+    }
+    return;
+  }
 }
 
 /**
@@ -131,13 +163,11 @@ export function vorkommenAnlegen(s, teil = 'alle') {
     if (!def) continue;
     const r = zufall((s.seed ^ 0x7ef1a5 ^ (a.karte.length * 977 + (a.punkt || a.bereich).length * 31)) >>> 0);
     const ort = L.ortVon(s, a.karte);
-    const sperren = SPERR_BEREICHE.filter((n) => def.bereiche?.[n]).map((n) => {
-      const b = def.bereiche[n];
-      return { x: b[0], y: b[1], w: b[2], h: b[3] };
-    });
+    // Bauland, Stall, Auslauf und Festplätze bleiben frei
+    const sperren = Object.entries(def.bereiche ?? {}).filter(([n]) => SPERR_BEREICHE.includes(n)).map(([, b]) => ({ x: b[0], y: b[1], w: b[2], h: b[3] }));
     for (const b of def.frei ?? []) sperren.push({ x: b.x, y: b.y, w: b.w, h: b.h }); // freie Plätze des Hofs
-    for (const [erz, rein] of a.liste) {
-      for (const [x, y] of kandidaten(s, ort, a, r)) {
+    const versuch = (erz, rein, rMax) => {
+      for (const [x, y] of kandidaten(s, ort, a, r, rMax)) {
         if (!vorkommenPasst(s, ort, x, y, sperren, !!a.raeumen)) continue;
         const vorher = a.bereich ? 0 : erreichbarePunkte(s, ort);
         const alt = [];
@@ -150,9 +180,14 @@ export function vorkommenAnlegen(s, teil = 'alle') {
           L.kartenGeaendert();
           continue;
         }
+        if (a.bereich) schuerze(s, ort, x, y);
         gelegt.push({ karte: a.karte, x, y, erz, rein });
-        break;
+        return true;
       }
+      return false;
+    };
+    for (const [erz, rein] of a.liste) {
+      if (!versuch(erz, rein, a.rMax) && a.ersatz) versuch(erz, rein, a.ersatz);
     }
   }
   if (gelegt.length) L.kartenGeaendert();

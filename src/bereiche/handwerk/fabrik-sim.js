@@ -12,6 +12,7 @@
 // Schritt: erst die Maschinen (arbeiten, abgeben), dann Bänder, Splitter und Zusammenführer in der Reihenfolge
 // „stromabwärts zuerst". Nachholen: derselbe Schritt in größeren Stücken (FABRIK.nachholSchritt).
 
+import { ITEMS } from '../../daten.js';
 import * as L from '../../logik.js';
 import { mod } from '../../system.js';
 import { FABRIK, MASCHINEN, FABRIK_TYPEN, BAND, SPLITTER, MERGER, DX, DY, SORTEN } from './fabrik-daten.js';
@@ -172,19 +173,13 @@ function bandAnnehmen(o, ware, d, ueber) {
   return true;
 }
 
-function teilerAnnehmen(o, ware, d) {
-  if (o.pf || d === hinten(o.r)) return false;
-  // Splitter nehmen nur von hinten (Bewegung in Richtung r); Zusammenführer auch von den Seiten
-  if (o.t === SPLITTER && d !== o.r) return false;
-  o.pf = { id: ware.id };
-  if (ware.q) o.pf.q = ware.q;
-  if (ware.von) o.pf.von = ware.von;
-  o.z = FABRIK.teilerZeit;
-  return true;
+/** Ist eine Maschine ausgehungert (nichts in Arbeit, kein Rezept kann starten)? Dann darf sie über die Grenze annehmen. */
+function hungert(o) {
+  return !o.arb && !naechstesRezept(o);
 }
 
 /** Zutaten, die eine Maschine annimmt: Obergrenze je Gegenstand (3× Bedarf, mindestens 4). */
-function zutatenGrenze(o, id) {
+export function zutatenGrenze(o, id) {
   const def = MASCHINEN[o.t];
   if (!def?.rezepte) return 0;
   const liste = def.waehlbar ? [def.rezepte[o.rez ?? def.standard]].filter(Boolean) : Object.values(def.rezepte);
@@ -193,34 +188,89 @@ function zutatenGrenze(o, id) {
   return grenze;
 }
 
-function maschineAnnehmen(o, ware, d) {
+/**
+ * Eine Ware in eine Maschine (oder ein Lager) legen. Über die Grenze hinaus nimmt eine Maschine eine Zutat nur an,
+ * wenn sie sonst stillstünde (ausgehungert): so verklemmt ein gemischtes Band (Erz und Kohle) nicht, wenn die
+ * vorderste Ware gerade die Zutat ist, von der genug da ist. Höchstens FABRIK.ueberlaufMax je Zutat.
+ * Abgewiesenes merkt sich die Maschine in `o.abg` ({ id, g: 'f' passt nicht | 'g' Grenze }) für das Info-Fenster.
+ */
+export function maschineAnnehmen(o, ware, d) {
   if (d === hinten(o.r)) return false; // nicht durch die Ausgangsseite
   if (o.t === 'lager') {
     const rest = L.inBehaelter((o.inv ??= Array(FABRIK.lagerFaecher).fill(null)), { id: ware.id, n: 1, q: ware.q, von: ware.von });
     return rest === 0;
   }
-  if (ware.q || ware.von) return false;
-  const grenze = zutatenGrenze(o, ware.id);
-  if (!grenze) return false;
+  const grenze = ware.q || ware.von ? 0 : zutatenGrenze(o, ware.id);
+  if (!grenze) { o.abg = { id: ware.id, g: 'f' }; return false; }
   const ein = (o.ein ??= {});
-  if ((ein[ware.id] || 0) >= grenze) return false;
-  ein[ware.id] = (ein[ware.id] || 0) + 1;
+  const n = ein[ware.id] || 0;
+  if (n >= grenze && !(n < FABRIK.ueberlaufMax && hungert(o))) { o.abg = { id: ware.id, g: 'g' }; return false; }
+  ein[ware.id] = n + 1;
+  if (o.abg) delete o.abg;
   return true;
 }
 
 function versandAnnehmen(c, ware) {
-  L.versandHinzu(c.s, { id: ware.id, n: 1, ...(ware.q ? { q: ware.q } : {}), ...(ware.von ? { von: ware.von } : {}) });
+  const slot = { id: ware.id, n: 1, ...(ware.q ? { q: ware.q } : {}), ...(ware.von ? { von: ware.von } : {}) };
+  if (!ITEMS[slot.id] || !L.verkaufbar(slot)) return false; // Unverkäufliches (und Unbekanntes) bleibt im Rückstau
+  L.versandHinzu(c.s, slot);
+  return true;
+}
+
+/** Splitter: reicht eine Ware von hinten sofort an den nächsten freien Ausgang weiter (vorn, links, rechts, reihum). */
+function splitterWeiter(c, tk, o, ware, d, ueber, tiefe) {
+  if (d !== o.r || o.pf) return false;
+  const [x, y] = L.ausK(tk);
+  const richtungen = [o.r, (o.r + 3) % 4, (o.r + 1) % 4];
+  const start = o.nx | 0;
+  for (let j = 0; j < 3; j++) {
+    const i = (start + j) % 3;
+    const r = richtungen[i];
+    if (annehmen(c, L.k(x + DX[r], y + DY[r]), ware, r, ueber, tiefe + 1)) { o.nx = (i + 1) % 3; return true; }
+  }
+  return false;
+}
+
+/** Wartet am Feld neben dem Zusammenführer (Seite sd) ein Zufluss, der ihn in diesem Schritt erreicht? */
+function zuflussWartet(c, x, y, sd) {
+  const b = hauptAn(c.welt, L.k(x + DX[sd], y + DY[sd]));
+  if (!b || b.t !== BAND || b.r !== hinten(sd) || !b.w?.length) return false;
+  return b.w[0].p + FABRIK.bandTempo * c.dt >= 1 - 1e-9;
+}
+function hatZufluss(c, x, y, sd) {
+  return gibtAb(hauptAn(c.welt, L.k(x + DX[sd], y + DY[sd])), hinten(sd));
+}
+
+/**
+ * Zusammenführer: reicht eine Ware sofort nach vorn weiter. Gerecht reihum: Eine Seite, die nicht dran ist, kommt nur
+ * durch, wenn auf der Seite, die dran ist, gerade nichts wartet.
+ */
+function mergerWeiter(c, tk, o, ware, d, ueber, tiefe) {
+  if (d === hinten(o.r) || o.pf) return false;
+  const [x, y] = L.ausK(tk);
+  const seiten = [hinten(o.r), (o.r + 3) % 4, (o.r + 1) % 4];
+  const i = seiten.indexOf(hinten(d));
+  if (i < 0) return false;
+  const dran = (o.nx | 0) % 3;
+  if (i !== dran && zuflussWartet(c, x, y, seiten[dran])) return false;
+  if (!annehmen(c, L.k(x + DX[o.r], y + DY[o.r]), ware, o.r, ueber, tiefe + 1)) return false;
+  // nächste Seite mit Zufluss ist dran
+  for (let j = 1; j <= 3; j++) {
+    const k = (i + j) % 3;
+    if (hatZufluss(c, x, y, seiten[k])) { o.nx = k; break; }
+  }
   return true;
 }
 
 /** Ware an das Feld `tk` übergeben, Bewegungsrichtung d, `ueber` = schon zurückgelegter Weg im Zielfeld. */
-function annehmen(c, tk, ware, d, ueber, vonBand = false) {
+function annehmen(c, tk, ware, d, ueber, tiefe = 0) {
+  if (tiefe > 16) return false;
   const o = hauptAn(c.welt, tk);
   if (!o) return c.versand.has(tk) ? versandAnnehmen(c, ware) : false;
   switch (o.t) {
     case BAND: return bandAnnehmen(o, ware, d, ueber);
-    case SPLITTER: return teilerAnnehmen(o, ware, d);
-    case MERGER: return vonBand ? false : teilerAnnehmen(o, ware, d);
+    case SPLITTER: return splitterWeiter(c, tk, o, ware, d, ueber, tiefe);
+    case MERGER: return mergerWeiter(c, tk, o, ware, d, ueber, tiefe);
     case 'truhe': {
       if (!Array.isArray(o.inv)) return false;
       return L.inBehaelter(o.inv, { id: ware.id, n: 1, q: ware.q, von: ware.von }) === 0;
@@ -243,7 +293,7 @@ function bandSchritt(c, n, dt) {
     let np = e.p + v;
     if (vorn !== null && np > vorn - A) np = vorn - A;
     if (np >= 1) {
-      if (annehmen(c, n.zk, e, o.r, np - 1, true)) { w.splice(i, 1); continue; }
+      if (annehmen(c, n.zk, e, o.r, np - 1)) { w.splice(i, 1); continue; }
       np = 1;
     }
     e.p = np > e.p ? np : e.p;
@@ -252,99 +302,78 @@ function bandSchritt(c, n, dt) {
   }
 }
 
-function teilerSchritt(c, n, dt) {
+/** Alte Stände: eine Ware, die ein Splitter/Zusammenführer noch hält, weiterreichen. */
+function teilerLeeren(c, n) {
   const o = n.o;
   if (!o.pf) return;
-  o.z -= dt;
-  if (o.z > 0) return;
-  o.z = 0;
-  if (o.t === SPLITTER) {
-    const richtungen = [o.r, (o.r + 3) % 4, (o.r + 1) % 4];
-    const start = o.nx | 0;
-    for (let j = 0; j < 3; j++) {
-      const i = (start + j) % 3;
-      const d = richtungen[i];
-      if (annehmen(c, L.k(n.x + DX[d], n.y + DY[d]), o.pf, d, 0)) { o.pf = null; o.nx = (i + 1) % 3; return; }
-    }
-  } else if (annehmen(c, n.zk, o.pf, o.r, 0)) o.pf = null;
-}
-
-/** Zusammenführer: holt reihum die vorderste Ware eines wartenden Bandes von hinten, links oder rechts. */
-function mergerHolen(c, n) {
-  const o = n.o;
-  if (o.pf) return;
-  const seiten = [hinten(o.r), (o.r + 3) % 4, (o.r + 1) % 4];
-  const start = o.nx | 0;
-  for (let j = 0; j < 3; j++) {
-    const i = (start + j) % 3;
-    const sd = seiten[i];
-    const b = hauptAn(c.welt, L.k(n.x + DX[sd], n.y + DY[sd]));
-    if (!b || b.t !== BAND || b.r !== hinten(sd) || !b.w?.length) continue;
-    const e = b.w[0];
-    if (e.p < 0.999) continue;
-    b.w.shift();
-    o.pf = { id: e.id };
-    if (e.q) o.pf.q = e.q;
-    if (e.von) o.pf.von = e.von;
-    o.z = FABRIK.teilerZeit;
-    o.nx = (i + 1) % 3;
-    return;
-  }
+  const ware = o.pf;
+  o.pf = null;
+  const ok = o.t === SPLITTER ? splitterWeiter(c, n.kk, o, ware, o.r, 0, 0) : annehmen(c, n.zk, ware, o.r, 0, 1);
+  if (!ok) o.pf = ware;
 }
 
 const summe = (m) => { let n = 0; for (const id in m) n += m[id]; return n; };
 
 function zaehlen(o, n) { o.zn = (o.zn || 0) + n; }
 
+/** Durchsatz pro Minute als gleitendes Mittel (Zeitkonstante FABRIK.durchsatzFenster), unabhängig von der Schrittweite. */
 function durchsatz(o, dt) {
-  o.zt = (o.zt || 0) + dt;
-  if (o.zt >= FABRIK.durchsatzFenster) {
-    o.dr = Math.round(((o.zn || 0) / o.zt) * 600) / 10;
-    o.zn = 0;
-    o.zt = 0;
+  if (!(dt > 0)) return;
+  const a = 1 - Math.exp(-dt / FABRIK.durchsatzFenster);
+  o.dr = (o.dr || 0) * (1 - a) + ((o.zn || 0) / dt) * 60 * a;
+  if (o.dr < 1e-3) o.dr = 0;
+  o.zn = 0;
+}
+
+/** Ausgabe-Guthaben: höchstens FABRIK.ausgabeRate Stück pro Sekunde und Ausgangsfeld (Bänder begrenzen ohnehin). */
+function guthaben(o, n, dt) {
+  const max = FABRIK.ausgabeRate * n.rand.length;
+  o.ak = Math.min((o.ak || 0) + dt * max, Math.max(1, max * dt) + 1);
+  return o.ak;
+}
+
+/**
+ * Fertige Ware an die Felder vor der Ausgangsseite abgeben, reihum. Läuft nach den Bändern; eine Ware, die in diesem
+ * Schritt aufs Band kommt, hat dort schon bis zu Tempo·dt zurückgelegt (genau so viele wie live, egal wie groß dt ist).
+ */
+function abgeben(c, n, dt, naechste) {
+  const o = n.o;
+  if (!n.rand.length) return;
+  const ueber = FABRIK.bandTempo * dt;
+  guthaben(o, n, dt);
+  while (o.ak >= 1) {
+    const ware = naechste();
+    if (!ware) return;
+    let ok = false;
+    for (let j = 0; j < n.rand.length; j++) {
+      const i = ((o.ei | 0) + j) % n.rand.length;
+      if (annehmen(c, n.rand[i], ware, o.r, ueber)) { o.ei = (i + 1) % n.rand.length; ok = true; break; }
+    }
+    if (!ok) return;
+    ware.weg();
+    o.ak -= 1;
   }
 }
 
-/** Fertige Ware an die Felder vor der Ausgangsseite abgeben (höchstens 6 Stück je Schritt). */
-function abgeben(c, n) {
-  const o = n.o;
+function ausgabeAus(o) {
   const aus = o.aus;
-  if (!aus || !n.rand.length) return;
-  let versuche = 0;
-  for (const id in aus) {
-    while (aus[id] > 0 && versuche < 6) {
-      let ok = false;
-      for (let j = 0; j < n.rand.length; j++) {
-        const i = ((o.ei | 0) + j) % n.rand.length;
-        if (annehmen(c, n.rand[i], { id }, o.r, 0)) { o.ei = (i + 1) % n.rand.length; ok = true; break; }
-      }
-      if (!ok) break;
-      aus[id]--;
-      versuche++;
-    }
-  }
+  return () => {
+    if (!aus) return null;
+    for (const id in aus) if (aus[id] > 0) return { id, weg: () => { aus[id]--; if (aus[id] <= 0) delete aus[id]; } };
+    return null;
+  };
 }
 
-function lagerSchritt(c, n) {
-  const o = n.o;
+function ausgabeLager(o) {
   const inv = o.inv;
-  if (!inv) return;
-  let versuche = 0;
-  for (let i = 0; i < inv.length && versuche < 6; i++) {
-    const fach = inv[i];
-    if (!fach) continue;
-    while (fach.n > 0 && versuche < 6) {
-      let ok = false;
-      for (let j = 0; j < n.rand.length; j++) {
-        const m = ((o.ei | 0) + j) % n.rand.length;
-        if (annehmen(c, n.rand[m], fach, o.r, 0)) { o.ei = (m + 1) % n.rand.length; ok = true; break; }
-      }
-      if (!ok) return;
-      fach.n--;
-      versuche++;
+  return () => {
+    if (!inv) return null;
+    for (let i = 0; i < inv.length; i++) {
+      const f = inv[i];
+      if (f && f.n > 0) return { id: f.id, q: f.q, von: f.von, weg: () => { f.n--; if (f.n <= 0) inv[i] = null; } };
     }
-    if (fach.n <= 0) inv[i] = null;
-  }
+    return null;
+  };
 }
 
 function bohrerSchritt(c, n, dt, tempo) {
@@ -408,27 +437,58 @@ function rezeptSchritt(c, n, dt, tempo) {
 
 function maschinenSchritt(c, n, dt) {
   const o = n.o;
-  if (o.t === 'lager') { lagerSchritt(c, n); return; }
+  if (o.t === 'lager') { abgeben(c, n, dt, ausgabeLager(o)); return; }
   const tempo = tempoVon(c, o);
   if (o.t === 'erzbohrer') bohrerSchritt(c, n, dt, tempo);
   else rezeptSchritt(c, n, dt, tempo);
   durchsatz(o, dt);
-  abgeben(c, n);
+  abgeben(c, n, dt, ausgabeAus(o));
 }
 
-/** Ein Simulationsschritt von dt Sekunden auf einer Karte. */
+/**
+ * Ein Simulationsschritt von dt Sekunden auf einer Karte: erst Bänder (stromabwärts zuerst; Splitter und Zusammenführer
+ * reichen dabei sofort weiter), dann die Maschinen (arbeiten und geben ab).
+ */
 export function schritt(s, ort, dt) {
   const c = cacheVon(s, ort);
   if (!c.anzahl) return c;
-  for (const n of c.maschinen) maschinenSchritt(c, n, dt);
+  c.dt = dt;
   for (const n of c.fluss) {
     if (n.t === BAND) bandSchritt(c, n, dt);
-    else {
-      if (n.t === MERGER) mergerHolen(c, n);
-      teilerSchritt(c, n, dt);
-    }
+    else teilerLeeren(c, n);
   }
+  for (const n of c.maschinen) maschinenSchritt(c, n, dt);
   return c;
+}
+
+/**
+ * Warum staut ein Band an seinem Ende? Text für den Hinweis (oder null, wenn nichts staut). Erklärt Band gegen Band,
+ * Bandende ohne Ziel, Ausgangsseite einer Maschine, falsche Ware, volle Ziele und Unverkäufliches vor der Versandkiste.
+ */
+export function bandStau(s, ort, x, y, o) {
+  const w = o.w;
+  if (!w?.length || w[0].p < 0.999) return null;
+  const ware = ITEMS[w[0].id]?.name ?? w[0].id;
+  const tk = L.k(x + DX[o.r], y + DY[o.r]);
+  const ziel = hauptAn(ort.welt, tk);
+  if (!ziel) {
+    if (!cacheVon(s, ort).versand.has(tk)) return 'Stau: am Bandende ist nichts';
+    return ITEMS[w[0].id] && L.verkaufbar({ id: w[0].id, n: 1 }) ? null : `Stau: ${ware} lässt sich nicht verkaufen`;
+  }
+  const name = MASCHINEN[ziel.t]?.name;
+  switch (ziel.t) {
+    case BAND: return ziel.r === hinten(o.r) ? 'Stau: Band gegen Band (zeigen gegeneinander)' : 'Stau: das nächste Band ist voll';
+    case SPLITTER: return ziel.r !== o.r ? 'Stau: der Splitter nimmt nur von hinten an' : 'Stau: alle Ausgänge des Splitters sind voll';
+    case MERGER: return ziel.r === hinten(o.r) ? 'Stau: das Band zeigt in den Ausgang des Zusammenführers' : 'Stau: der Zusammenführer kann nicht weiter';
+    case 'truhe': return 'Stau: die Truhe ist voll';
+    case 'erzbohrer': return 'Stau: der Erzbohrer nimmt nichts an';
+    case 'lager': return o.r === hinten(ziel.r) ? 'Stau: das Band zeigt in die Ausgangsseite des Lagers' : 'Stau: das Lager ist voll';
+    default:
+      if (!name) return 'Stau: dort kann nichts hinein';
+      if (o.r === hinten(ziel.r)) return `Stau: das Band zeigt in die Ausgangsseite (${name})`;
+      if (!zutatenGrenze(ziel, w[0].id)) return `Stau: ${ware} passt nicht zum Rezept (${name})`;
+      return `Stau: der Eingang (${name}) ist voll`;
+  }
 }
 
 const jetzt = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());

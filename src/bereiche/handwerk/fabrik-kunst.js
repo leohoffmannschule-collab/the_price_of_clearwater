@@ -1,7 +1,7 @@
 // Bereich „handwerk" – Fabrik: Pixelkunst der Gegenstände (Bauteile, Maschinen als Symbole) und die kleinen
 // Warensymbole, die auf den Bändern laufen. Gemeinsame Zeichenhilfen (Drehen im Quadrat) für fabrik-kunst-objekte.js.
 
-import { kunst, P, R, E, L as LINIE, POLY, hell, dunkel, gecacht, leinwand, itemBild } from '../../sprites.js';
+import { kunst, belagKunst, P, R, E, L as LINIE, POLY, hell, dunkel, gecacht, leinwand, itemBild, umriss } from '../../sprites.js';
 import { ITEMS } from '../../daten.js';
 
 export const STAHL = '#8a919c';
@@ -76,40 +76,49 @@ export function schnee(g, N) {
   R(g, Math.floor(N / 2), 2, Math.floor(N / 4), 1, '#f4f8fb');
 }
 
-// ─── Warensymbole auf dem Band (6×6) ────────────────────────────────────────
+// ─── Warensymbole auf dem Band (8×8: Motiv 6×6 mit hellem Rand, damit es auf dem dunklen Band lesbar bleibt) ─
 
 function klumpen(g, f) {
-  E(g, 3, 3.2, 2.7, 2.3, dunkel(f, 0.3));
-  E(g, 2.8, 2.9, 2.2, 1.8, f);
-  P(g, 2, 2, hell(f, 0.55));
+  E(g, 3, 3.2, 2.8, 2.4, dunkel(f, 0.35));
+  E(g, 2.8, 2.9, 2.3, 1.9, f);
+  P(g, 2, 2, hell(f, 0.6));
 }
+/** Erz: grauer Brocken mit Einschlüssen in der Farbe des Erzes (anders als Barren und Kohle). */
+function erz(g, f) {
+  klumpen(g, '#5e564c');
+  for (const [x, y] of [[1, 2], [3, 1], [3, 4], [0, 4]]) R(g, x, y, 2, 1, f);
+  P(g, 3, 1, hell(f, 0.5));
+}
+/** Barren: Trapez mit heller Oberseite. */
 function barren(g, f) {
-  R(g, 0, 2, 6, 3, dunkel(f, 0.3));
-  R(g, 0, 2, 6, 1, hell(f, 0.45));
+  R(g, 0, 3, 6, 2, dunkel(f, 0.3));
+  R(g, 1, 2, 4, 1, hell(f, 0.5));
   R(g, 1, 3, 4, 1, f);
 }
 const MINI = {
-  kohle: (g) => { klumpen(g, '#3a3a42'); P(g, 4, 2, '#7a7a86'); },
-  stein: (g) => { klumpen(g, '#a8a29a'); },
-  kupferdraht: (g) => { R(g, 0, 1, 6, 4, '#a85a28'); R(g, 1, 2, 4, 2, '#d98a4e'); P(g, 2, 3, '#6a3a18'); P(g, 3, 3, '#6a3a18'); },
-  eisenplatte: (g) => { R(g, 0, 1, 6, 4, '#7a828e'); R(g, 0, 1, 6, 1, '#d6dce4'); R(g, 1, 2, 4, 2, '#b4bbc6'); },
-  schraube: (g) => { R(g, 0, 0, 4, 2, '#b4bbc6'); R(g, 1, 2, 2, 4, '#7a828e'); P(g, 1, 3, '#d6dce4'); P(g, 2, 4, '#4a505c'); },
-  zahnrad: (g) => { E(g, 3, 3, 2.6, 2.6, '#9aa3af'); for (const [x, y] of [[0, 2], [5, 2], [2, 0], [2, 5]]) R(g, x, y, 1, 2, '#9aa3af'); P(g, 2, 2, '#3a3e48'); P(g, 3, 3, '#3a3e48'); },
-  maschinenteil: (g) => { R(g, 0, 1, 6, 4, '#6a7482'); R(g, 0, 1, 6, 1, '#b4bbc6'); R(g, 1, 3, 4, 1, ORANGE); P(g, 1, 2, '#3a3e48'); },
-  antriebseinheit: (g) => { E(g, 3, 3, 2.9, 2.6, '#3f6fa8'); E(g, 3, 2.6, 2.2, 1.8, '#6a9ad0'); P(g, 3, 3, GELB); P(g, 2, 3, GELB); },
+  kohle: (g) => { klumpen(g, '#2a2a32'); P(g, 4, 2, '#8a8a96'); P(g, 1, 3, '#5a5a66'); },
+  stein: (g) => { klumpen(g, '#c4beb4'); P(g, 4, 4, '#8a8276'); },
+  kupferdraht: (g) => { E(g, 3, 3, 2.9, 2.9, '#a85a28'); E(g, 3, 3, 1.9, 1.9, '#e8a060'); P(g, 2, 2, '#6a3a18'); P(g, 3, 3, '#6a3a18'); },
+  eisenplatte: (g) => { R(g, 0, 0, 6, 6, '#7a828e'); R(g, 0, 0, 6, 1, '#eef2f6'); R(g, 1, 1, 4, 4, '#c8ced6'); P(g, 1, 1, '#4a505c'); P(g, 4, 4, '#4a505c'); },
+  schraube: (g) => { R(g, 0, 0, 5, 2, '#d6dce4'); P(g, 2, 0, '#4a505c'); R(g, 1, 2, 3, 4, '#8a919c'); P(g, 1, 3, '#4a505c'); P(g, 3, 4, '#4a505c'); },
+  zahnrad: (g) => { E(g, 3, 3, 2.4, 2.4, '#b4bbc6'); for (const [x, y] of [[0, 2], [5, 2], [2, 0], [2, 5], [3, 0], [3, 5], [0, 3], [5, 3]]) P(g, x, y, '#9aa3af'); P(g, 2, 2, '#3a3e48'); P(g, 3, 3, '#3a3e48'); },
+  maschinenteil: (g) => { R(g, 0, 1, 6, 4, '#6a7482'); R(g, 0, 1, 6, 1, '#d6dce4'); R(g, 1, 3, 4, 1, ORANGE); P(g, 1, 2, '#3a3e48'); P(g, 4, 2, '#3a3e48'); },
+  antriebseinheit: (g) => { E(g, 3, 3, 2.9, 2.6, '#3f6fa8'); E(g, 3, 2.6, 2.2, 1.8, '#7aaae0'); P(g, 3, 3, GELB); P(g, 2, 3, GELB); },
 };
 
-/** Kleines Symbol (6×6) einer Ware; unbekannte Dinge werden aus ihrem Gegenstandsbild verkleinert. */
+/** Kleines Symbol (8×8) einer Ware; unbekannte Dinge werden aus ihrem Gegenstandsbild verkleinert. */
 export function miniBild(id) {
   return gecacht(`fabrik:mini:${id}`, () => {
-    const [c, g] = leinwand(6, 6);
+    const [c, g] = leinwand(8, 8);
     const it = ITEMS[id];
+    g.translate(1, 1);
     if (MINI[id]) MINI[id](g);
     else if (it?.kat === 'barren') barren(g, it.bild?.f || '#cfd7df');
-    else if (it?.kat === 'erz') klumpen(g, it.bild?.f || '#a8a29a');
+    else if (it?.kat === 'erz') erz(g, it.bild?.f || '#a8a29a');
     else g.drawImage(itemBild({ id }), 1, 1, 14, 14, 0, 0, 6, 6);
-    return c;
-  }, [6, 6]);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    return umriss(c, '#e8e0c8');
+  }, [8, 8]);
 }
 
 // ─── Gegenstände (16×16) ────────────────────────────────────────────────────
@@ -210,4 +219,11 @@ kunst({
     E(g, 7, 9, 2, 2, GELB); P(g, 7, 9, '#7a5a1a');
     for (const x of [3, 9]) P(g, x, 5, STAHL_H);
   },
+});
+
+/** Abraum vor einem Vorkommen im Steinbruch: lockerer Schotter mit Erzkrümeln (ohne Umriss). */
+belagKunst('handwerk_abraum', (g, k) => {
+  R(g, 0, 0, 16, 16, k?.winter ? '#d8dce2' : '#9a8e7e');
+  for (const [x, y, f] of [[2, 3, '#7a6e60'], [9, 2, '#b4a894'], [5, 9, '#7a6e60'], [12, 11, '#b4a894'], [3, 13, '#867a6a'], [13, 5, '#867a6a'], [8, 6, '#c8b898'], [10, 14, '#7a6e60']]) R(g, x, y, 2, 1, f);
+  for (const [x, y] of [[6, 4], [11, 8], [2, 10]]) P(g, x, y, '#d98a4e');
 });

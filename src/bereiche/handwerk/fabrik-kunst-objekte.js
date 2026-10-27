@@ -5,7 +5,11 @@
 // Status (grün arbeitet, gelb wartet, rot Ausgang voll). Winter: Schnee auf den Kanten.
 // Statisches wird gecacht (Schlüssel), nur `danach` läuft jedes Bild und zeichnet einfache Formen.
 
-import { objektKunst, P, R, E, L as LINIE, mische, hell, dunkel } from '../../sprites.js';
+import { objektKunst, objektBild, P, R, E, L as LINIE, mische, hell, dunkel } from '../../sprites.js';
+import { zeichner } from '../../render.js';
+import { T } from '../../daten.js';
+import { S } from '../../spiel.js';
+import { bauVorschau } from './fabrik-objekte.js';
 import { SORTEN } from './fabrik-daten.js';
 import { STAHL, STAHL_H, STAHL_D, STAHL_DD, GELB, ORANGE, Pr, platte, anschluesse, schnee, miniBild } from './fabrik-kunst.js';
 
@@ -68,7 +72,7 @@ export function bandPosition(r, kv, p) {
 function warenZeichnen(g, lage, o, liste) {
   for (const e of liste) {
     const [cx, cy] = bandPosition(o.r, o.kv || 0, e.p);
-    g.drawImage(miniBild(e.id), Math.round(lage.x + cx - 3), Math.round(lage.y + cy - 3));
+    g.drawImage(miniBild(e.id), Math.round(lage.x + cx - 4), Math.round(lage.y + cy - 4));
   }
 }
 
@@ -89,7 +93,7 @@ function teilerKoerper(g, o, k, farbe, seiten) {
   anschluesse(g, 16, o.r | 0, 1, { seiten });
   if (winter(k)) R(g, 2, 1, 12, 1, '#f4f8fb');
 }
-const teilerDanach = (g, o, lage) => { if (o.pf) g.drawImage(miniBild(o.pf.id), lage.x + 5, lage.y + 5); };
+const teilerDanach = (g, o, lage) => { if (o.pf) g.drawImage(miniBild(o.pf.id), lage.x + 4, lage.y + 4); };
 objektKunst('splitter', {
   b: 16, h: 16, tiefe: -8,
   schluessel: (o, k) => `${o.r | 0}:${winter(k) ? 1 : 0}`,
@@ -166,7 +170,7 @@ function maschinenObjekt(typ, N, { koerper, danach }) {
   objektKunst(typ, {
     b: N, h: N,
     schatten: [N / 2 - 3, 3, -1],
-    schluessel: (o, k) => `${o.r | 0}:${winter(k) ? 1 : 0}:${o.erz ?? ''}`,
+    schluessel: (o, k) => `${o.r | 0}:${winter(k) ? 1 : 0}:${o.erz ?? ''}:${o.rein ?? ''}`,
     malen(g, o, k) {
       koerper(g, o, k, N);
       anschluesse(g, N, o.r | 0, n, typ === 'erzbohrer' ? { seiten: ['aus', null, null, null] } : undefined);
@@ -189,6 +193,10 @@ maschinenObjekt('erzbohrer', 32, {
     E(g, 16, 16, 7, 7, STAHL_DD); E(g, 16, 16, 6, 6, '#1c1c22');
     for (let a = 0; a < 8; a++) P(g, Math.round(16 + Math.cos((a * Math.PI) / 4) * 8.5) - 0, Math.round(16 + Math.sin((a * Math.PI) / 4) * 8.5), STAHL_H);
     R(g, 4, 25, 6, 3, STAHL); R(g, 4, 25, 6, 1, STAHL_H); // Schlauchanschluss
+    // Reinheit des Vorkommens: 1 (unrein), 2 (normal), 3 (rein) Punkte in der Erzfarbe
+    const rein = o.rein ?? 1;
+    const punkte = rein < 1 ? 1 : rein > 1 ? 3 : 2;
+    for (let i = 0; i < 3; i++) R(g, 21 + i * 3, 25, 2, 2, i < punkte ? hell(erz, 0.2) : STAHL_DD);
   },
   danach(g, o, lage, k) {
     const cx = lage.x + 16;
@@ -281,3 +289,36 @@ maschinenObjekt('lager', 32, {
   },
 });
 
+
+// ─── Vorschau beim Aufstellen ───────────────────────────────────────────────
+
+/**
+ * Hält die Spielerin ein Fabrikteil in der Hand, zeigt ein halb durchsichtiges Bild der ganzen Fläche (mit Ausgangs- und
+ * Eingangspfeilen) dort, wo es entstünde; grün umrandet, wenn Platz ist, sonst rot.
+ */
+zeichner({
+  name: 'handwerk_fabrik_vorschau', ebene: 'ueber', reihe: 15,
+  zeichnen(g, kamera, ort, sicht) {
+    const s = sicht.s;
+    if (!s || S.modus || S.pause || S.angeln || S.sp?.aktion || !S.ziel) return;
+    const slot = s.spieler.inv[s.spieler.wahl];
+    if (!slot) return;
+    const v = bauVorschau(s, ort, S.ziel.x, S.ziel.y, S.sp.blick, slot);
+    if (!v) return;
+    const bild = objektBild(v.o, { jz: sicht.jz, nacht: sicht.nacht, s, t: sicht.t, tx: v.x, ty: v.y, ort });
+    const x0 = v.x * T;
+    const y0 = v.y * T;
+    const b = v.b * T;
+    const h = v.h * T;
+    g.save();
+    g.globalAlpha = 0.72;
+    g.drawImage(bild, Math.round(x0 + b / 2 - bild.width / 2), y0 + h - bild.height);
+    g.globalAlpha = v.ok ? 0.14 : 0.36;
+    g.fillStyle = v.ok ? '#6ad06a' : '#e84a3a';
+    g.fillRect(x0, y0, b, h);
+    g.globalAlpha = 0.95;
+    g.fillStyle = v.ok ? '#8ff08f' : '#ff5a4a';
+    g.fillRect(x0, y0, b, 1); g.fillRect(x0, y0 + h - 1, b, 1); g.fillRect(x0, y0, 1, h); g.fillRect(x0 + b - 1, y0, 1, h);
+    g.restore();
+  },
+});
