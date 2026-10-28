@@ -9,6 +9,8 @@ import {
   meldung, fundeZeigen, dialog, ton, zahl, stil,
 } from '../../ui.js';
 import { buendelEintraege, buendelNoetig, buendelFertig, buendelPlatz, spenden, questAnnehmen, muehleKaufen, MUEHLE_PREIS } from './inhalt.js';
+import { grossabnehmerSeite, brettReiter, aufgabenTeil } from './grossabnehmer-fenster.js'; // Großabnehmer: Reiter im Brett, Handy-App, Aufgaben
+import { briefeSichtbar } from './grossabnehmer.js';
 
 stil('gemeinschaft-buendel', `
 .buendel-mini { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -88,8 +90,9 @@ fensterArt('muehle', () => {
 
 // ─── Schwarzes Brett ────────────────────────────────────────────────────────
 
-fensterArt('brett', () => {
+fensterArt('brett', (d = {}) => {
   const s = S.s;
+  d.tab ??= 'auftrag';
   let inhalt;
   if (s.brett) {
     const b = s.brett;
@@ -106,7 +109,8 @@ fensterArt('brett', () => {
   } else {
     inhalt = el('div', { class: 'papier' }, el('p', {}, 'Heute hängt nichts Neues am Brett. Schau morgen wieder vorbei.'));
   }
-  return fensterRahmen('Schwarzes Brett', inhalt);
+  const gross = d.tab === 'gross';
+  return fensterRahmen('Schwarzes Brett', el('div', {}, brettReiter(d), gross ? grossabnehmerSeite(d) : inhalt), { klasse: gross ? 'breit' : '' });
 });
 
 // ─── Menüreiter „Aufgaben" ──────────────────────────────────────────────────
@@ -126,12 +130,13 @@ menueReiter({
     } else {
       teile.push(el('p', { class: 'leise' }, 'Kein Auftrag angenommen. Aufträge hängen am Schwarzen Brett auf dem Marktplatz.'));
     }
+    teile.push(...aufgabenTeil(s));
     teile.push(el('h3', {}, 'Die alte Mühle'));
     const fertig = BUENDEL.filter((b) => buendelFertig(s, b)).length;
     teile.push(el('p', { class: 'leise' }, s.muehle ? 'Die Mühle dreht sich wieder. Klarwasser feiert dich.' : `${fertig} von ${BUENDEL.length} Bündeln vollständig. Spenden nimmt die Mühle am Fluss entgegen.`));
     teile.push(el('div', { class: 'buendel-mini' }, BUENDEL.map((b) => el('span', { class: `chip${buendelFertig(s, b) ? ' ok' : ''}` }, `${b.name} ${(s.buendel[b.id] || []).length}/${buendelNoetig(b)}`))));
     teile.push(el('h3', {}, 'Briefe'));
-    const gelesen = s.briefe.filter((id) => L.briefVon(id));
+    const gelesen = briefeSichtbar(s.briefe.filter((id) => L.briefVon(id)));
     teile.push(gelesen.length
       ? el('div', { class: 'knopf-reihe' }, gelesen.map((id) => el('button', { type: 'button', class: 'knopf klein', onclick: () => fensterOeffnen('brief', { id, archiv: true }) }, L.briefVon(id).von.split(',')[0])))
       : el('p', { class: 'leise' }, 'Noch keine Briefe.'));

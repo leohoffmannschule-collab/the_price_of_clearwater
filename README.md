@@ -194,6 +194,22 @@ Info-Fenster aller Maschinen zeigt „Was braucht dieses Rezept?" mit Mengen pro
 und Maschinenrezepte, filterbar nach Material und auf „was ich jetzt bauen kann". Alle Zahlen: `fabrik-teile-daten.js` (Waren, Rezepte,
 Preise) und `fabrik-bau-daten.js` (Baupläne, Stufen, Reichweite).
 
+**Großabnehmer.** Am Schwarzen Brett im Dorf gibt es neben dem Einzelauftrag den Reiter **Großabnehmer**: sechs Firmen kaufen Waren in
+großer Menge und zahlen dafür **das 1,5- bis 3-Fache des Marktwerts**. Brandt & Söhne Bau (Stein, Holz, Nägel, Beton, Stahlträger, Rahmen),
+Funkel Elektro (Draht, Kabelrollen, Platinen, Computer), Möwenstein Werft (Rohre, Zahnräder, Antriebseinheiten, Antriebssysteme), Einkaufsring
+Goldener Löffel (Eier, Fisch, Geräucherter Fisch), Hofladen-Kette Grüner Korb (Gemüse, Obst, Marmelade, Eingelegtes) und die Bergwerksgilde
+(Erz, Barren, Edelsteine); dazu das Kuriositätenkabinett Wunderkammer (Artefakte, Mineralien, Geoden). Jede Firma hat ein **Vertrauen von 0 bis 10 Sternen**:
+jeder erfüllte Vertrag gibt einen Stern, ein verfallener nimmt einen; mehr Sterne schalten seltenere Waren, größere Mengen und höhere Zuschläge frei.
+Es gibt nur Waren, die du schon herstellen kannst (Bergbau-Stufe für Fabrikteile, tiefste Minenebene für Erze, Hühner für Eier, Jahreszeit und
+Anbauzeit für Ernte, Angelstufe für Fische). Höchstens 3 Verträge laufen gleichzeitig, mit jeder Firma nur einer; die Angebote wechseln alle 3 Tage.
+Bei der Annahme zahlt die Firma **20 % Vorschuss** sofort aus (wird bei Erfüllung verrechnet). Geliefert wird **aus dem Rucksack** (Teillieferungen, Menge
+×1/×10/×100/Alles) am Brett oder in der Handy-App **Aufträge**, oder **automatisch über die Versandkiste**: vor dem nächtlichen Verkauf zieht jeder offene
+Vertrag seine Ware aus der Kiste (zuerst die kürzeste Frist, dann der ältere Vertrag), erst der Rest wird normal verkauft – Fabrik-Linien und Holzrohre liefern also
+von selbst. Qualität zählt nur, wenn der Vertrag sie nennt. Wer die Frist (3–14 Tage) verpasst, verliert den Vorschuss (gelieferte Ware wird zum normalen
+Preis dagegen gerechnet), zahlt eine kleine Vertragsstrafe, wenn der Vertrag eine hat, und verliert einen Stern; der Morgenbericht warnt einen Tag vorher.
+Bei Erfüllung gibt es die Auszahlung, manchmal einen Bonus und am nächsten Morgen einen Dankesbrief. Alle Zahlen: `GROSS` und `FIRMEN` in
+`src/bereiche/gemeinschaft/grossabnehmer-daten.js`.
+
 **Fähigkeiten.** Landwirtschaft, Angeln, Sammeln, Bergbau und Kampf steigen bis Stufe 10
 und machen Werkzeuge sparsamer, Ernten besser, die Wartezeit beim Angeln kürzer und die Gesundheit größer.
 
@@ -263,7 +279,7 @@ tools/server.mjs Kleiner Dateiserver
 
 ```bash
 npm test                 # alle Tests in Node (test/alle.mjs)
-npm run test:browser     # Browser-Tests (Rauchtest, Angeln, Räucherofen, Fischfarm, Hühner, Fabrik, Strom, Maschinenbau; Playwright, optional CHROMIUM=/pfad/zu/chrome)
+npm run test:browser     # Browser-Tests (Rauchtest, Angeln, Räucherofen, Fischfarm, Hühner, Fabrik, Strom, Maschinenbau, Großabnehmer; Playwright, optional CHROMIUM=/pfad/zu/chrome)
 ```
 
 ### Karten bearbeiten

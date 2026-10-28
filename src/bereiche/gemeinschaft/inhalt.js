@@ -6,6 +6,7 @@ import { system } from '../../system.js';
 import * as L from '../../logik.js';
 import { gebaeudeAktion, dekoAktion, fenster, dialog, ton } from '../../spiel.js';
 import { ganz, waehle } from '../../zufall.js';
+import './grossabnehmer-inhalt.js'; // Großabnehmer: Verträge mit Firmen, die in großer Menge kaufen (grossabnehmer*.js)
 
 item('medaille', { name: 'Klarwasser-Medaille', kat: 'besonders', bild: { art: 'medaille' }, text: 'Für die Rettung der alten Mühle. Von ganz Klarwasser.' });
 
