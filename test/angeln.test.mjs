@@ -5,14 +5,16 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import '../src/bereiche/inhalt.js';
-import { T, ITEMS, LAEDEN, NPCS, FISCHE, XP_STUFEN, item, fisch } from '../src/daten.js';
+import { T, ITEMS, LAEDEN, NPCS, FISCHE, XP_STUFEN, REZEPTE, OBJEKT_TYPEN, JZ, item, fisch } from '../src/daten.js';
 const fischRegistrieren = (extra) => fisch('altfisch', { name: 'Altfisch', preis: 1, bild: { art: 'fisch' }, orte: ['teich'], jz: ['sommer'], ...extra });
 import { karte, raster, rahmen, rechteck, fertigRaster } from '../src/karten.js';
 import { BEKANNTE_MODIFIKATOREN, modifikator, system } from '../src/system.js';
 import {
   ANGELN, VORSCHAU, angelnHinweis, wurfZiel, wartezeit, wurfWerte, muellChance,
-  fischWaehlen, fangWaehlen, fangGeben, schatzInhalt, schatzGeben, fischLaenge,
+  fischWaehlen, fangWaehlen, fangGeben, schatzInhalt, schatzGeben, fischLaenge, fischePassend, muellFuer,
 } from '../src/angeln.js';
+import { ausruestungTabelle } from '../src/bereiche/angeln/ausruestung.js';
+import { korbFang, korbTabelle, korbMuellChance, korbLeeren, korbBenutzen, KREBSKORB } from '../src/bereiche/angeln/krebskorb.js';
 import { zufall } from '../src/zufall.js';
 import * as L from '../src/logik.js';
 import { S, spielStarten, update, karteBetreten, wechseln, schlafen } from '../src/spiel.js';
@@ -627,7 +629,7 @@ gruppe('Fisch, Müll und Schatzkisten', () => {
     const r = zufall(8);
     for (let i = 0; i < 400; i++) {
       const w = fangWaehlen(s, 'meer', r);
-      if (w.muell) assert.ok(['seetang', 'treibholz', 'stiefel'].includes(w.muell), w.muell);
+      if (w.muell) assert.ok(['seetang', 'treibholz', 'stiefel', 'brille'].includes(w.muell), w.muell);
       if (w.fisch) assert.ok(w.fisch.fisch.orte.includes('meer') && w.fisch.fisch.zeit[0] <= 1200 && w.fisch.fisch.zeit[1] > 1200);
     }
   });
@@ -851,6 +853,233 @@ gruppe('Review: Ausnahmen bleiben nicht hängen', () => {
     werfen = null;
     assert.ok(S.sp.x < x0 - 5, 'die Figur läuft trotzdem');
     assert.ok(m.some((z) => /update/.test(z) && /Update kaputt/.test(z)), m.join());
+  });
+});
+
+// ─── Inhalt: Fische, Legendäre, Ruten und Köder, Lenes Ware, Krebskorb, Fangbuch ────────────────────
+gruppe('Inhalt: Fische', () => {
+  const ARTEN = ['teich', 'fluss', 'see', 'waldsee', 'meer', 'geheimteich', 'mine'];
+  test('rund 45 Fische, jede Gewässerart hat in jeder Jahreszeit zu jeder vollen Stunde einen Fisch', () => {
+    assert.ok(FISCHE.length >= 40 && FISCHE.length <= 55, `${FISCHE.length} Fische`);
+    for (const f of FISCHE) for (const o of f.fisch.orte) assert.ok(ARTEN.includes(o), `${f.id}: ${o}`);
+    const s = neues(1);
+    for (const art of ARTEN) for (let jz = 0; jz < 4; jz++) for (let h = 6; h < 26; h++) for (const wetter of ['sonne', 'regen']) {
+      s.zeit.jz = jz; s.zeit.minute = h * 60; s.zeit.wetter = wetter;
+      assert.ok(fischePassend(s, art).some((f) => !f.legendaer), `${art}, Jahreszeit ${jz}, ${h} Uhr, ${wetter}`);
+    }
+  });
+  test('jede Gewässerart hat mindestens drei eigene Fische', () => {
+    for (const art of ARTEN) assert.ok(FISCHE.filter((f) => f.fisch.orte.includes(art)).length >= 3, art);
+  });
+  test('die IDs, auf die andere Bereiche verweisen, bleiben (Fischfarm, Räucherofen, Bündel, Geschenke)', () => {
+    for (const id of ['karpfen', 'sonnenbarsch', 'forelle', 'sardine', 'hering', 'hecht', 'lachs', 'wels', 'thunfisch', 'tintenfisch', 'kugelfisch', 'aal']) {
+      assert.equal(ITEMS[id]?.kat, 'fisch', id);
+      assert.equal(ITEMS[id].sorte, 'fisch', id);
+    }
+    assert.ok(ITEMS.karpfen.fisch.orte.includes('teich'));
+  });
+  test('Fische haben Preis, Länge, Text und ein eigenes Bild (Form, Farben, Zeichnung unterscheiden sich)', () => {
+    const gesehen = new Map();
+    for (const f of FISCHE) {
+      if (f.id === 'altfisch') continue;
+      assert.ok(f.preis > 0 && f.fisch.laenge[0] < f.fisch.laenge[1] && f.text, f.id);
+      const b = f.bild;
+      const k = [b.form, b.f, b.f2, b.muster].join('|');
+      assert.ok(!gesehen.has(k), `${f.id} sieht aus wie ${gesehen.get(k)}`);
+      gesehen.set(k, f.id);
+    }
+  });
+  test('Preise nach Seltenheit: seltene Fische sind im Mittel teurer', () => {
+    const normal = FISCHE.filter((f) => !f.legendaer);
+    const mittel = (l) => l.reduce((a, f) => a + f.preis, 0) / l.length;
+    assert.ok(mittel(normal.filter((f) => f.fisch.seltenheit >= 60)) > mittel(normal.filter((f) => f.fisch.seltenheit < 40)) * 2);
+  });
+});
+
+gruppe('Inhalt: Legendäre Fische', () => {
+  const LEG = FISCHE.filter((f) => f.legendaer);
+  /** Ein Spielstand genau zur Zeit des Legendären. */
+  const zurZeit = (f, stufe = 10) => {
+    const s = neues(4);
+    stufeAuf(s, stufe);
+    s.zeit.jz = JZ.indexOf(f.fisch.jz[0]);
+    s.zeit.minute = Math.floor(f.fisch.zeit[0] / 100) * 60 + 30;
+    s.zeit.wetter = f.fisch.wetter === 'regen' ? 'regen' : 'sonne';
+    return s;
+  };
+  test('fünf Legendäre, jeder in einem anderen Gewässer, sehr selten, teuer', () => {
+    assert.equal(LEG.length, 5);
+    assert.equal(new Set(LEG.map((f) => f.fisch.orte.join())).size, 5);
+    for (const f of LEG) {
+      assert.equal(f.fisch.seltenheit, 100, f.id);
+      assert.ok(f.preis >= 1000 && f.abStufe > 0 && f.fangHinweis, f.id);
+    }
+  });
+  test('beißen nur zu ihrer Zeit und erst ab ihrer Angelstufe', () => {
+    for (const f of LEG) {
+      const art = f.fisch.orte[0];
+      assert.ok(fischePassend(zurZeit(f), art).includes(f), `${f.id} zur Zeit`);
+      assert.ok(!fischePassend(zurZeit(f, f.abStufe - 1), art).includes(f), `${f.id} zu niedrige Stufe`);
+      const s = zurZeit(f);
+      s.zeit.jz = (s.zeit.jz + 1) % 4;
+      if (f.fisch.jz.length < 4) assert.ok(!fischePassend(s, art).includes(f), `${f.id} andere Jahreszeit`);
+    }
+  });
+  test('sehr selten: höchstens wenige Prozent der Fänge', () => {
+    for (const f of LEG) {
+      const s = zurZeit(f);
+      const r = zufall(17);
+      let n = 0;
+      for (let i = 0; i < 4000; i++) if (fischWaehlen(s, f.fisch.orte[0], r).fisch === f) n++;
+      assert.ok(n > 0 && n / 4000 < 0.05, `${f.id}: ${n}`);
+    }
+  });
+  test('nur einmal: nach dem Fang beißt er nicht mehr, die Meldung sagt „Legendär"', () => {
+    const f = LEG[0];
+    const s = zurZeit(f);
+    const erg = fangGeben(s, null, f.id, { r: () => 0.5 });
+    assert.ok(erg.legendaer && /Legendär/.test(erg.text), erg.text);
+    assert.equal(s.angeln.gefangen[f.id].n, 1);
+    assert.ok(!fischePassend(s, f.fisch.orte[0]).includes(f));
+    const r = zufall(3);
+    for (let i = 0; i < 3000; i++) assert.notEqual(fischWaehlen(s, f.fisch.orte[0], r).fisch, f);
+  });
+});
+
+gruppe('Inhalt: Ruten und Köder', () => {
+  test('Bambus, Glasfaser, Iridium: immer kürzer warten, länger einholen, mehr Schätze', () => {
+    const s = neues(1);
+    const w = ['angel', 'glasfaserrute', 'iridiumrute'].map((id) => wurfWerte(s, id, null, 'teich'));
+    assert.ok(w[0].warten > w[1].warten && w[1].warten > w[2].warten);
+    assert.ok(w[0].fenster < w[1].fenster && w[1].fenster < w[2].fenster);
+    assert.ok(w[0].schatz < w[1].schatz && w[1].schatz < w[2].schatz);
+    for (const id of ['glasfaserrute', 'iridiumrute']) assert.equal(ITEMS[id].werkzeug, 'angel');
+  });
+  test('Köderarten sind nur Zahlen: Wildköder schneller mit längerem Fenster, Magnetköder mehr Schätze', () => {
+    const s = neues(1);
+    const ohne = wurfWerte(s, 'angel', null);
+    const k = wurfWerte(s, 'angel', 'koeder');
+    const wild = wurfWerte(s, 'angel', 'wildkoeder');
+    const magnet = wurfWerte(s, 'angel', 'magnetkoeder');
+    assert.ok(wild.warten < k.warten && k.warten < ohne.warten);
+    assert.ok(wild.fenster > k.fenster);
+    assert.ok(magnet.schatz > ohne.schatz + 0.05);
+    assert.ok(Math.abs(wurfWerte(s, 'iridiumrute', 'wildkoeder').warten - 0.7 * 0.4) < 1e-9, 'Faktoren multiplizieren sich');
+  });
+  test('die Tabelle im Fangbuch passt zu den Items', () => {
+    const t = ausruestungTabelle();
+    assert.equal(t.ruten.length, 3);
+    assert.equal(t.koeder.length, 3);
+    for (const z of t.ruten) assert.equal(z.warten, ITEMS[z.id].rute.warten);
+    for (const z of t.koeder) assert.equal(z.warten, ITEMS[z.id].koeder.biss);
+  });
+  test('Lene verkauft über ladenWare je nach Angelstufe Köder, Ruten und den Krebskorb', () => {
+    const s = neues(2);
+    const ids = () => L.ladenWare(s, 'fischer').map((w) => w.id);
+    assert.ok(ids().includes('koeder') && !ids().includes('glasfaserrute') && !ids().includes('krebskorb'));
+    stufeAuf(s, 3);
+    assert.ok(ids().includes('glasfaserrute') && ids().includes('wildkoeder') && ids().includes('krebskorb'));
+    assert.ok(!ids().includes('iridiumrute'));
+    stufeAuf(s, 6);
+    assert.ok(ids().includes('iridiumrute') && ids().includes('magnetkoeder'));
+    L.hinzufuegen(s, { id: 'iridiumrute', n: 1 });
+    assert.ok(!ids().includes('iridiumrute'), 'eine Rute, die man schon hat, gibt es nicht noch einmal');
+    assert.ok(L.kauftKategorien('fischer').includes('krebs'));
+  });
+});
+
+gruppe('Inhalt: Krebskorb', () => {
+  const amWasser = () => {
+    const s = neues(6);
+    const ort = L.ortVon(s, 'angeltest');
+    s.spieler.inv.fill(null);
+    L.hinzufuegen(s, { id: 'krebskorb', n: 2 });
+    L.hinzufuegen(s, { id: 'koeder', n: 5 });
+    return { s, ort };
+  };
+  test('Bastelrezept 40 Holz und 3 Eisenbarren ab Angelstufe 3', () => {
+    const r = REZEPTE.find((x) => x.id === 'krebskorb');
+    assert.deepEqual(r.zutaten, { holz: 40, eisenbarren: 3 });
+    assert.deepEqual(r.stufe, ['angeln', 3]);
+  });
+  test('nur ins Wasser, auch auf Karten, auf denen man sonst nichts aufstellen darf', () => {
+    const { s, ort } = amWasser();
+    assert.match(L.aufstellen(s, ort, 3, 3, 0).grund, /ins Wasser/);
+    assert.ok(L.aufstellen(s, ort, 9, 3, 0).ok);
+    assert.equal(ort.welt.objekte[L.k(9, 3)].t, 'krebskorb');
+    assert.ok(L.aufstellen(s, ort, 9, 3, 0).grund, 'besetzt');
+  });
+  const korbMit = (art) => {
+    const { s, ort } = amWasser();
+    const x = art === 'meer' ? 14 : 9;
+    L.aufstellen(s, ort, x, 3, 0);
+    return { s, ort, x, o: ort.welt.objekte[L.k(x, 3)] };
+  };
+  test('ohne Köder fängt der Korb nichts; mit Köder über Nacht etwas, der Köder ist weg', () => {
+    const { s, ort, x, o } = korbMit('teich');
+    const typ = OBJEKT_TYPEN.krebskorb;
+    typ.nacht({ s, ort, x, y: 3, o, r: zufall(1) });
+    assert.equal(o.fang, null);
+    const idx = s.spieler.inv.findIndex((it) => it?.id === 'koeder');
+    assert.ok(korbBenutzen(s, o, idx).ok);
+    assert.equal(o.koeder, 'koeder');
+    assert.equal(L.anzahl(s, 'koeder'), 4);
+    assert.match(korbBenutzen(s, o, idx).grund, /beködert/);
+    L.tagBeenden(s, { r: zufall(2) });
+    assert.ok(o.fang && ITEMS[o.fang], JSON.stringify(o));
+    assert.equal(o.koeder, null);
+  });
+  test('Salzwasser: Krebs, Garnele, Hummer, Muscheln, Auster; Süßwasser: Flusskrebs und Schnecke; sonst Müll', () => {
+    const s = neues(1);
+    const r = zufall(8);
+    const meer = new Set();
+    const teich = new Set();
+    for (let i = 0; i < 3000; i++) { meer.add(korbFang(s, 'meer', r)); teich.add(korbFang(s, 'teich', r)); }
+    for (const id of ['krebs', 'garnele', 'hummer', 'miesmuschel', 'auster', 'herzmuschel']) assert.ok(meer.has(id), id);
+    for (const id of ['flusskrebs', 'schnecke']) assert.ok(teich.has(id) && !meer.has(id), id);
+    for (const id of meer) assert.ok(korbTabelle('meer').some((e) => e.id === id) || muellFuer('meer').includes(id), id);
+    for (const id of teich) assert.ok(korbTabelle('teich').some((e) => e.id === id) || muellFuer('teich').includes(id), id);
+    let muell = 0;
+    for (let i = 0; i < 5000; i++) if (ITEMS[korbFang(s, 'see', r)].kat === 'muell') muell++;
+    assert.ok(Math.abs(muell / 5000 - korbMuellChance(s)) < 0.03, `${muell}`);
+    for (const id of ['krebs', 'garnele', 'hummer', 'miesmuschel', 'auster', 'flusskrebs', 'schnecke']) {
+      assert.equal(ITEMS[id].sorte, 'krebs', id);
+      assert.equal(ITEMS[id].kat, 'krebs', id);
+    }
+  });
+  test('leeren: in den Rucksack, ins Fangbuch, Erfahrung; voller Rucksack lässt den Fang im Korb', () => {
+    const { s, o } = korbMit('meer');
+    o.fang = 'hummer';
+    const voll = structuredClone(s.spieler.inv);
+    s.spieler.inv.fill({ id: 'holz', n: 1 });
+    assert.match(korbLeeren(s, o).grund, /voll/);
+    assert.equal(o.fang, 'hummer');
+    s.spieler.inv = voll;
+    const erg = korbLeeren(s, o, () => 0.5);
+    assert.ok(erg.ok && L.hat(s, 'hummer'));
+    assert.equal(o.fang, null);
+    assert.equal(s.angeln.gefangen.hummer.n, 1);
+    assert.ok(s.angeln.gefangen.hummer.groesste >= 25);
+    assert.equal(s.spieler.xp.angeln, KREBSKORB.xp);
+  });
+  test('mit Fang nicht aufhebbar, leer zurück in den Rucksack', () => {
+    const { s, ort, x, o } = korbMit('teich');
+    o.fang = 'schnecke';
+    assert.ok(OBJEKT_TYPEN.krebskorb.nichtLeer(o));
+    o.fang = null;
+    const vorher = L.anzahl(s, 'krebskorb');
+    L.aufheben({ s, ort, x, y: 3, kk: L.k(x, 3), o, erg: L.neuesErgebnis() });
+    assert.ok(!ort.welt.objekte[L.k(x, 3)]);
+    assert.equal(L.anzahl(s, 'krebskorb'), vorher + 1);
+  });
+  test('Korb und Fangbuch überstehen Speichern und Laden', () => {
+    const { s, o } = korbMit('meer');
+    o.koeder = 'koeder';
+    fangGeben(s, null, 'karpfen', { r: () => 0.5 });
+    const t = JSON.parse(JSON.stringify(s));
+    L.ergaenzen(t);
+    assert.deepEqual(t.angeln, s.angeln);
+    assert.equal(t.welt.angeltest.objekte[L.k(14, 3)].koeder, 'koeder');
   });
 });
 
