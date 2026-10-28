@@ -273,7 +273,10 @@ export const bodenKunst = registrierer(BODEN_BILD, 'Bodenbild');
  * Als { alle: true, malen(g, k), umriss } malt der Eintrag auch Phase 0 und 1 (Rankhilfe ab Tag 1).
  */
 export const pflanzenKunst = registrierer(PFLANZEN_BILD, 'Pflanzenbild');
-/** monsterKunst(art | monsterId, (g, farbe, phase) => …), 16×16. */
+/**
+ * monsterKunst(art | monsterId, (g, farbe, phase) => …) malt 16×16, oder
+ * { b, h, malen(g, farbe, phase) } für größere Monster (unten mittig auf der Position gezeichnet).
+ */
 export const monsterKunst = registrierer(MONSTER_BILD, 'Monsterbild');
 /** tierKunst(art, { b, h, malen(g, schritt) }) – nach links schauend; rechts spiegelt der Kern. */
 export const tierKunst = registrierer(TIER_BILD, 'Tierbild', alsObjekt('malen'));
@@ -875,13 +878,13 @@ export function tierBild(art, schritt = 0, links = true) {
   }, [16, 16]);
 }
 
-/** Monster 16×16: MONSTER_BILD[typ], sonst MONSTER_BILD[art]. */
+/** Monster (16×16 oder b×h): MONSTER_BILD[typ], sonst MONSTER_BILD[art]. */
 export function monsterBild(typ, farbe, art, phase) {
   return gecacht(`mon:${typ}:${phase}`, () => {
-    const maler = MONSTER_BILD[typ] ?? MONSTER_BILD[art];
-    if (!maler) return ersatz(16, 16, `Monster „${typ}"`);
-    const [c, g] = leinwand(16, 16);
-    maler(g, farbe, phase);
+    const def = alsObjekt('malen')(MONSTER_BILD[typ] ?? MONSTER_BILD[art]);
+    if (!def) return ersatz(16, 16, `Monster „${typ}"`);
+    const [c, g] = leinwand(def.b ?? 16, def.h ?? 16);
+    def.malen(g, farbe, phase);
     return umriss(c);
   }, [16, 16]);
 }
