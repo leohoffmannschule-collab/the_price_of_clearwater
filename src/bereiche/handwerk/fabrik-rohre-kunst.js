@@ -4,7 +4,9 @@
 // Pumpe zeigt einen laufenden Kolben und eine Statuslampe. Winter: Reif auf dem Rohr.
 
 import { objektKunst, P, R, hell, dunkel } from '../../sprites.js';
-import { wasserSeite, rohrMaske } from './fabrik-rohre.js';
+import { wasserSeite, rohrMaske, rohrFliesst } from './fabrik-rohre.js';
+import { S } from '../../spiel.js';
+import * as Logik from '../../logik.js';
 import { STAHL, STAHL_H, STAHL_D, STAHL_DD } from './fabrik-kunst.js';
 
 const winter = (k) => k?.jz === 'winter';
@@ -54,7 +56,8 @@ objektKunst('rohrleitung', {
   schluessel: (o, k) => `${o.mk || 1}:${maskeVon(k)}:${winter(k) ? 1 : 0}`,
   malen(g, o, k) { rohrMalen(g, o.mk || 1, maskeVon(k), winter(k)); },
   danach(g, o, lage, k) {
-    if (!((o.da || 0) > 0.5 || (o.dq || 0) > 0.5)) return;
+    const s = k?.s ?? S.s;
+    if (!s || !k?.ort || k.tx == null || !rohrFliesst(s, k.ort, Logik.k(k.tx, k.ty))) return;
     // Fluss: helle Pünktchen wandern dezent die Arme entlang
     const m = maskeVon(k) || 10;
     const t = zeit(k);

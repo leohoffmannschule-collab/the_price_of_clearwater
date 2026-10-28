@@ -5,6 +5,7 @@
 //
 //   s.fabrik.paket = [{ id, n }…]   wartende Lieferungen
 //   s.fabrik.handy = 1              das Handy wurde ausgegeben (einmal je Spielstand)
+//   s.fabrik.lieferungen = n        wartende Lieferungen (Abzeichen der App Paketfach)
 
 import { ITEMS, STAPEL_MAX } from '../../daten.js';
 import * as L from '../../logik.js';
@@ -107,6 +108,7 @@ export function paketDazu(s, liste) {
     const da = p.find((x) => x.id === w.id);
     if (da) da.n += w.n; else p.push({ id: w.id, n: w.n });
   }
+  s.fabrik.lieferungen = (s.fabrik.lieferungen | 0) + 1; // für das Abzeichen: Lieferungen, nicht Stücke
 }
 
 /** Alles aus dem Paketfach in den Rucksack, was passt; der Rest bleibt. */
@@ -120,6 +122,7 @@ export function paketAbholen(s) {
     w.n = rest;
   }
   s.fabrik.paket = p.filter((w) => w.n > 0);
+  if (!s.fabrik.paket.length) s.fabrik.lieferungen = 0;
   erg.ok = erg.items.length > 0;
   if (!erg.ok) erg.grund = 'Dein Rucksack ist voll.';
   else if (s.fabrik.paket.length) erg.text = 'Ein Teil liegt noch im Paketfach – der Rucksack ist voll.';

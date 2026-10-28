@@ -138,7 +138,7 @@ objektKunst('strommast', {
     if (!s || !k?.ort || k.tx == null) return;
     const st = anschlussStatus(s, k.ort, Logik.k(k.tx, k.ty)).status;
     const t = zeit(k);
-    const f = st === 'an' ? '#6ad06a' : st === 'sicherung' ? (Math.floor(t * 3) % 2 ? '#ff4a3a' : '#5a1a14') : st === 'leer' || st === 'ohne' ? '#e8a040' : '#5a5a62';
+    const f = st === 'an' ? '#6ad06a' : st === 'sicherung' ? (Math.floor(t * 3) % 2 ? '#ff4a3a' : '#5a1a14') : st === 'leer' || st === 'ohne' || st === 'vorrang' ? '#e8a040' : '#5a5a62';
     R(g, lage.x + 7, lage.y + 2, 3, 2, '#14141a');
     R(g, lage.x + 8, lage.y + 2, 1, 2, f);
   },
@@ -190,7 +190,7 @@ objektKunst('biomassebrenner', {
     for (let x = 12; x < 21; x += 2) R(g, x, 14, 1, 7, '#3a2a24');
     // Isolator fürs Kabel auf dem Dach (links)
     R(g, 6, 0, 3, 3, STAHL); R(g, 7, -1, 1, 1, '#e8f0e8'); R(g, 5, 1, 5, 1, '#b8d8c0');
-    anschluesse(g, 32, o.r | 0, 2, { seiten: [null, 'ein', 'ein', 'ein'] });
+    anschluesse(g, 32, 0, 2, { seiten: ['ein', 'ein', 'ein', 'ein'] }); // Brennstoff von allen Seiten
     if (winter(k)) schnee(g, 32);
     g.setTransform(1, 0, 0, 1, 0, 0);
     if (winter(k)) R(g, 21, 0, 6, 1, '#f4f8fb');
@@ -258,7 +258,7 @@ objektKunst('kohlekraftwerk', {
     R(g, 18, 30, 5, 4, '#3f6f9a'); R(g, 18, 30, 5, 1, '#8ac0e8');
     // Isolatoren fürs Kabel auf dem Dach
     for (const x of [28, 32]) { R(g, x, 1, 2, 4, STAHL); R(g, x - 1, 2, 4, 1, '#b8d8c0'); P(g, x, 0, '#e8f0e8'); }
-    anschluesse(g, 48, o.r | 0, 3, { seiten: [null, 'ein', 'ein', 'ein'] });
+    anschluesse(g, 48, 0, 3, { seiten: ['ein', 'ein', 'ein', 'ein'] }); // Kohle von allen Seiten
     if (winter(k)) { schnee(g, 48); R(g, 22, 4, 22, 1, '#f4f8fb'); }
     g.setTransform(1, 0, 0, 1, 0, 0);
     // Kühlturm (links), steht auf der Platte und ragt hoch hinaus

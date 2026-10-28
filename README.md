@@ -132,7 +132,7 @@ Eingang, Ausgang voll), Durchsatz pro Minute und Inhalt, dreht die Maschine und 
 Info-Fenster zeigt den Überschuss). Mit einer passenden Zutat in der Hand befüllst du Maschinen auch von Hand. In Wohnhäusern
 lässt sich keine Fabrik bauen. Die Fabrik läuft in Echtzeit, solange du auf der Karte bist (ein Fenster oder die Pause hält sie an); auf
 anderen Karten und über Nacht holt sie nach, höchstens 10 Minuten Echtzeit-Äquivalent je Nachholen. Alle Zahlen stehen in
-`src/bereiche/handwerk/fabrik-daten.js`. Bänder gibt es in drei Stufen: **Mk1** 1,5 Felder/s, **Mk2** 3 Felder/s, **Mk3**
+`src/bereiche/handwerk/fabrik-daten.js`. Vor dem Legen dreht die Taste R (auf Touch der Knopf ↻) die Richtung eines Bands, Splitters, Zusammenführers, einer Maschine oder eines Lagers; die Meldung beim Drehen nennt die neue Richtung. Bänder gibt es in drei Stufen: **Mk1** 1,5 Felder/s, **Mk2** 3 Felder/s, **Mk3**
 5 Felder/s (bis 6, 12 und 20 Waren pro Sekunde; Basteln ab Bergbau 5 und 7 oder im Handy).
 
 **Handy.** Du hast es von Anfang an im Rucksack (letzter Platz der Leiste; ältere Spielstände bekommen es beim Laden, bei vollem
@@ -144,15 +144,15 @@ Rohrleitung 0,15 / 0,4 Mio (je Stück). Mengen ×1, ×10, ×100 oder Max; gelief
 was hineinpasst und was das Gold hergibt. Die App **Vorkommen** liefert ein Vorkommen deiner Wahl: Sorte (Kupfer, Eisen, Kohle,
 Stein, Gold) und Reinheit – unrein 25 Mio, normal 50 Mio, rein 100 Mio. In die Hand nehmen und benutzen stellt es auf (2×2),
 Spitzhacke oder Axt nimmt es wieder auf. Dazu das **Paketfach** (Starterpaket) und **Stromnetz** (Netze der aktuellen Karte).
-Preise: `HANDY_PREISE` in `src/bereiche/handwerk/fabrik-strom-daten.js`.
+Preise: `HANDY_PREISE` in `src/bereiche/handwerk/fabrik-strom-daten.js`. Ergebnisse eines Kaufs stehen als Leiste im Handy, der Bestell- und der Abholknopf bleiben unten sichtbar.
 
 **Strom.** Wie in Satisfactory: Erzbohrer (5 MW), Schmelzer (4 MW), Konstrukteur (4 MW), Assembler (15 MW) und Wasserpumpe
 (20 MW) brauchen Strom, solange sie arbeiten; Bänder, Splitter, Zusammenführer und Lager nicht. Strom liefern der
 **Biomasse-Brenner** (30 MW; Holz 100 MJ, Hartholz 300 MJ, Faser 15 MJ – vom Band oder aus der Hand, bis 100 Stück Vorrat),
 das **Wasserrad** (6 MW ohne Brennstoff, nur direkt am Wasser) und das **Kohlekraftwerk** (75 MW; Kohle 300 MJ und Wasser
 45 m³/min bei voller Last). Bei Teillast hält ein Brennstoff entsprechend länger (ein Brenner unter voller Last verbrennt 18 Holz
-pro Minute, bei einem Sechstel Last 3). **Kabel** verlegst du mit dem Stromkabel in der Hand: auf den ersten Anschluss benutzen
-(Strommast, Generator, Maschine), dann auf den zweiten; eine gestrichelte Linie zeigt vorher, ob es passt. Ein Kabel ist höchstens
+pro Minute, bei einem Sechstel Last 3); der Brenner ist dabei Reserve: reichen Wasserrad und Kraftwerk, verheizt er nichts. **Kabel** verlegst du mit dem Stromkabel in der Hand: auf den ersten Anschluss benutzen
+(Strommast, Generator, Maschine), dann auf den zweiten; eine gestrichelte Linie zeigt vorher, ob es passt. Auf dem Handy-Bildschirm tippst du den Anschluss an oder nimmst den Aktion-Knopf (der zeigt „Kabel: Anfang“, „Kabel verlegen (n Kabel)“); ein Werkzeugwechsel bricht ab. Ein Kabel ist höchstens
 10 Felder lang und kostet je angefangenes Feld ein Stromkabel (fehlen welche, Kupferdraht). Ein **Strommast** hat 4 Anschlüsse,
 Generatoren und der Assembler 2, alle anderen Maschinen 1. Was über Kabel zusammenhängt, ist ein Netz. Will das Netz mehr
 Leistung, als die Generatoren gerade liefern können, **fliegt die Sicherung**: das ganze Netz steht, bis du sie im Netzfenster
@@ -168,7 +168,10 @@ einmal ein Starterpaket im Paketfach (Biomasse-Brenner, 2 Strommasten, 30 Kabel,
 Seite); man kann darüber gehen. Ein Rohrnetz ist ein Behälter (1 m³ je Rohr) mit Zu- und Abfluss; **Mk1** schafft 300 m³/min,
 **Mk2** 600 m³/min, und ein Netz ist so stark wie sein schwächstes Rohr. Ist das Netz voll, steht die Pumpe und zieht keinen
 Strom. Fließt Wasser, sieht man es im Rohr; die Aktionstaste am Rohr oder an der Pumpe zeigt Füllstand, Zu- und Abfluss und die
-Grenze. Die Pumpe braucht selbst Strom: Ein Kohlekraftwerk fährt man mit einem Biomasse-Brenner oder Wasserrad im selben Netz an.
+Grenze. Die Pumpe braucht selbst Strom (bis 20 MW, je nachdem, wie viel sie fördert): Ein Kohlekraftwerk fährt man mit einem
+Biomasse-Brenner (30 MW) oder vier Wasserrädern (je 6 MW) im selben Netz an. Pumpen haben dabei Vorrang: reicht die Leistung
+nicht für alle, laufen erst die Pumpen und die übrigen Maschinen warten (ohne dass die Sicherung fliegt), bis das Kraftwerk
+Wasser hat. Eine Pumpe oder ein Kraftwerk darf an mehreren Rohrnetzen hängen.
 
 **Fähigkeiten.** Landwirtschaft, Angeln, Sammeln, Bergbau und Kampf steigen bis Stufe 10
 und machen Werkzeuge sparsamer, Ernten besser, die Wartezeit beim Angeln kürzer und die Gesundheit größer.

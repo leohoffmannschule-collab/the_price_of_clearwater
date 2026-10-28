@@ -44,6 +44,7 @@ export function maschinenInfo(o, s) {
     gewaehlt: null,
     status: STATUS_TEXT[o.st] ?? (o.t === 'lager' ? 'bereit' : 'wartet auf Eingang'),
     durchsatz: durchsatzVon(o),
+    durchsatzText: durchsatzVon(o).toLocaleString('de-DE'),
     ein: liste(o.ein),
     aus: liste(o.aus),
     ...portText(o),
@@ -56,8 +57,8 @@ export function maschinenInfo(o, s) {
   if (o.t === 'erzbohrer') {
     const sorte = SORTEN[o.erz];
     info.rezepte = [];
-    info.zeilen.push(['Vorkommen', sorte ? `${sorte.name} (${reinName(o.rein ?? 1)}, ${o.rein ?? 1}×)` : 'keins']);
-    info.zeilen.push(['Förderung', `${Math.round(((o.rein ?? 1) / FABRIK.bohrerZeit) * 600) / 10} Stück/min`]);
+    info.zeilen.push(['Vorkommen', sorte ? `${sorte.name} (${reinName(o.rein ?? 1)}, ${(o.rein ?? 1).toLocaleString('de-DE')}×)` : 'keins']);
+    info.zeilen.push(['Förderung', `${(Math.round(((o.rein ?? 1) / FABRIK.bohrerZeit) * 600) / 10).toLocaleString('de-DE')} Stück/min`]);
   }
   if (o.t === 'lager') {
     const belegt = (o.inv || []).filter(Boolean).length;

@@ -974,7 +974,7 @@ so passen bei jeder Schrittweite gleich viele Waren mit dem Abstand 0,25 aufs Ba
 0,5-s-Schritten liegen damit innerhalb von 1 % (Band 6/s).
 
 **Gemischte Bänder.** Eine Maschine nimmt je Zutat bis 3× Bedarf an; ist sie ausgehungert (nichts in Arbeit, kein Rezept kann
-starten), nimmt sie auch darüber hinaus an (bis `FABRIK.ueberlaufMax`), damit ein gemischtes Band (Erz und Kohle über einen
+starten), nimmt sie auch darüber hinaus an (bis `FABRIK.ueberlaufMax`, und nur, wenn hinter der Ware auf demselben Band eine fehlende Zutat wartet; ein reines Kohleband füllt nur bis zur Grenze), damit ein gemischtes Band (Erz und Kohle über einen
 Zusammenführer) nicht hinter der Zutat stehen bleibt, von der genug da ist. Den Überschuss zeigt das Info-Fenster.
 
 **Bedienung.** Große Teile liegen vom Zielfeld aus in Blickrichtung (Blick oben: Ecke (x, y−h+1), links: (x−b+1, y)), nie auf der
@@ -1043,3 +1043,27 @@ in `zutatenGrenze`, kleinere Nachhol-Schritte bei schnellen Bändern: höchstens
 (`BAU_TYPEN` für Vorschau und Aufstellen weiterer Typen, `fabrikBeimAufheben`, `itemVonObjekt`, Bandstufe beim Legen, `blickR` und
 `platzPruefen` exportiert), `fabrik-info.js` (Leistung ohne „noch ohne Stromnetz"), `fabrik-kunst-objekte.js` (Bandfarbe und
 -tempo je Stufe). **Kernänderungen: keine.**
+
+**Befunde Stufe 2 (Review und Spieltest), was sich geändert hat:**
+* *Wasser:* Pumpen und Kraftwerke dürfen an mehreren getrennten Rohrnetzen hängen (`netz.pumpen`/`verbraucher` mit Liste `netze`;
+  die Pumpe teilt ihre Förderung gleich auf, `o.pa` = zuletzt gefördert/gewünscht). Der Inhalt liegt am Netz (`netz.inhalt`,
+  `dq`, `da`), die Rohre bekommen nur gerundetes `fl` (1 l), das erste Rohr `dq`/`da` – Nachholen von 30 Pumpen an 2232 Rohren
+  braucht je 600 s weniger als 0,2 s (vorher 1,2 s bzw. 3,9 s; Messung des Reviews 2,6 s bzw. 7,3 s). Die Anzeige rundet, nicht der
+  gespeicherte Mittelwert.
+* *Strom:* Pumpen haben Vorrang (`VORRANG`, Status `vorrang`): reicht die Leistung nicht für alle, aber für die Pumpen, laufen nur
+  sie, ohne Sicherung. Die Last geht zuerst an Generatoren ohne Brennstoff (Wasserrad), dann das Kraftwerk; der Brenner ist
+  Reserve (`reserve`) und verheizt nichts, solange die anderen reichen. Der Pumpenbedarf folgt der Förderung (`stromBedarf`).
+  `netzUebersicht` liefert je Verbraucher `zustand` („steht (Sicherung)“ …) und `rat` bei geflogener Sicherung; die Überlast
+  merkt sich Bedarf und Leistung (`o.flg`) für Fenster und Morgenbericht.
+* *Kabel-Werkzeug:* Mit dem Stromkabel in der Hand wirken die Hooks `interagieren`/`hinweis` auf einen Anschluss wie Benutzen (auch
+  Antippen und der Aktion-Knopf), ein leeres Feld oder ein Band lässt den Anfang stehen, ein Werkzeugwechsel (Hook `update`)
+  oder ein anderer Spielstand bricht ab (`kabelStart.s`).
+* *Generatoren* nehmen Brennstoff an allen vier Seiten an; das brennende Stück kommt beim Aufheben nicht zurück.
+* *Überlauf einer Maschine* (`maschineAnnehmen`): über die Grenze nur, wenn sie hungert und hinter der Ware auf dem Band eine
+  fehlende Zutat wartet – ein reines Kohleband füllt einen Schmelzer nur bis zur Grenze.
+* *Drehen vor dem Legen:* `vorschauDrehen()`/`blickR()` in `fabrik-objekte.js`; Taste R (nur mit drehbarem Teil in der Hand,
+  `drehbar(t)`), auf Touch der HUD-Knopf `handwerk-drehen`.
+* *Handy:* Ergebnisse stehen als Leiste in der App (keine gestapelten Meldungen), Bestell- und Abholknopf kleben unten, das
+  Abzeichen des Paketfachs zählt Lieferungen (`s.fabrik.lieferungen`), die Stromnetz-App listet alle Karten.
+* *Morgenbericht:* Grund der Sicherung (Bedarf und Leistung); Übergangsstrom: Warnung 2 Tage und 1 Tag vorher mit der Zahl der
+  Maschinen ohne Netz, am Ende die Meldung wie bisher.

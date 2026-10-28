@@ -22,7 +22,7 @@ export const FABRIK = {
   abstand: 0.25, // kleinster Abstand zweier Waren auf einem Band (Feld = 1) → höchstens 4 je Feld
   maxJeFeld: 4,
   ausgabeRate: 8, // Maschinen und Lager geben höchstens so viel pro Sekunde und Ausgangsfeld ab
-  ueberlaufMax: 999, // eine ausgehungerte Maschine nimmt eine Zutat bis hierhin über ihre Grenze an (gemischte Bänder)
+  ueberlaufMax: 999, // eine ausgehungerte Maschine nimmt eine Zutat, die eine fehlende auf dem Band blockiert, bis hierhin an
   bohrerZeit: 2, // Sekunden je Stück bei normaler Reinheit
   bohrerPuffer: 4, // Stücke im Ausgang des Bohrers
   ausPuffer: 24, // Stücke im Ausgang von Schmelzer, Konstrukteur, Assembler
