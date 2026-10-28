@@ -8,7 +8,7 @@
 import { itemBild, gecacht, leinwand, umriss, R, P } from '../../sprites.js';
 import { zeichner } from '../../render.js';
 import { S } from '../../spiel.js';
-import { T } from '../../daten.js';
+import { T, ITEMS } from '../../daten.js';
 import { istWasser } from '../../karten.js';
 import { ANGELN, VORSCHAU } from '../../angeln.js';
 
@@ -60,7 +60,11 @@ function ruteLage() {
 }
 
 /** Die Rute: dunkler Griff, heller Bambus, an der Spitze gebogen; ein Schattenpixel gibt den Umriss. */
+/** Farben der Rute (Item-Feld `ruteFarben`, ausruestung.js); ohne Angabe Bambus. */
+const BAMBUS = { griff: '#6a3e1e', mitte: '#c89a4c', spitze: '#ecd08a' };
+
 function ruteMalen(g, l) {
+  const farben = ITEMS[S.angeln?.rute]?.ruteFarben ?? BAMBUS;
   const n = Math.ceil(Math.hypot(l.ex - l.hx, l.ey - l.hy)) + 2;
   const punkt = (u) => [l.hx + (l.ex - l.hx) * u, l.hy + (l.ey - l.hy) * u + l.biegung * u * u * u];
   for (let i = 0; i <= n * 0.9; i++) {
@@ -70,7 +74,7 @@ function ruteMalen(g, l) {
   for (let i = 0; i <= n; i++) {
     const u = i / n;
     const [x, y] = punkt(u);
-    px(g, x, y, u < 0.26 ? '#6a3e1e' : u > 0.82 ? '#ecd08a' : '#c89a4c');
+    px(g, x, y, u < 0.26 ? farben.griff : u > 0.82 ? farben.spitze : farben.mitte);
   }
   const [rx, ry] = punkt(0.18);
   px(g, rx, ry + 1, '#8a9098'); // Rolle
