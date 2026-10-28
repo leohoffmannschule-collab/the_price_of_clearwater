@@ -39,7 +39,7 @@ src/
 | npcs | die sechs Dorfbewohner (Ottilie, Bruno, Lene, Frieda, Mats, Hannes) – in Welle 1 unverändert | – | (`s.npcs` gehört dem Kern) |
 | npcs2 | weitere Dorfbewohner (leer) | – | – |
 | feste | Feste (leer) | – | `s.feste` (geplant) |
-| gemeinschaft | Mühle und Bündel, Schwarzes Brett und Aufträge, Briefe samt Startbrief, Medaille | – | `s.quest`, `s.brett`, `s.buendel`, `s.muehle` |
+| gemeinschaft | Mühle und Bündel, Schwarzes Brett und Aufträge, Briefe samt Startbrief, Medaille, **Großabnehmer** (`grossabnehmer*.js`, siehe 15.) | – | `s.quest`, `s.brett`, `s.buendel`, `s.muehle`, `s.grossabnehmer` |
 
 Was die Bereiche nicht besitzen, gehört dem Kern: `s.spieler`, `s.zeit`, `s.welt`, `s.npcs`
 (Freundschaft), `s.versand`, `s.briefe`, `s.post`, `s.stats`, `s.flags`, `s.stufeNeu`,
@@ -580,6 +580,8 @@ CHROMIUM=/opt/pw-browsers/chromium-1194/chrome-linux/chrome node test/fischfarm.
 | `fabrik-strom.browser.mjs` | Browser-Test Stufe 2: Handy benutzen, Teile und Vorkommen kaufen, Brenner, Mast, Bohrer und Lager aufstellen, Kabel mit dem Werkzeug, Strom fließt, Überlast und Sicherung im Netzfenster, Kabel lösen, Pumpe am Teich, Rohre, Kohlekraftwerk mit Wasser, Rohrfenster, Hochformat 390×844 mit Touch, keine Konsolenfehler, Spiel läuft weiter; hängt in `npm run test:browser` hinter dem Fabriktest |
 | `fabrik-bau.test.mjs` | Fabrik Stufe 3: neue Waren und Rezepte (Verhältnisse, Zeiten, Preise, Handarbeit nur für einfache Teile), Baupläne für alles im Handy, Freischaltung nach Bergbau-Stufe, Selbstbau gegen Handy-Preis, Maschinenbau (Rucksack, Lager und Truhe in Reichweite, Mengenwahl, fehlende Zutaten, voller Rucksack, kein Verlust), Aufstellen und Aufheben ohne Verlust (auch Wasser im Mischer), Mischer mit Pumpe, Rohren und Strom, Fertiger mit vier Eingängen auf einem gemischten Band, Nachholen gleich live, Nacht, Speichern und Laden, alter Stand, Info-Zeilen, Bauplan-Übersicht, Handy-Kauf der neuen Maschinen |
 | `fabrik-bau.browser.mjs` | Browser-Test Stufe 3: Maschinenbauer basteln (K) und aufstellen, Fenster Maschinenbau (Mengen, Max, gesperrt, Lager in Reichweite), Mischer und Fertiger bauen und aufstellen, Wasser aus Rohren, Linie bis zum Computer, Info-Fenster, Handy-App Bauplan mit Filtern, Hochformat 390×844 mit Touch, keine Konsolenfehler, Spiel läuft weiter; hängt in `npm run test:browser` hinter dem Strom-Test |
+| `grossabnehmer.test.mjs` | Großabnehmer: Firmen und Zahlen, Bergbau-Stufen der Fabrikwaren gegen Maschinen und Baupläne, Erzeugung (deterministisch ohne Math.random, Dreitageblock, nur Machbares in jedem Fortschritt, Eier gegen Hühner, Menge nach Fortschritt, Qualität), Annahme und Limits (eine Firma, 3 Verträge), Teillieferung, Bonus und Paket, Qualität und Ausgangsstoff, Versandkiste vor dem Verkauf (ohne Doppelzählung, Reihenfolge, Schalter, Holzrohre, Fabrik), Fristablauf mit Warnungen, Vorschuss/Strafe/Schuld, Vertrauen und Freischaltung, Speichern und Laden, alter und beschädigter Stand, Balance |
+| `grossabnehmer.browser.mjs` | Browser-Test: Brett öffnen, Reiter, Annehmen, aus dem Rucksack liefern, über die Versandkiste (schlafen, Morgenbericht, Auszahlung, Brief), Handy-App Aufträge, Hochformat 390×844 mit Touch, keine Konsolenfehler, Spiel läuft weiter; hängt in `npm run test:browser` hinter dem Maschinenbau-Test |
 | `angeln.browser.mjs` | Browser-Test des Angelns (Chromium, eigener Server): ans Wasser laufen, werfen, die Wartezeit abkürzen, einholen, Fang im Rucksack, Mausklick, Abbruch, Hochformat 390×844, keine Konsolenfehler; läuft mit `npm run test:browser` hinter dem Rauchtest |
 | `raeucherofen.browser.mjs` | Browser-Test des Räucherofens (Chromium, eigener Server): im Basteln-Menü herstellen (1 Holz + 1 Kohle), aufstellen, 300 Karpfen einlegen (200 gehen hinein), schlafen, abholen, Preis im Rucksack und in der Versandkiste zehnfach, Rucksack voll, Aufheben, keine Konsolenfehler, die Figur kann sich danach bewegen; läuft mit `npm run test:browser` hinter dem Angel-Test |
 | `browser.mjs` | Rauchtest in Chromium: neues Spiel, Feldarbeit, Menü, Rundgang bis in die Mine (Orte aus dem Punkte-Vertrag), jedes Item/jede Deko/jedes Gebäude/jedes Objekt/jede Pflanze malt ohne Ersatzbild (alle Jahreszeiten, Tag und Nacht), Ersatzbilder für Fehlendes, Kulling auf einer 100×72-Karte, große Objekte, Beläge, Pflanzenkunst mit `alle`, Kameraführung, alle Fenster öffnen sich mit ihren Beispieldaten, Schlafen, Speichern (v2), Einmachglas leeren (jede Sorte, voller Rucksack; danach muss sich die Spielerin noch bewegen können, denn „die Seite antwortet" genügt nicht: die Spielschleife kann stehen, während der Browser läuft), keine Konsolenfehler |
@@ -803,6 +805,7 @@ zeichner({
 | `STATISTIK` | `statistik({ id, name, wert(s), reihe })` | Zeilen unter „Bisher" im Reiter Fähigkeiten |
 | `RUCKSACK_TEILE` | `rucksackTeil({ id, reihe, bauen(d, { slot, idx }) })` | Teile in der Rucksack-Ansicht unter der Info zum gewählten Platz (Ringplätze, Stiefel) |
 | `RUCKSACK_AKTIONEN` | `rucksackAktion({ id, name, wenn(slot, s), tun(d, { slot, idx }), reihe })` | Knöpfe für den gewählten Platz („Anlegen") |
+| `HANDY_APPS` | `handyApp({ id, name, symbol, seite(s, h), abzeichen(s), reihe })` | weitere Apps im Handy (Menüreiter des Bereichs handwerk); erscheinen als Kacheln `.handy-kachel` hinter den eigenen Apps, `h.app = id`, den Kopf mit „Zurück“ baut das Handy; so hängt gemeinschaft die App „Aufträge“ an, ohne handwerk zu importieren |
 | `STILE` | `stil(id, css)` | CSS eines Bereichs; hängt einmal ein `<style>` an den Kopf (in Node: nichts). Fensterstile gehören in den Bereich, nicht in `index.css` |
 
 Geöffnet wird ein Fenster aus der Spiellogik mit `fenster(name, daten)` (spiel.js, über
@@ -848,7 +851,7 @@ menueReiter({ id: 'tiere', name: 'Tiere', reihe: 45, bauen: () => el('div', { cl
 | mine | Erze, Barren, Mineralien, Schwert; Minen-Bänder; Objekte mstein, leiter, schatz; Deko leiter_ab, leiter_auf, aufzug, schwertfund, wandlampe; Monster schleim, fledermaus; Zeichner monster | Fenster aufzug, Statistik tiefste |
 | handwerk | Truhe, Vogelscheuche, Sprenger, Einmachglas, Räucherofen, Marmelade, Eingelegtes, Geräucherter Fisch; Objekte einmachglas, raeucherofen (`raeucherofen.js`, Grafik `raeucherofen-grafik.js`); Fabrik (`fabrik-kunst*.js`): Bauteile und Waren, Objekte vorkommen, foerderband, splitter, zusammenfuehrer, erzbohrer, schmelzer, konstrukteur, assembler, lager, Warensymbole auf dem Band; Stufe 2 (`fabrik-strom-grafik.js`): Generatoren, Strommast, Kabel (Zeichner handwerk_strom_kabel), Pumpe, Rohrleitungen, Bänder Mk2/Mk3, Handy-Symbole | Fenster truhe (alle Behälter), handwerk_fabrik (Maschinen-Info), handwerk_strom (Netz), handwerk_rohrnetz; Menüreiter handy |
 | tiere | Eier; Gebäude stall; Deko eierkiste (Bild nach Bestand); Küken-Symbol (Tierbild huhn) für den Laden | Warenbilder kueken, stall |
-| gemeinschaft | Medaille; Gebäude muehle (verfallen/repariert); Deko brett; Zeichner muehlrad | Fenster muehle, brett; Menüreiter aufgaben; Stil gemeinschaft-buendel |
+| gemeinschaft | Medaille; Gebäude muehle (verfallen/repariert); Deko brett; Zeichner muehlrad; Großabnehmer: Wappen `gross_wappen_<firma>`, `gross_stern`, `gross_stern_leer`, `gross_app_auftraege` | Fenster muehle, brett (Reiter Aufträge/Großabnehmer); Menüreiter aufgaben; Handy-App Aufträge; Statistik; Stile gemeinschaft-buendel, gemeinschaft-grossabnehmer |
 | npcs, npcs2, feste | – (Figuren und Porträts malt der Kern aus `aussehen`) | – |
 
 Der Kern malt außerdem die Steintreppe (Boden `T`) und das leere Bild der Teile großer Objekte.
@@ -1119,3 +1122,45 @@ unverändert (Test).
 
 **Änderungen an Dateien der Stufen 1 und 2** (klein, additiv): `fabrik-inhalt.js` (Importzeile), `fabrik-kunst.js` (`MINI` exportiert), `fabrik-objekte.js` (`plus` überspringt `fluessig`),
 `fabrik-rohre.js` (`rohrMaske`: auch Objekttypen mit `wasseranschluss`), `fabrik-handy-fenster.js` (`SEITEN` exportiert), `test/fabrik.test.mjs` (Rezeptzahl des Konstrukteurs `>= 4`).
+
+## 15. Großabnehmer (Bereich gemeinschaft, `grossabnehmer*.js`)
+
+Verträge von Firmen, die große Mengen kaufen und das 1,5- bis 3-Fache des Marktwerts zahlen. Neue Dateien, je eine Importzeile in `gemeinschaft/inhalt.js`
+(`grossabnehmer-inhalt.js`) und `grafik.js` (`grossabnehmer-kunst.js`); die Oberfläche (`grossabnehmer-fenster.js`) hängt an `oberflaeche.js`.
+**Kernänderungen (klein, additiv):** das Register `HANDY_APPS`/`handyApp()` in `ui.js` (Handy-Apps anderer Bereiche) und in `handwerk/fabrik-handy-fenster.js`
+die Kacheln und die Seite dafür (Klasse `.handy-kachel`, damit `.handy-app` weiter genau vier sind). Neue Hooks gibt es nicht; genutzt werden `ergaenzen`, `neuesSpiel`,
+`vorVerkauf`, `tagEnde`, `morgen` des Systems `gemeinschaft-grossabnehmer`.
+
+| Datei | Inhalt |
+|---|---|
+| `grossabnehmer-daten.js` | alle Zahlen (`GROSS`), die Firmen (`FIRMEN`: Name, Kontakt, Aussehen, Waren mit Menge, Seltenheit, Vertrauen `ab`, Voraussetzung `bed`, Boni), Pools (Gemüse, Obst, Fisch, Artefakte, Mineralien), Dankesbriefe |
+| `grossabnehmer.js` | Zustand, Erzeugung, Annehmen, Lieferung, Abschluss, Verfall, Hook-Funktionen (DOM-frei, kein `Math.random`) |
+| `grossabnehmer-inhalt.js` | Briefe `grossdank-<firma>-a/b` und das System |
+| `grossabnehmer-kunst.js`, `grossabnehmer-fenster.js` | Wappen (16×16), Sterne, App-Symbol; Reiter im Brett (Vertragszettel mit Porträt aus `portraetBild`, Balken, Sterne), Handy-App, Abschnitt im Aufgaben-Reiter, Statistik |
+
+**Zustand** (`s.grossabnehmer`; `ergaenzen` glättet alles, auch beschädigte und alte Stände): `vertrauen` (je Firma 0–10), `angebote`, `laufend` (höchstens 3, je Firma einer),
+`block` (Nummer des Dreitageblocks), `nr`, `paket` (Boni ohne Platz im Rucksack, Abholen am Brett oder im Handy), `schuld` (nicht bezahlbare Rückforderung je Firma), `post` (Dankesbriefe für morgen), Zähler.
+Vertrag: `{ nr, firma, ware: { id, von? }, menge, geliefert, qMin, stueck, zuschlag, gesamt, vorschuss, strafe, bonus, tage, frist, angenommen, auto }`.
+
+**Erzeugung** (deterministisch): Zufallsstrom aus `s.seed`, Dreitageblock `floor((tagNr−1)/3)` und Firma (`rngFuer`); beim Betreten eines Blocks (Hook `tagEnde`, `neuesSpiel`, sonst
+beim Öffnen des Brettes) erzeugt jede Firma höchstens ein Angebot. `kandidaten` sammelt, was es für den Spieler gibt: feste Waren mit `bed` (Fähigkeitsstufe, `tiefe` = tiefste Minenebene, `stall`,
+`freundschaft`), Ernte nur in der Jahreszeit und wenn Wachstum + 3 Tage in die Saison passen (oder mit Gewächshaus), Fische nach Jahreszeit, Gewässer, Angelstufe und Preis, Artefakte und
+Mineralien (Geoden: ab Ebene 0/40/80), Marmelade/Eingelegtes/Geräucherter Fisch mit Ausgangsstoff (`von`). Menge = Lage zwischen `n[0]` und `n[1]` aus Grundwert + Fortschritt (Fähigkeitsstufe/10, bei Eiern der
+Logarithmus der Hühner) + Vertrauen + Zufall; Eier werden gegen die Legeleistung der Herde geprüft (die Frist reicht). **Zuschlag** = 1,5 + 0,5·Menge + 0,2·Seltenheit + 0,06·Sterne, höchstens 3,0 (Eier, Karpfen,
+Geräuchertes haben `zmax`), in Schritten von 0,05; Summe = Menge · Stückwert · Zuschlag (auf 10 g); Stückwert = `L.preisVon` bei der Erzeugung (mit Qualitätsfaktor, wenn der Vertrag sie verlangt;
+nur Ernte und Fisch, ab 4 bzw. 8 Sternen).
+
+**Lieferung und Reihenfolge.** (a) Rucksack: `liefern(s, nr, n | 'max')`, nie mehr als der Rest, schlechteste zulässige Qualität zuerst. (b) Versandkiste: Hook `vorVerkauf`
+(Systemreihenfolge: nach handwerk, also nach Rohren, Eierkiste und Fabrik) → `versandAbzug`: laufende Verträge sortiert nach **Frist, dann Nummer**; jeder nimmt seine Ware aus `s.versand`
+(Stapel werden zusammengezählt), danach verkauft der Kern den Rest. Was ein Vertrag nimmt, ist weg: keine Doppelzählung, nichts geht verloren. Der Schalter `auto` je Vertrag schaltet
+die nächtliche Lieferung ab. Auszahlung = Gesamtsumme − Vorschuss, abzüglich offener `schuld` dieser Firma; Erfüllung: Vertrauen +1, Bonus (Rucksack, sonst `paket`), Brief morgen
+(Hook `morgen`, nach `postFuerHeute`), Meldung im Morgenbericht.
+
+**Fristen.** `frist = Annahmetag + tage`. Der Fristtag zählt noch (auch seine Nacht); `tagEnde` (nach dem Tageswechsel) lässt Verträge mit `heute > frist` verfallen. Warnung im Morgenbericht,
+wenn höchstens 1 Tag übrig ist („Noch 1 Tag“, am letzten Tag „Letzter Tag“). **Verfall:** die Firma behält die gelieferte Ware und rechnet sie zum Stückwert gegen den Vorschuss: ist der Vorschuss größer,
+holt sie die Differenz vom Gold (was fehlt, bleibt als `schuld` und wird mit der nächsten Zahlung dieser Firma verrechnet), ist die Ware mehr wert, zahlt sie die Differenz; dazu die Vertragsstrafe
+(falls vorhanden, höchstens das vorhandene Gold) und Vertrauen −1.
+
+**Balance** (Beispiele aus der Erzeugung, Marktwert → Auszahlung): 90 Kühlkörper 30.600 g → 73.440 g (×2,4), 130 Platinen 63.700 → 159.250 (×2,5), 50 Motoren 192.500 → 577.500 (×3,0 bei 10 Sternen),
+50 Geräucherte Hechte 50.000 → 110.000 (×2,2), 150 Peperoni 6.000 → 11.700 (×1,95), 100 Eier höchstens ×2,0. Eier, Karpfen und Geräuchertes bleiben gedeckelt, weil Fischfarm und Räucherofen sie von selbst liefern.
+Die Bergbau-Stufen der Waren entsprechen dem Maschinenpfad (Konstrukteur 5, Assembler 7, Mischer 6, Fertiger 8; ein Test vergleicht mit `BAUPLAENE` und `FREISCHALT`) und hängen nicht am Basteln.

@@ -6,6 +6,7 @@ import { zeichner, blase } from '../../render.js';
 import { S } from '../../spiel.js';
 import { T } from '../../daten.js';
 import * as Logik from '../../logik.js';
+import './grossabnehmer-kunst.js'; // Großabnehmer: Wappen, Sterne, Symbol der Handy-App
 
 kunst('medaille', (g) => {
   POLY(g, [[4, 0], [7, 0], [9, 6], [7, 7]], '#c83a3a'); POLY(g, [[9, 0], [12, 0], [9, 7], [7, 6]], '#3a5ac8');

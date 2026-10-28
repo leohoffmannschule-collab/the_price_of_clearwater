@@ -89,6 +89,19 @@ export function statistik(def) {
 }
 
 /**
+ * Weitere Apps im Handy (Menüreiter „Handy" des Bereichs handwerk), damit andere Bereiche eine Kachel anhängen können,
+ * ohne dessen Dateien zu importieren: handyApp({ id, name, symbol, seite(s, h) → Element, abzeichen(s) → Zahl, reihe }).
+ * `symbol` ist ein Symbolname (symbolKunst), `h` der Zustand des Handys (h.app = id, eigene Felder mit Präfix anlegen).
+ * Der Kopf mit dem Zurück-Knopf kommt vom Handy.
+ */
+export const HANDY_APPS = [];
+export function handyApp(def) {
+  if (HANDY_APPS.some((a) => a.id === def.id)) throw new Error(`Handy-App „${def.id}" gibt es schon.`);
+  HANDY_APPS.push({ reihe: 50, ...def });
+  HANDY_APPS.sort((a, b) => a.reihe - b.reihe);
+}
+
+/**
  * Zusätzliche Teile in der Rucksack-Ansicht (rechte Spalte, unter der Info zum gewählten Platz):
  * rucksackTeil({ id, reihe, bauen(d, { slot, idx }) → Element | null }) – Ringplätze, Stiefel …
  */

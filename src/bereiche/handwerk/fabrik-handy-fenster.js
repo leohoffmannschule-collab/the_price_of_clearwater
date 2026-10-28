@@ -10,7 +10,7 @@ import { ITEMS } from '../../daten.js';
 import * as L from '../../logik.js';
 import { karteHolen } from '../../karten.js';
 import { S } from '../../spiel.js';
-import { menueReiter, fensterNeu, el, ton, itemIcon, symbol, stil, zahl } from '../../ui.js';
+import { menueReiter, fensterNeu, el, ton, itemIcon, symbol, stil, zahl, HANDY_APPS } from '../../ui.js';
 import { HANDY_MENGEN, GENERATOREN } from './fabrik-strom-daten.js';
 import { SORTEN, REINHEIT, FABRIK, MASCHINEN } from './fabrik-daten.js';
 import { handyKatalog, handyKaufen, hoechstens, goldText, vorkommenAngebot, vorkommenKaufen, paketListe, paketAbholen } from './fabrik-handy.js';
@@ -119,7 +119,13 @@ function start(s, h) {
   return el('div', { class: 'handy-inhalt' },
     el('div', { class: 'handy-apps' }, APPS.map((a) => el('button', {
       type: 'button', class: 'handy-app', 'data-app': a.id, 'aria-label': a.id === 'paket' && pakete ? `${a.name} (${pakete} ${pakete === 1 ? 'Lieferung' : 'Lieferungen'})` : a.name, onclick: () => oeffne(h, a.id),
-    }, symbol(a.symbol), el('span', {}, a.name), a.id === 'paket' && pakete ? el('span', { class: 'zahl' }, zahl.format(pakete)) : null))),
+    }, symbol(a.symbol), el('span', {}, a.name), a.id === 'paket' && pakete ? el('span', { class: 'zahl' }, zahl.format(pakete)) : null)),
+      // Apps anderer Bereiche (ui.js › handyApp), als Kacheln hinter den vier eigenen
+      HANDY_APPS.map((a) => {
+        const n = a.abzeichen?.(s) ?? 0;
+        return el('button', { type: 'button', class: 'handy-kachel', 'data-app': a.id, 'aria-label': n ? `${a.name} (${n})` : a.name, onclick: () => oeffne(h, a.id) },
+          symbol(a.symbol), el('span', {}, a.name), n ? el('span', { class: 'zahl' }, zahl.format(n)) : null);
+      })),
     uebergang(s) && hatVerbraucher(s)
       ? el('p', { class: 'handy-hinweis' }, `Übergangsstrom aus dem Dorf: noch ${uebergangRest(s)} ${uebergangRest(s) === 1 ? 'Tag' : 'Tage'}. Danach stehen Maschinen ohne Stromnetz still.`)
       : null,
@@ -259,7 +265,8 @@ menueReiter({
   bauen(d) {
     const s = S.s;
     const h = zustand(d);
-    const seite = (SEITEN[h.app] ?? start)(s, h);
+    const fremd = HANDY_APPS.find((a) => a.id === h.app);
+    const seite = fremd ? [kopf(h, fremd.name), el('div', { class: 'handy-inhalt' }, fremd.seite(s, h))] : (SEITEN[h.app] ?? start)(s, h);
     // Ergebnis des letzten Kaufs als Leiste unter dem Kopf der App
     if (h.nachricht?.text && Array.isArray(seite)) {
       seite.splice(1, 0, el('div', { class: `handy-nachricht ${h.nachricht.art}`, role: 'status', 'data-nachricht': h.nachricht.n }, h.nachricht.text));
