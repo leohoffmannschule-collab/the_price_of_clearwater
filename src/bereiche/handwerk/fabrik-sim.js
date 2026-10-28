@@ -198,10 +198,34 @@ export function zutatenGrenze(o, id) {
   return grenze;
 }
 
-/** Wartet hinter der Ware auf dem Band eine andere Zutat, die der Maschine fehlt? */
+/**
+ * Waren stromaufwärts eines Bandfelds (Bänder, Splitter, Zusammenführer bis 64 Felder weit; dazu der Inhalt eines Lagers oder
+ * der Ausgang einer Maschine am Anfang): so sieht ein Mehr-Zutaten-Fertiger, dass die fehlende Zutat noch kommt, auch wenn das
+ * Band vor ihm gerade nur eine Zutat trägt (Vorratslager gibt der Reihe nach ab).
+ */
+function stromauf(c, kk0) {
+  const waren = [];
+  const gesehen = new Set([kk0]);
+  const stapel = [kk0];
+  while (stapel.length && gesehen.size < 64) {
+    const [x, y] = L.ausK(stapel.pop());
+    for (let d = 0; d < 4; d++) {
+      const kk = L.k(x + DX[d], y + DY[d]);
+      if (gesehen.has(kk)) continue;
+      const o = hauptAn(c.welt, kk);
+      if (!o || !gibtAb(o, hinten(d))) continue;
+      gesehen.add(kk);
+      if (o.t === BAND) { waren.push(...(o.w || [])); stapel.push(kk); } else if (o.t === SPLITTER || o.t === MERGER) stapel.push(kk);
+      else if (o.t === 'lager') { for (const f of o.inv || []) if (f) waren.push({ id: f.id, q: f.q, von: f.von }); } else for (const id in o.aus || {}) if (o.aus[id] > 0) waren.push({ id });
+    }
+  }
+  return waren;
+}
+
+/** Wartet hinter der Ware auf dem Band (oder stromaufwärts) eine andere Zutat, die der Maschine fehlt? */
 function blockiert(o, ware, dahinter) {
   if (!dahinter) return false;
-  for (const e of dahinter) {
+  for (const e of typeof dahinter === 'function' ? dahinter() : dahinter) {
     if (e.id === ware.id || e.q || e.von) continue;
     const g = zutatenGrenze(o, e.id);
     if (g && (o.ein?.[e.id] || 0) < g) return true;
@@ -316,7 +340,7 @@ function bandSchritt(c, n, dt) {
     let np = e.p + v;
     if (vorn !== null && np > vorn - A) np = vorn - A;
     if (np >= 1) {
-      c.dahinter = i === 0 ? w : null; // die vorderste Ware: was dahinter wartet, zählt beim Überlauf
+      c.dahinter = i === 0 ? () => [...w, ...stromauf(c, n.kk)] : null; // die vorderste Ware: was dahinter wartet, zählt beim Überlauf
       const ok = annehmen(c, n.zk, e, o.r, np - 1);
       c.dahinter = null;
       if (ok) { w.splice(i, 1); continue; }

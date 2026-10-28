@@ -588,6 +588,24 @@ test('Eine Linie bis zum Computer: gemischtes Band mit allen vier Zutaten läuft
   assert.equal(vorrat.length, 0);
   assert.equal(Object.values(warenSumme(ort)).reduce((a, b) => a + b, 0), 6, 'nichts übrig, nichts verloren');
 });
+test('Vorratslager gibt der Reihe nach ab (erst alle Platinen …): der Fertiger klemmt nicht, ein reines Platinenband füllt ihn nur bis zur Grenze', () => {
+  const { s, ort } = neues();
+  const quelle = lager(ort, X0, Y0);
+  for (const [id, n] of [['platine', 12], ['kabelrolle', 12], ['kuehlkoerper', 6], ['motor', 6]]) legeIn(quelle, id, n);
+  [0, 1, 2].forEach((i) => band(ort, X0 + 2 + i, Y0, RECHTS));
+  maschine(ort, X0 + 5, Y0, 'fertiger', { rez: 'computer' });
+  const aus = lager(ort, X0 + 8, Y0);
+  simuliere(s, ort, 200, { schritt: 0.1 });
+  assert.equal(lagerN(aus, 'computer'), 6, 'alle sechs Computer trotz Reihenfolge im Lager');
+  // reines Band (keine fehlende Zutat in Sicht): nur bis zur Grenze
+  const { s: s2, ort: ort2 } = neues();
+  const q2 = lager(ort2, X0, Y0);
+  legeIn(q2, 'platine', 40);
+  [0, 1, 2].forEach((i) => band(ort2, X0 + 2 + i, Y0, RECHTS));
+  const f2 = maschine(ort2, X0 + 5, Y0, 'fertiger', { rez: 'computer' });
+  simuliere(s2, ort2, 60, { schritt: 0.1 });
+  assert.equal(f2.ein.platine, Math.max(4, 2 * 3), 'nur bis zur Grenze (3× Bedarf)');
+});
 test('Nachholen gleich live: Fertiger mit Vorrat, 100 s live (0,1 s) gegen 100 s Nachholen (0,5 s)', () => {
   const lauf2 = (schritt) => {
     const { s, ort } = neues();
