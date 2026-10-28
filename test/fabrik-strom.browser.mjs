@@ -296,6 +296,134 @@ try {
 
   console.log('\nHandy im Hochformat 390×844 (Touch)');
   const handy = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+  const hp0 = null; void hp0;
+
+  console.log('\nTouch im Hochformat 390×844: Kabel verlegen, Drehen, Kraftwerk-Anlauf');
+  const tp = await handy.newPage();
+  await neuesSpiel(tp);
+  const tplan = await tp.evaluate(async () => {
+    const { S, L } = window.__klarwasser;
+    const sim = await import('/src/bereiche/handwerk/fabrik-sim.js');
+    const ort = L.ortVon(S.s, 'hof');
+    S.s.fabrik.strom.frist = 0;
+    // freie Fläche vor dem Haus: Kiste als Anker
+    const kiste = L.dekoListe(S.s, ort.def).find((d) => d.typ === 'versandkiste');
+    const x0 = kiste.x - 12;
+    const y0 = kiste.y + 2;
+    for (let y = y0 - 3; y <= y0 + 8; y++) for (let x = x0; x <= x0 + 12; x++) { const kk = L.k(x, y); delete ort.welt.objekte[kk]; delete ort.welt.felder[kk]; delete ort.welt.belag[kk]; }
+    L.kartenGeaendert();
+    L.objektSetzen(ort, x0 + 2, y0, { t: 'biomassebrenner', r: 0, ein: { holz: 20 }, aus: {}, f: 0 });
+    L.objektSetzen(ort, x0 + 8, y0, { t: 'strommast' });
+    L.objektSetzen(ort, x0 + 5, y0 + 6, { t: 'foerderband', r: 1, w: [] });
+    L.objektSetzen(ort, x0 + 10, y0 + 4, { t: 'erzbohrer', r: 1, erz: 'eisen', rein: 1, ein: {}, aus: {}, f: 0 });
+    sim.fabrikAenderung();
+    L.hinzufuegen(S.s, { id: 'stromkabel', n: 40 });
+    S.s.spieler.wahl = S.s.spieler.inv.findIndex((i) => i?.id === 'stromkabel');
+    return { x0, y0 };
+  });
+  const { x0: tx0, y0: ty0 } = tplan;
+  // neben den Brenner stellen (Feld unter dem Brenner), Blick nach oben: Ziel = Brenner
+  const stelleTouch = async (x, y, blick) => {
+    await tp.evaluate(async ({ x, y, blick }) => { const m = await import('/src/spiel.js'); m.karteBetreten('hof', x, y, blick); }, { x, y, blick });
+    await tp.waitForTimeout(300);
+  };
+  const kabelAnz = () => tp.evaluate(() => (window.__klarwasser.S.s.fabrik.strom.kabel.hof ?? []).length);
+  await stelleTouch(tx0 + 3, ty0 + 2, 'oben');
+  const h1 = await tp.evaluate(() => window.__klarwasser.S.hinweis);
+  pruefe(/^Kabel: Anfang/.test(h1), `Hinweis auf dem Aktion-Knopf: „${h1}"`);
+  await tp.tap('#tAktion');
+  await tp.waitForTimeout(200);
+  pruefe((await tp.locator('.fenster').count()) === 0, 'Aktion mit Stromkabel öffnet kein Netzfenster');
+  pruefe(/Kabelanfang/.test(await tp.evaluate(() => window.__meld.slice(-1)[0] ?? '')), 'Aktion-Knopf: Kabelanfang gewählt');
+  // ein leeres Feld und ein Band tippen: der Anfang bleibt
+  await stelleTouch(tx0 + 5, ty0 + 5, 'unten');
+  await tp.tap('#tAktion');
+  await tp.waitForTimeout(150);
+  pruefe((await tp.evaluate(() => window.__meld.slice(-1)[0] ?? '')).startsWith('Hier ist kein Anschluss'), 'Band antippen: Hinweis, der Anfang bleibt');
+  // zweiter Anschluss (Mast) per Aktion-Knopf: Kabel liegt
+  await stelleTouch(tx0 + 8, ty0 + 1, 'oben');
+  pruefe(/^Kabel verlegen/.test(await tp.evaluate(() => window.__klarwasser.S.hinweis)), 'Hinweis am Ziel: „Kabel verlegen (n Kabel)"');
+  await tp.screenshot({ path: `${BILDER}touch-kabel-ziel.png` });
+  await tp.tap('#tAktion');
+  await tp.waitForTimeout(200);
+  pruefe((await kabelAnz()) === 1, 'Zweiter Tipp verlegt das Kabel');
+  // und einmal direkt auf die Welt tippen (Mast → Bohrer)
+  await stelleTouch(tx0 + 8, ty0 + 1, 'oben');
+  await tp.tap('#tAktion');
+  await tp.waitForTimeout(120);
+  await stelleTouch(tx0 + 9, ty0 + 4, 'rechts');
+  const pos = await tp.evaluate(async ({ x, y }) => {
+    const { S } = window.__klarwasser;
+    const k = S.kamera;
+    const px = ((x * 16 + 8 - k.x) * k.zoom) / k.dpr;
+    const py = ((y * 16 + 8 - k.y) * k.zoom) / k.dpr;
+    return { px, py };
+  }, { x: tx0 + 10, y: ty0 + 4 });
+  await tp.touchscreen.tap(pos.px, pos.py);
+  await tp.waitForTimeout(250);
+  pruefe((await kabelAnz()) === 2, 'Antippen des Bohrers in der Welt verlegt das zweite Kabel');
+  await tp.waitForTimeout(1500);
+  pruefe((await objekt(tp, tx0 + 10, ty0 + 4)).st === 'a', 'Der Bohrer arbeitet (Strom fließt)');
+  await tp.screenshot({ path: `${BILDER}touch-kabel-fertig.png` });
+  // Werkzeugwechsel bricht ein angefangenes Kabel ab
+  await stelleTouch(tx0 + 3, ty0 + 2, 'oben');
+  await tp.tap('#tAktion');
+  await tp.waitForTimeout(100);
+  await tp.evaluate(() => { window.__klarwasser.S.s.spieler.wahl = 0; });
+  await tp.waitForTimeout(250);
+  pruefe((await tp.evaluate(async () => (await import('/src/bereiche/handwerk/fabrik-strom-objekte.js')).kabelAnfang())) === null, 'Werkzeugwechsel bricht das Kabel ab');
+  // Drehen vor dem Legen: Knopf ↻ erscheint nur mit drehbarem Teil
+  pruefe(await tp.locator('#handwerk-drehen').isHidden(), 'Dreh-Knopf: ohne Fabrikteil in der Hand versteckt');
+  await tp.evaluate(() => { const { S, L } = window.__klarwasser; L.hinzufuegen(S.s, { id: 'foerderband', n: 6 }); S.s.spieler.wahl = S.s.spieler.inv.findIndex((i) => i?.id === 'foerderband'); });
+  await tp.waitForTimeout(250);
+  pruefe(await tp.locator('#handwerk-drehen').isVisible(), 'Dreh-Knopf: mit Förderband in der Hand sichtbar');
+  const vorher = await tp.evaluate(async () => (await import('/src/bereiche/handwerk/fabrik-objekte.js')).blickR());
+  await tp.locator('#handwerk-drehen').tap();
+  await tp.waitForTimeout(150);
+  const nachher = await tp.evaluate(async () => (await import('/src/bereiche/handwerk/fabrik-objekte.js')).blickR());
+  pruefe(nachher === (vorher + 1) % 4, 'Knopf dreht die Richtung beim Legen um 90°');
+  await tp.screenshot({ path: `${BILDER}touch-drehen.png` });
+  await tp.keyboard.press('r');
+  await tp.waitForTimeout(100);
+  pruefe((await tp.evaluate(async () => (await import('/src/bereiche/handwerk/fabrik-objekte.js')).blickR())) === (vorher + 2) % 4, 'Taste R dreht ebenfalls (und wechselt nicht den Platz)');
+  await tp.evaluate(async () => (await import('/src/bereiche/handwerk/fabrik-objekte.js')).drehungZuruecksetzen());
+  // Kraftwerk-Anlauf im bestehenden Netz: Pumpen zuerst, keine Sicherung
+  await tp.evaluate(async ({ x0, y0 }) => {
+    const { S, L } = window.__klarwasser;
+    const st = await import('/src/bereiche/handwerk/fabrik-strom.js');
+    const sim = await import('/src/bereiche/handwerk/fabrik-sim.js');
+    const ort = L.ortVon(S.s, 'hof');
+    const set = (x, y, o) => L.objektSetzen(ort, x, y, o);
+    // Wasserstelle: ein Ufer ist hier nicht nötig, die Pumpe wird direkt gesetzt (Platzregel prüft nur das Aufstellen)
+    set(x0 + 11, y0 + 7, { t: 'wasserpumpe', st: 'x' });
+    for (let x = x0 + 8; x <= x0 + 10; x++) set(x, y0 + 7, { t: 'rohrleitung', fl: 0 });
+    set(x0 + 5, y0 + 6, { t: 'kohlekraftwerk', r: 0, ein: { kohle: 20 }, aus: {}, f: 0, wa: 0 });
+    sim.fabrikAenderung();
+    L.hinzufuegen(S.s, { id: 'stromkabel', n: 40 });
+    const v = (a, b) => { const r = st.kabelVerbinden(S.s, ort, L.k(...a), L.k(...b)); if (!r.ok) throw new Error(r.grund); };
+    v([x0 + 8, y0], [x0 + 11, y0 + 7]);
+    v([x0 + 8, y0], [x0 + 5, y0 + 6]);
+    // zusätzliche Last: zwei Bohrer, damit das Netz mehr will als 30 MW liefert, solange das Kraftwerk kein Wasser hat
+    for (const [x, y] of [[x0 + 11, y0 - 3], [x0 + 11, y0 + 1]]) set(x, y, { t: 'assembler', r: 1, rez: 'maschinenteil', ein: { eisenplatte: 6, kupferdraht: 9 }, aus: {}, f: 0 });
+    set(x0 + 10, y0 - 1, { t: 'strommast' });
+    sim.fabrikAenderung();
+    v([x0 + 2, y0], [x0 + 10, y0 - 1]);
+    v([x0 + 10, y0 - 1], [x0 + 11, y0 - 3]);
+  }, tplan);
+  await stelleTouch(tx0 + 6, ty0 + 9, 'oben');
+  await tp.waitForTimeout(500);
+  const anlauf = await tp.evaluate(async ({ x0, y0 }) => {
+    const { S, L } = window.__klarwasser;
+    const st = await import('/src/bereiche/handwerk/fabrik-strom.js');
+    const u = st.netzUebersicht(S.s, L.ortVon(S.s, 'hof'), L.k(x0 + 8, y0));
+    return { status: u.status, fl: !!S.s.welt.hof.objekte[L.k(x0 + 2, y0)].fl };
+  }, tplan);
+  pruefe(!anlauf.fl, `Anlauf: die Sicherung fliegt nicht (Status ${anlauf.status})`);
+  await tp.keyboard.press('e').catch(() => {});
+  await tp.waitForTimeout(100);
+  await tp.screenshot({ path: `${BILDER}touch-anlauf.png` });
+  await tp.evaluate(async () => { const m = await import('/src/spiel.js'); m.karteBetreten('hof', 0, 0, 'unten'); }).catch(() => {});
+
   const hp = await handy.newPage();
   await neuesSpiel(hp);
   await hp.evaluate(() => { window.__klarwasser.S.s.spieler.gold = 60_000_000; });

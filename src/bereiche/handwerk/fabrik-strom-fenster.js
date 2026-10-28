@@ -247,7 +247,7 @@ if (typeof window !== 'undefined') {
 }
 
 stil('handwerk-drehen', `
-#handwerk-drehen { position: absolute; right: calc(var(--rand-r) + 6px); bottom: calc(env(safe-area-inset-bottom, 0px) + 232px + var(--slot)); z-index: 6;
+#handwerk-drehen { position: absolute; right: calc(var(--rand-r) + 44px); bottom: calc(env(safe-area-inset-bottom, 0px) + 232px + var(--slot)); z-index: 6;
   min-width: 56px; height: 44px; padding: 0 12px; border-radius: 22px; border: 3px solid var(--holz); background: var(--tafel);
   box-shadow: inset 0 0 0 2px var(--messing); color: var(--text); font-size: 15px; touch-action: manipulation; }
 body:not(.touch) #handwerk-drehen { display: none; }
