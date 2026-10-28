@@ -168,7 +168,10 @@ einmal ein Starterpaket im Paketfach (Biomasse-Brenner, 2 Strommasten, 30 Kabel,
 Seite); man kann darüber gehen. Ein Rohrnetz ist ein Behälter (1 m³ je Rohr) mit Zu- und Abfluss; **Mk1** schafft 300 m³/min,
 **Mk2** 600 m³/min, und ein Netz ist so stark wie sein schwächstes Rohr. Ist das Netz voll, steht die Pumpe und zieht keinen
 Strom. Fließt Wasser, sieht man es im Rohr; die Aktionstaste am Rohr oder an der Pumpe zeigt Füllstand, Zu- und Abfluss und die
-Grenze. Die Pumpe braucht selbst Strom: Ein Kohlekraftwerk fährt man mit einem Biomasse-Brenner oder Wasserrad im selben Netz an.
+Grenze. Die Pumpe braucht selbst Strom (bis 20 MW, je nachdem, wie viel sie fördert): Ein Kohlekraftwerk fährt man mit einem
+Biomasse-Brenner (30 MW) oder vier Wasserrädern (je 6 MW) im selben Netz an. Pumpen haben dabei Vorrang: reicht die Leistung
+nicht für alle, laufen erst die Pumpen und die übrigen Maschinen warten (ohne dass die Sicherung fliegt), bis das Kraftwerk
+Wasser hat. Eine Pumpe oder ein Kraftwerk darf an mehreren Rohrnetzen hängen.
 
 **Fähigkeiten.** Landwirtschaft, Angeln, Sammeln, Bergbau und Kampf steigen bis Stufe 10
 und machen Werkzeuge sparsamer, Ernten besser, die Wartezeit beim Angeln kürzer und die Gesundheit größer.

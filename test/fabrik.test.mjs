@@ -307,16 +307,17 @@ test('Schmelzer: 5 Erz + 1 Kohle → 1 Barren, alle drei Rezepte, Reste bleiben'
     assert.equal(sm.st, 'e', 'wartet auf Eingang');
   }
 });
-test('Schmelzer nimmt vom Band nur Erz und Kohle an (Rest bleibt auf dem Band), Grenzen 3× Bedarf', () => {
+test('Schmelzer nimmt vom Band nur Erz und Kohle an (Rest bleibt auf dem Band), Grenzen 3× Bedarf, ein reines Erzband füllt nur bis zur Grenze', () => {
   const { s, ort } = neues();
   const reihe = bandReihe(ort, X0, Y0, 3);
   const sm = maschine(ort, X0 + 3, Y0, 'schmelzer', RECHTS);
   let gelegt = 0;
   for (let i = 0; i < 40; i++) { if (auflegen(reihe[0], 'kupfererz')) gelegt++; simuliere(s, ort, 0.2, { schritt: 0.1 }); }
-  // ohne Kohle ist der Schmelzer ausgehungert: er nimmt Erz über die Grenze (3× Bedarf) hinaus, nichts geht verloren
-  assert.ok(sm.ein.kupfererz > 3 * 5, `über die Grenze: ${sm.ein.kupfererz}`);
+  // ohne Kohle ist der Schmelzer ausgehungert; auf dem Band wartet aber keine fehlende Zutat (nur Erz): er nimmt Erz nur bis
+  // zur Grenze (3× Bedarf), der Rest wartet auf dem Band, nichts geht verloren (Stufe 2, Befund S4)
+  assert.equal(sm.ein.kupfererz, 3 * 5, `bis zur Grenze: ${sm.ein.kupfererz}`);
   assert.equal(sm.ein.kupfererz + reihe.reduce((n, b) => n + b.w.length, 0), gelegt, 'nichts verloren');
-  assert.ok(maschinenInfo(sm, s).zeilen.some(([a]) => a === 'Überschuss'), 'Info zeigt den Überschuss');
+  assert.ok(maschinenInfo(sm, s).zeilen.some(([a]) => a === 'Eingang voll'), 'Info sagt, dass der Eingang voll ist');
   assert.match(maschinenInfo(sm, s).status, /es fehlt Kohle/);
   reihe.forEach((b) => { b.w = []; });
   auflegen(reihe[0], 'hartholz');
@@ -857,7 +858,7 @@ test('alter Stand ohne Fabrik: Format v2 bleibt gültig, die Fabrik und ihre Vor
   assert.equal(roh.fabrik, undefined);
   const s = L.deserialisieren(text);
   // Stufe 1: t, vk, vkb, zeit; Stufe 2 (fabrik-strom*.js): strom, paket, handy
-  assert.deepEqual(Object.keys(s.fabrik).filter((k) => !['strom', 'paket', 'handy'].includes(k)).sort(), ['t', 'vk', 'vkb', 'zeit']);
+  assert.deepEqual(Object.keys(s.fabrik).filter((k) => !['strom', 'paket', 'handy', 'handyPost', 'lieferungen'].includes(k)).sort(), ['t', 'vk', 'vkb', 'zeit']);
   assert.equal(s.fabrik.t, 0);
   // jeder Stand ohne s.fabrik, mitten im Spiel gespeichert
   const { s: n } = neues();

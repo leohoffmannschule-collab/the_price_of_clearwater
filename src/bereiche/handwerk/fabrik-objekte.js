@@ -16,9 +16,18 @@ const ORTE = ['berg', 'wald', 'strand'];
  */
 export const fabrikErlaubt = (def) => !def.zuhause && !!(def.farmbar || def.aufstellen || ORTE.includes(def.id));
 
-/** Blickrichtung der Spielerin als r (beim Legen); ohne laufendes Spiel: rechts. */
+/**
+ * Drehung vor dem Legen (Taste R, auf Touch der Knopf „↻" neben der Vorschau): so viele Vierteldrehungen im
+ * Uhrzeigersinn zur Blickrichtung. Gilt für alles, was man legt, bis man sie wieder ändert (nur Laufzeit).
+ */
+let drehung = 0;
+export const drehungJetzt = () => drehung;
+export function vorschauDrehen() { drehung = (drehung + 1) % 4; return drehung; }
+export function drehungZuruecksetzen() { drehung = 0; }
+
+/** Richtung, in die ein neues Teil zeigt: Blickrichtung plus Drehung; ohne laufendes Spiel: rechts. */
 export function blickR() {
-  return S.s && S.sp ? rVonBlick(S.sp.blick) : 1;
+  return ((S.s && S.sp ? rVonBlick(S.sp.blick) : 1) + drehung) % 4;
 }
 
 /** Beim ersten Bau auf einer Karte beginnt ihre Fabrik-Uhr (damit nichts „nachgeholt" wird, was nie lief). */
@@ -60,6 +69,8 @@ export function bauTyp(it) {
   return MASCHINEN[t] || t === BAND || t === SPLITTER || t === MERGER || t === 'vorkommen' || BAU_TYPEN.has(t) ? t : null;
 }
 const flaeche = (t) => OBJEKT_TYPEN[t]?.flaeche ?? [1, 1];
+/** Hat die Richtung beim Legen eine Bedeutung? (Bänder, Splitter, Zusammenführer, Maschinen, Lager; nicht Generatoren) */
+export const drehbar = (t) => !!t && (t === BAND || t === SPLITTER || t === MERGER || (!!MASCHINEN[t] && !MASCHINEN[t].generator));
 
 /**
  * Ecke oben links einer b×h-Fläche, die am Zielfeld (x, y) beginnt und sich vom Blick aus weg erstreckt: nach oben
@@ -79,7 +90,7 @@ export function bauVorschau(s, ort, x, y, blick, slot) {
   const it = slot && ITEMS[slot.id];
   const t = bauTyp(it);
   if (!t) return null;
-  const r = rVonBlick(blick);
+  const r = (rVonBlick(blick) + drehung) % 4;
   const [b, h] = flaeche(t);
   if (t === 'erzbohrer') {
     const ziel = L.hauptVon(ort, x, y, ort.welt.objekte[L.k(x, y)]);
@@ -118,7 +129,8 @@ export function inhaltVon(o) {
   else if (MASCHINEN[o.t]) {
     for (const id in o.ein || {}) plus(liste, id, o.ein[id]);
     for (const id in o.aus || {}) plus(liste, id, o.aus[id]);
-    const r = o.arb && MASCHINEN[o.t].rezepte?.[o.arb];
+    // das Stück, das ein Generator gerade verbrennt, ist (teilweise) verbraucht und kommt nicht zurück
+    const r = o.arb && !MASCHINEN[o.t].generator && MASCHINEN[o.t].rezepte?.[o.arb];
     if (r) for (const id in r.ein) plus(liste, id, r.ein[id]);
     for (const f of o.inv || []) if (f) plus(liste, f.id, f.n, f);
   }
@@ -230,6 +242,7 @@ export function leitungBedienen({ ort, x, y, o }) {
     o.r = ((o.r | 0) + 1) % 4;
     fabrikAenderung();
     ton('menue');
+    meldung(`${name} zeigt jetzt ${RICHTUNGEN[o.r]}. Noch einmal: weiterdrehen.`);
   } else {
     ton('menue');
     meldung(`${name} gewählt (zeigt ${RICHTUNGEN[o.r | 0]}). Noch einmal: im Uhrzeigersinn drehen.`);

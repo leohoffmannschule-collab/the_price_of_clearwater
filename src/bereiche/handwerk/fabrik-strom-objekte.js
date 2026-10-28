@@ -18,7 +18,7 @@ import { fabrikAenderung } from './fabrik-sim.js';
 import { platzPruefen, uhrStarten, BAU_TYPEN, blickR, befuellen, fabrikAufheben, fabrikBeimAufheben } from './fabrik-objekte.js';
 import { fabrikInfoZeile } from './fabrik-info.js';
 import {
-  stromZustand, stromNetze, anschlussStatus, kabelVerbinden, kabelAlleLoesen, stromErsterVerbraucher, stromStand, mw,
+  stromZustand, stromNetze, anschlussStatus, kabelVerbinden, kabelPruefen, kabelAlleLoesen, stromErsterVerbraucher, stromStand, mw,
   uebergang, uebergangRest,
 } from './fabrik-strom.js';
 import { uferPlatz, teilAufheben } from './fabrik-rohre.js';
@@ -26,46 +26,67 @@ import { paketDazu, paketListe } from './fabrik-handy.js';
 
 // ─── Kabel-Werkzeug ─────────────────────────────────────────────────────────
 
-let kabelStart = null; // { karte, kk }: gewählter Anfang eines Kabels (nur Laufzeit)
-/** Gewählter Kabelanfang ({ karte, kk } oder null), für die Vorschau. */
-export const kabelAnfang = () => kabelStart;
+let kabelStart = null; // { s, karte, kk }: gewählter Anfang eines Kabels (nur Laufzeit, gehört zu einem Spielstand)
+/** Gewählter Kabelanfang ({ karte, kk } oder null) im Spielstand s (Standard: der laufende), für Vorschau und Hinweis. */
+export const kabelAnfang = (s = S.s) => (kabelStart && kabelStart.s === s ? kabelStart : null);
 export const kabelAbbrechen = () => { kabelStart = null; };
 
 const anschlussName = (o) => (o.t === 'strommast' ? 'Strommast' : GENERATOREN[o.t]?.name ?? ITEMS[o.t]?.name ?? 'Anschluss');
 
+/** Anschluss am Feld (x, y) (auch auf dem Teil eines großen Objekts) oder null. */
+function anschlussAn(s, ort, x, y) {
+  const h = L.hauptVon(ort, x, y);
+  const n = h.o ? stromNetze(s, ort).knoten.get(h.kk) : null;
+  return n ? { h, n } : null;
+}
+
 /**
- * Kabel-Werkzeug auf das Feld (x, y): erster Anschluss = Anfang, zweiter = Kabel verlegen. Derselbe Anschluss oder ein
- * Feld ohne Anschluss bricht ab. Bei einem Fehler (zu weit, belegt, zu wenig Kabel) bleibt der Anfang gewählt.
- * Ergebnis { ok, start, text } oder { grund }.
+ * Kabel-Werkzeug auf das Feld (x, y): erster Anschluss = Anfang, zweiter = Kabel verlegen. Derselbe Anschluss noch einmal
+ * bricht ab (ebenso ein Werkzeugwechsel). Ein Feld ohne Anschluss (leer, Band …) und jeder Fehler (zu weit, belegt, zu wenig
+ * Kabel) lassen den Anfang stehen. Ergebnis { ok, start, text } oder { grund }.
  */
 export function kabelWaehlen(s, ort, x, y) {
-  const h = L.hauptVon(ort, x, y);
-  const c = stromNetze(s, ort);
-  const n = h.o ? c.knoten.get(h.kk) : null;
-  if (!n) {
-    if (kabelStart) { kabelStart = null; return { text: 'Kabel abgebrochen.' }; }
+  const a = anschlussAn(s, ort, x, y);
+  const start = kabelAnfang(s);
+  if (!a) {
+    if (start) return { grund: 'Hier ist kein Anschluss. Das Kabel endet an einem Strommast, Generator oder einer Maschine mit Strombedarf.' };
     return { grund: 'Ein Kabel verbindet Strommasten, Generatoren und Maschinen mit Strombedarf. Benutze es auf einem davon.' };
   }
-  if (!kabelStart || kabelStart.karte !== ort.def.id) {
+  const { h, n } = a;
+  if (!start || start.karte !== ort.def.id) {
     if (n.kabel.length >= n.max) return { grund: `${anschlussName(h.o)}: alle ${n.max} ${n.max === 1 ? 'Anschluss ist' : 'Anschlüsse sind'} belegt.` };
-    kabelStart = { karte: ort.def.id, kk: h.kk };
-    return { ok: true, start: true, text: `Kabelanfang: ${anschlussName(h.o)}. Jetzt das Kabel auf das Ziel benutzen (höchstens ${STROM.kabelReichweite} Felder).` };
+    kabelStart = { s, karte: ort.def.id, kk: h.kk };
+    return { ok: true, start: true, text: `Kabelanfang: ${anschlussName(h.o)}. Jetzt das Ziel antippen oder benutzen (höchstens ${STROM.kabelReichweite} Felder).` };
   }
-  if (kabelStart.kk === h.kk) { kabelStart = null; return { text: 'Kabel abgebrochen.' }; }
-  const erg = kabelVerbinden(s, ort, kabelStart.kk, h.kk);
+  if (start.kk === h.kk) { kabelStart = null; return { text: 'Kabel abgebrochen.' }; }
+  const erg = kabelVerbinden(s, ort, start.kk, h.kk);
   if (erg.ok) kabelStart = null;
   return erg;
 }
 
+/** Ergebnis des Kabel-Werkzeugs zeigen (Meldung und Ton). */
+function kabelZeigen(r) {
+  if (r.grund) { meldung(r.grund, 'warn'); ton('dumpf'); return; }
+  ton(r.start ? 'menue' : r.ok ? 'truhe' : 'menue');
+  if (r.text) meldung(r.text, r.ok && !r.start ? 'gut' : undefined);
+}
+
 werkzeugArt('handwerk_kabel', {
-  benutzen(c) {
-    const r = kabelWaehlen(c.s, c.ort, c.x, c.y);
-    if (r.grund) { meldung(r.grund, 'warn'); ton('dumpf'); return; }
-    ton(r.start ? 'menue' : r.ok ? 'truhe' : 'menue');
-    if (r.text) meldung(r.text, r.ok && !r.start ? 'gut' : undefined);
-  },
-  anzeige: () => (kabelStart ? 'Anfang gewählt – jetzt das Ziel benutzen' : 'auf Strommast, Generator oder Maschine benutzen'),
+  benutzen(c) { kabelZeigen(kabelWaehlen(c.s, c.ort, c.x, c.y)); },
+  anzeige: (s) => (kabelAnfang(s) ? 'Anfang gewählt – Ziel antippen oder benutzen' : 'Anschluss antippen oder benutzen'),
 });
+
+/** Hinweis (und Aktion-Knopf auf Touch), solange das Stromkabel in der Hand ist. */
+function kabelHinweis({ s, ort, x, y, slot }) {
+  if (slot?.id !== 'stromkabel' || !s || !ort) return undefined;
+  const a = anschlussAn(s, ort, x, y);
+  const start = kabelAnfang(s);
+  if (!a) return start ? 'Kabel: Ziel wählen' : undefined;
+  if (!start) return `Kabel: Anfang (${anschlussName(a.h.o)})`;
+  if (start.kk === a.h.kk) return 'Kabel abbrechen';
+  const p = kabelPruefen(s, ort, start.kk, a.h.kk);
+  return p.ok ? `Kabel verlegen (${p.kosten} Kabel)` : `Kabel: ${p.laenge > STROM.kabelReichweite ? 'zu weit' : 'geht nicht'}`;
+}
 
 // ─── Handy als Gegenstand ───────────────────────────────────────────────────
 
@@ -238,9 +259,21 @@ fabrikInfoZeile((o, s) => {
 
 // ─── System: Zustand, alte Stände, Morgenbericht ────────────────────────────
 
+/** Maschinen ohne Kabel auf allen Karten (für die Warnung vor dem Ende des Übergangs). */
+export function ohneNetz(s) {
+  let n = 0;
+  for (const [id, welt] of Object.entries(s.welt || {})) {
+    if (!Object.values(welt?.objekte || {}).some((o) => bedarfVon(o?.t) > 0)) continue;
+    const def = karteHolen(id, s);
+    if (def) n += stromNetze(s, { def, welt }).ohne.length;
+  }
+  return n;
+}
+
 system({
   name: 'handwerk-strom',
   ergaenzen(s) {
+    kabelStart = null;
     stromZustand(s);
     paketListe(s);
     const alt = s.stats?.tage > 1 || s.spieler?.inv?.some(Boolean);
@@ -248,11 +281,26 @@ system({
     if (!s.fabrik.strom.starter && hatVerbraucher(s)) starterGeben(s);
   },
   neuesSpiel(s) {
+    kabelStart = null;
     stromZustand(s);
     handyGeben(s);
   },
   /** Auf einer anderen Karte gilt ein gewählter Kabelanfang nicht mehr. */
   karteBetreten(ort) { if (kabelStart && kabelStart.karte !== ort?.def?.id) kabelStart = null; },
+  /** Werkzeugwechsel (oder ein anderer Spielstand) bricht ein angefangenes Kabel ab. */
+  update() {
+    if (!kabelStart) return;
+    const s = S.s;
+    if (!s || kabelStart.s !== s || s.spieler.inv[s.spieler.wahl]?.id !== 'stromkabel') kabelStart = null;
+  },
+  /** Mit dem Stromkabel in der Hand wirkt die Aktion (auch Antippen) auf einen Anschluss wie Benutzen – kein Netzfenster. */
+  interagieren(ctx) {
+    if (ctx.slot?.id !== 'stromkabel' || !ctx.s || !ctx.ort) return undefined;
+    if (!anschlussAn(ctx.s, ctx.ort, ctx.x, ctx.y) && !kabelAnfang(ctx.s)) return undefined;
+    kabelZeigen(kabelWaehlen(ctx.s, ctx.ort, ctx.x, ctx.y));
+    return true;
+  },
+  hinweis: kabelHinweis,
   /** Nach dem Nachholen der Nacht (das System der Fabrik läuft vorher): geflogene Sicherungen und das Ende des Übergangs. */
   vorVerkauf(s, bericht) {
     if (!s.fabrik?.strom || !bericht) return;
@@ -261,10 +309,20 @@ system({
       const def = karteHolen(id, s);
       if (!def) continue;
       const c = stromStand(s, { def, welt });
-      if (c.netze.some((n) => n.info?.status === 'sicherung')) bericht.meldungen.push(`Stromnetz (${def.name}): Die Sicherung ist geflogen – die Fabrik steht, bis du sie wieder einschaltest.`);
+      for (const n of c.netze) {
+        if (n.info?.status !== 'sicherung') continue;
+        const g = n.gens.find((x) => x.o.flg)?.o.flg;
+        bericht.meldungen.push(`Stromnetz (${def.name}): Die Sicherung ist geflogen${g ? ` – ${mw(g[0])} MW Bedarf, aber nur ${mw(g[1])} MW Leistung` : ''}. Die Fabrik steht, bis du sie wieder einschaltest.`);
+        break;
+      }
     }
-    if (uebergang(s) && uebergangRest(s) === 1 && hatVerbraucher(s)) {
-      bericht.meldungen.push('Ab heute gibt es keinen Übergangsstrom mehr: Maschinen ohne Stromnetz stehen still.');
+    if (uebergang(s) && hatVerbraucher(s)) {
+      const morgen = uebergangRest(s) - 1; // Resttage ab dem neuen Morgen
+      const n = morgen <= 2 ? ohneNetz(s) : 0;
+      const masch = `${n} ${n === 1 ? 'Maschine hat' : 'Maschinen haben'} noch kein Stromnetz`;
+      if (morgen === 2 && n) bericht.meldungen.push(`Noch 2 Tage Übergangsstrom aus dem Dorf: ${masch}.`);
+      else if (morgen === 1 && n) bericht.meldungen.push(`Heute ist der letzte Tag mit Übergangsstrom: ${masch} und stehen ab morgen still.`);
+      else if (morgen === 0) bericht.meldungen.push('Ab heute gibt es keinen Übergangsstrom mehr: Maschinen ohne Stromnetz stehen still.');
     }
   },
 });

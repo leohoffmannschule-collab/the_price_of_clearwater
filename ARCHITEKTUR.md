@@ -973,7 +973,7 @@ so passen bei jeder Schrittweite gleich viele Waren mit dem Abstand 0,25 aufs Ba
 0,5-s-Schritten liegen damit innerhalb von 1 % (Band 6/s).
 
 **Gemischte Bänder.** Eine Maschine nimmt je Zutat bis 3× Bedarf an; ist sie ausgehungert (nichts in Arbeit, kein Rezept kann
-starten), nimmt sie auch darüber hinaus an (bis `FABRIK.ueberlaufMax`), damit ein gemischtes Band (Erz und Kohle über einen
+starten), nimmt sie auch darüber hinaus an (bis `FABRIK.ueberlaufMax`, und nur, wenn hinter der Ware auf demselben Band eine fehlende Zutat wartet; ein reines Kohleband füllt nur bis zur Grenze), damit ein gemischtes Band (Erz und Kohle über einen
 Zusammenführer) nicht hinter der Zutat stehen bleibt, von der genug da ist. Den Überschuss zeigt das Info-Fenster.
 
 **Bedienung.** Große Teile liegen vom Zielfeld aus in Blickrichtung (Blick oben: Ecke (x, y−h+1), links: (x−b+1, y)), nie auf der

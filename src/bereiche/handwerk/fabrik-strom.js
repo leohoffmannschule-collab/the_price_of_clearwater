@@ -140,8 +140,17 @@ export function stromNetze(s, ort) {
 
 const FAKTOR = new WeakMap(); // Objekt → Takt 0..1 im laufenden Schritt (Verbraucher 0/1, Generatoren = Auslastung)
 const WILL = {}; // Objekttyp → (s, ort, o, kk) → will arbeiten (für Verbraucher ohne Rezept, z. B. Pumpe)
+const BEDARF = {}; // Objekttyp → (o) → MW jetzt (sonst die volle Leistung), z. B. Pumpe nach Förderung
 /** Eigene Regel, wann ein Verbraucher Strom zieht: stromWill('wasserpumpe', (s, ort, o, kk) => …). */
 export function stromWill(t, fn) { WILL[t] = fn; }
+/** Eigener Bedarf eines Verbrauchers (MW), solange er arbeiten will: stromBedarf('wasserpumpe', (o) => …). */
+export function stromBedarf(t, fn) { BEDARF[t] = fn; }
+/** Verbraucher mit Vorrang: reicht die Leistung nicht für alle, laufen sie allein weiter (Anlauf eines Kraftwerks). */
+export const VORRANG = new Set(['wasserpumpe']);
+const bedarfJetzt = (v) => (BEDARF[v.o.t] ? BEDARF[v.o.t](v.o) : v.leistung);
+
+/** Reihenfolge, in der Generatoren die Last übernehmen: ohne Brennstoff zuerst, dann das Kraftwerk, Brenner als Reserve. */
+const rang = (g) => (g.gen.frei ? 0 : g.gen.wasser ? 1 : 2);
 
 /** Kann ein Generator jetzt liefern? (Brennstoff in Arbeit oder im Eingang; beim Kraftwerk auch Wasser im Tank) */
 export function genKann(o) {
@@ -165,6 +174,23 @@ export function willArbeiten(s, ort, o, kk) {
   return fn ? !!fn(s, ort, o, kk) : true;
 }
 
+/** Bedarf, Vorrang-Bedarf und Kapazität eines Netzes jetzt (ohne etwas zu ändern). */
+function netzRechnen(s, ort, netz) {
+  let kap = 0;
+  let bedarf = 0;
+  let vorrang = 0;
+  let max = 0;
+  for (const g of netz.gens) { g.kann = genKann(g.o); if (g.kann) kap += g.gen.leistung; }
+  for (const v of netz.verb) {
+    max += v.leistung;
+    v.will = willArbeiten(s, ort, v.o, v.kk);
+    v.jetzt = v.will ? bedarfJetzt(v) : 0;
+    bedarf += v.jetzt;
+    if (VORRANG.has(v.o.t)) vorrang += v.jetzt;
+  }
+  return { kap, bedarf, vorrang, max };
+}
+
 function sicherungGeflogen(s, ort, bedarf, kap) {
   if (S.s === s && S.ort?.welt === ort.welt) {
     meldung(`Überlast: ${mw(bedarf)} MW Bedarf, aber nur ${mw(kap)} MW Leistung. Die Sicherung ist geflogen – am Generator oder Strommast wieder einschalten.`, 'warn');
@@ -172,35 +198,40 @@ function sicherungGeflogen(s, ort, bedarf, kap) {
 }
 
 function netzSchritt(s, ort, netz, dt) {
-  let kap = 0;
-  let bedarf = 0;
-  let max = 0;
-  for (const g of netz.gens) { g.kann = genKann(g.o); if (g.kann) kap += g.gen.leistung; }
-  for (const v of netz.verb) {
-    max += v.leistung;
-    v.will = willArbeiten(s, ort, v.o, v.kk);
-    if (v.will) bedarf += v.leistung;
-  }
+  const { kap, bedarf, vorrang: vBedarf, max } = netzRechnen(s, ort, netz);
   let geflogen = netz.gens.some((g) => g.o.fl);
+  let vorrang = false;
   if (!geflogen && kap > 0 && bedarf > kap + 1e-9) {
-    geflogen = true;
-    for (const g of netz.gens) g.o.fl = 1;
-    sicherungGeflogen(s, ort, bedarf, kap);
+    if (vBedarf > 1e-9 && vBedarf <= kap + 1e-9) vorrang = true; // Lastabwurf: nur die Pumpen laufen
+    else {
+      geflogen = true;
+      for (const g of netz.gens) { g.o.fl = 1; g.o.flg = [Math.round(bedarf * 10) / 10, kap]; }
+      sicherungGeflogen(s, ort, bedarf, kap);
+    }
   }
-  const status = geflogen ? 'sicherung' : !netz.gens.length ? 'ohne' : kap <= 0 ? 'leer' : 'an';
-  const an = status === 'an';
-  const last = an && kap > 0 ? Math.min(1, bedarf / kap) : 0;
-  for (const v of netz.verb) FAKTOR.set(v.o, an ? 1 : 0);
+  const status = geflogen ? 'sicherung' : !netz.gens.length ? 'ohne' : kap <= 0 ? 'leer' : vorrang ? 'vorrang' : 'an';
+  const laeuft = status === 'an' || status === 'vorrang';
+  const last = status === 'an' ? bedarf : vorrang ? vBedarf : 0;
+  for (const v of netz.verb) {
+    const f = status === 'an' || (vorrang && VORRANG.has(v.o.t)) ? 1 : 0;
+    FAKTOR.set(v.o, f);
+    v.lauf = f > 0 && v.will;
+  }
+  // Last verteilen: Wasserrad zuerst, dann Kraftwerk, Brenner als Reserve (verheizt nur, was gebraucht wird)
+  let rest = last;
   let erzeugt = 0;
-  for (const g of netz.gens) {
-    const f = an && g.kann ? last : 0;
+  const reihe = netz.gens.slice().sort((a, b) => rang(a) - rang(b));
+  for (const g of reihe) {
+    let f = 0;
+    if (laeuft && g.kann && rest > 1e-9) { const teil = Math.min(g.gen.leistung, rest); f = teil / g.gen.leistung; rest -= teil; }
     FAKTOR.set(g.o, f);
     if (g.gen.frei) g.o.st = f > 0 ? 'a' : 'x';
     if (g.gen.wasser && f > 0 && dt > 0) g.o.wa = Math.max(0, (g.o.wa || 0) - (g.gen.wasser / 60) * f * dt);
     g.erzeugt = f * g.gen.leistung;
+    g.reserve = laeuft && g.kann && f === 0;
     erzeugt += g.erzeugt;
   }
-  netz.info = { status, kap, bedarf, max, last, erzeugt };
+  netz.info = { status, kap, bedarf, vorrang: vBedarf, max, last: kap > 0 ? last / kap : 0, erzeugt };
 }
 
 /** Ein Strom-Schritt auf einer Karte (dt = 0: nur rechnen, nichts verbrauchen). Gibt den Netz-Cache zurück. */
@@ -246,6 +277,8 @@ modifikator('fabrikTempo', (w, k) => {
 
 // ─── Abfragen für Fenster, Info und Kunst ───────────────────────────────────
 
+const KURZ = { an: 'an', sicherung: 'Sicherung', leer: 'leer', ohne: 'ohne Generator', vorrang: 'Vorrang Pumpen' };
+
 /** Wie steht ein Anschluss da? { art, netz, status, text, kurz } – für Info-Zeilen, LEDs und das Netzfenster. */
 export function anschlussStatus(s, ort, kk) {
   const c = stromStand(s, ort);
@@ -259,14 +292,28 @@ export function anschlussStatus(s, ort, kk) {
     return { n, status: 'aus', kurz: 'kein Netz', text: 'kein Strom: nicht angeschlossen. Ein Kabel zu einem Strommast oder Generator legen.' };
   }
   const i = n.netz.info ?? { status: 'ohne', kap: 0, bedarf: 0, max: 0, last: 0, erzeugt: 0 };
+  const pumpe = VORRANG.has(n.o.t);
   const text = {
     an: `versorgt · Netz ${mw(i.erzeugt)} von ${mw(i.kap)} MW`,
+    vorrang: pumpe
+      ? `versorgt (Vorrang) · Netz ${mw(i.erzeugt)} von ${mw(i.kap)} MW`
+      : `wartet: Pumpen haben Vorrang – die Leistung reicht nicht für alle (es fehlen ${mw(i.bedarf - i.kap)} MW)`,
     sicherung: 'Sicherung geflogen – am Generator oder Strommast wieder einschalten',
     leer: 'kein Strom: den Generatoren fehlt Brennstoff (das Kraftwerk braucht auch Wasser)',
     ohne: 'kein Strom: in diesem Netz ist kein Generator',
   }[i.status];
-  return { n, netz: n.netz, info: i, status: i.status, kurz: { an: 'an', sicherung: 'Sicherung', leer: 'leer', ohne: 'ohne Generator' }[i.status], text };
+  return { n, netz: n.netz, info: i, status: i.status, kurz: KURZ[i.status], text };
 }
+
+/** Was jetzt zu tun ist, wenn die Sicherung geflogen ist (rechnet mit dem Stand von jetzt). */
+function rat(s, ort, netz) {
+  const { kap, bedarf, vorrang } = netzRechnen(s, ort, netz);
+  if (kap <= 0) return 'Den Generatoren fehlt Brennstoff (oder Wasser) – erst nachlegen, dann einschalten.';
+  if (bedarf <= kap + 1e-9 || (vorrang > 0 && vorrang <= kap)) return `Leistung reicht jetzt (${mw(bedarf)} von ${mw(kap)} MW) – Sicherung einschalten.`;
+  return `Es fehlen ${mw(bedarf - kap)} MW: mehr Generatoren anschließen oder Maschinen abklemmen, dann einschalten.`;
+}
+
+const ZUSTAND = { sicherung: 'steht (Sicherung)', leer: 'steht (kein Strom)', ohne: 'steht (kein Strom)' };
 
 /** Übersicht eines Netzes (vom Anschluss kk aus): Zahlen und Listen für das Netzfenster. */
 export function netzUebersicht(s, ort, kk) {
@@ -275,10 +322,17 @@ export function netzUebersicht(s, ort, kk) {
   const netz = a.netz;
   let kabel = 0;
   for (const n of netz.knoten) kabel += n.kabel.length;
+  const st = a.status;
+  const zustand = (v) => ZUSTAND[st]
+    ?? (st === 'vorrang' && !VORRANG.has(v.o.t) ? 'wartet (Pumpen haben Vorrang)' : v.will ? 'arbeitet' : 'wartet');
   return {
     ...a,
-    gens: netz.gens.map((g) => ({ kk: g.kk, o: g.o, name: g.gen.name, leistung: g.gen.leistung, erzeugt: g.erzeugt || 0, kann: !!g.kann })),
-    verb: netz.verb.map((v) => ({ kk: v.kk, o: v.o, name: MASCHINEN[v.o.t]?.name ?? (v.o.t === 'wasserpumpe' ? 'Wasserpumpe' : v.o.t), leistung: v.leistung, will: !!v.will })),
+    rat: st === 'sicherung' ? rat(s, ort, netz) : null,
+    gens: netz.gens.map((g) => ({ kk: g.kk, o: g.o, name: g.gen.name, leistung: g.gen.leistung, erzeugt: g.erzeugt || 0, kann: !!g.kann, reserve: !!g.reserve })),
+    verb: netz.verb.map((v) => ({
+      kk: v.kk, o: v.o, name: MASCHINEN[v.o.t]?.name ?? (v.o.t === 'wasserpumpe' ? 'Wasserpumpe' : v.o.t),
+      leistung: v.leistung, jetzt: v.jetzt ?? 0, will: !!v.will, zustand: zustand(v),
+    })),
     masten: netz.masten.length,
     kabel: kabel / 2,
   };
@@ -291,14 +345,14 @@ export function sicherungEin(s, ort, kk) {
   if (!n?.netz) return { grund: 'Hier hängt kein Netz.' };
   const netz = n.netz;
   if (!netz.gens.some((g) => g.o.fl)) return { grund: 'Die Sicherung ist drin.' };
-  for (const g of netz.gens) delete g.o.fl;
-  let kap = 0;
-  let max = 0;
-  let bedarf = 0;
-  for (const g of netz.gens) if (genKann(g.o)) kap += g.gen.leistung;
-  for (const v of netz.verb) { max += v.leistung; if (willArbeiten(s, ort, v.o, v.kk)) bedarf += v.leistung; }
+  for (const g of netz.gens) { delete g.o.fl; delete g.o.flg; }
+  const { kap, bedarf, vorrang, max } = netzRechnen(s, ort, netz);
   stromSchritt(s, ort, 0);
-  if (bedarf > kap) return { ok: true, flog: true, text: `Die Sicherung fliegt sofort wieder: ${mw(bedarf)} MW Bedarf, ${mw(kap)} MW Leistung. Mehr Generatoren anschließen oder Maschinen abklemmen.` };
+  if (kap <= 0) return { ok: true, text: 'Sicherung eingeschaltet – aber den Generatoren fehlt Brennstoff (das Kraftwerk braucht auch Wasser). Erst nachlegen.' };
+  if (bedarf > kap + 1e-9 && !(vorrang > 0 && vorrang <= kap + 1e-9)) {
+    return { ok: true, flog: true, text: `Die Sicherung fliegt sofort wieder: ${mw(bedarf)} MW Bedarf, ${mw(kap)} MW Leistung. Mehr Generatoren anschließen oder Maschinen abklemmen.` };
+  }
+  if (bedarf > kap + 1e-9) return { ok: true, text: `Sicherung eingeschaltet. Die Leistung reicht noch nicht für alle: erst laufen die Pumpen (${mw(vorrang)} MW), die anderen warten.` };
   if (max > kap) return { ok: true, text: `Sicherung eingeschaltet. Achtung: Arbeiten alle Maschinen gleichzeitig, brauchen sie ${mw(max)} MW – mehr als ${mw(kap)} MW.` };
   return { ok: true, text: 'Sicherung eingeschaltet. Der Strom fließt wieder.' };
 }

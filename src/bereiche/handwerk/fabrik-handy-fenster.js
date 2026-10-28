@@ -8,7 +8,8 @@
 
 import { ITEMS } from '../../daten.js';
 import * as L from '../../logik.js';
-import { S, meldung } from '../../spiel.js';
+import { karteHolen } from '../../karten.js';
+import { S } from '../../spiel.js';
 import { menueReiter, fensterNeu, el, ton, itemIcon, symbol, stil, zahl } from '../../ui.js';
 import { HANDY_MENGEN, GENERATOREN } from './fabrik-strom-daten.js';
 import { SORTEN, REINHEIT, FABRIK, MASCHINEN } from './fabrik-daten.js';
@@ -59,6 +60,19 @@ stil('handwerk-handy', `
 .handy-netz .kopf { display: flex; align-items: center; gap: 8px; font-weight: 600; }
 .handy-netz .kopf .strom-led { margin-left: auto; }
 .handy-hinweis { margin: 0 6px; padding: 8px 10px; border-radius: 10px; background: #4a3a1a; border: 2px solid #0a141a; color: #ffe4a8; font-size: 13px; line-height: 1.35; }
+.handy-nachricht { margin: 0; padding: 7px 12px; font-size: 13px; line-height: 1.35; border-bottom: 2px solid #0a141a; }
+.handy-nachricht.gut { background: #1f3a24; color: #d8f5c0; }
+.handy-nachricht.warn { background: #4a2a1a; color: #ffd8b0; }
+.handy-fuss { position: sticky; bottom: -10px; z-index: 1; display: flex; justify-content: center; margin: auto -10px -10px; padding: 10px; background: linear-gradient(transparent, #142430 30%); }
+.handy-fuss .knopf { width: 100%; }
+/* Schatten oben und unten, solange es noch etwas zu scrollen gibt */
+.handy-inhalt {
+  background:
+    linear-gradient(#183040 40%, #18304000) top / 100% 24px no-repeat local,
+    linear-gradient(#14243000, #142430 60%) bottom / 100% 24px no-repeat local,
+    radial-gradient(farthest-side at 50% 0, #0008, #0000) top / 100% 10px no-repeat scroll,
+    radial-gradient(farthest-side at 50% 100%, #000a, #0000) bottom / 100% 12px no-repeat scroll;
+}
 .handy-leer { margin: 18px 4px; color: var(--leise); text-align: center; }
 .handy-home { width: 96px; height: 5px; margin: 9px auto 0; border-radius: 3px; background: #6a6e7a; }
 @media (max-width: 480px) {
@@ -83,24 +97,28 @@ function zustand(d) {
   return d.handy;
 }
 
-function ergebnis(erg) {
-  if (erg.grund) { meldung(erg.grund, 'warn'); ton('dumpf'); } else { ton('geld'); if (erg.text) meldung(erg.text, 'gut'); }
+/** Ergebnis eines Kaufs im Handy selbst zeigen (Leiste oben in der App), statt Meldungen zu stapeln. */
+function ergebnis(h, erg) {
+  h.nachricht = { text: erg.grund ?? erg.text ?? '', art: erg.grund ? 'warn' : 'gut', n: (h.nachricht?.n ?? 0) + 1 };
+  ton(erg.grund ? 'dumpf' : 'geld');
   fensterNeu();
 }
+/** In eine andere App wechseln (die Nachricht der alten verschwindet). */
+function oeffne(h, app) { h.app = app; h.nachricht = null; ton('menue'); fensterNeu(); }
 
 function kopf(h, titel) {
   return el('div', { class: 'handy-kopf' },
-    el('button', { type: 'button', class: 'handy-zurueck', 'aria-label': 'Zurück zum Startbildschirm', 'data-handy': 'zurueck', onclick: () => { h.app = 'start'; ton('menue'); fensterNeu(); } }, '‹'),
+    el('button', { type: 'button', class: 'handy-zurueck', 'aria-label': 'Zurück zum Startbildschirm', 'data-handy': 'zurueck', onclick: () => oeffne(h, 'start') }, '‹'),
     el('h3', {}, titel));
 }
 
 // ─── Startbildschirm ────────────────────────────────────────────────────────
 
 function start(s, h) {
-  const pakete = paketListe(s).reduce((n, p) => n + p.n, 0);
+  const pakete = paketListe(s).length ? Math.max(1, s.fabrik.lieferungen | 0) : 0; // Zahl der Lieferungen, nicht der Stücke
   return el('div', { class: 'handy-inhalt' },
     el('div', { class: 'handy-apps' }, APPS.map((a) => el('button', {
-      type: 'button', class: 'handy-app', 'data-app': a.id, onclick: () => { h.app = a.id; ton('menue'); fensterNeu(); },
+      type: 'button', class: 'handy-app', 'data-app': a.id, 'aria-label': a.id === 'paket' && pakete ? `${a.name} (${pakete} ${pakete === 1 ? 'Lieferung' : 'Lieferungen'})` : a.name, onclick: () => oeffne(h, a.id),
     }, symbol(a.symbol), el('span', {}, a.name), a.id === 'paket' && pakete ? el('span', { class: 'zahl' }, zahl.format(pakete)) : null))),
     uebergang(s) && hatVerbraucher(s)
       ? el('p', { class: 'handy-hinweis' }, `Übergangsstrom aus dem Dorf: noch ${uebergangRest(s)} ${uebergangRest(s) === 1 ? 'Tag' : 'Tage'}. Danach stehen Maschinen ohne Stromnetz still.`)
@@ -134,7 +152,7 @@ function bedarf(s, h) {
         el('button', {
           type: 'button', class: 'knopf klein', disabled: !geht, 'data-kaufen': w.id,
           'aria-label': `${n || 0} ${w.name} kaufen`,
-          onclick: () => ergebnis(handyKaufen(s, w.id, n)),
+          onclick: () => ergebnis(h, handyKaufen(s, w.id, n)),
         }, geht ? [`${n > 1 ? `${zahl.format(n)}× ` : ''}Kaufen`, el('br'), goldText(w.preis * n)] : (s.spieler.gold < w.preis ? 'Zu teuer' : 'Kein Platz')),
         offen ? el('p', { class: 'text' }, w.text) : null));
     }
@@ -169,9 +187,9 @@ function vorkommen(s, h) {
         el('p', {}, '2×2 Felder. In die Hand nehmen und benutzen; mit Spitzhacke oder Axt wieder aufnehmen.'),
         el('p', {}, `Im Rucksack: ${L.anzahl(s, id)}`),
         el('div', { class: 'handy-preis' }, goldText(r.preis)))) : null,
-    el('div', { class: 'knopf-reihe' }, el('button', {
+    el('div', { class: 'handy-fuss' }, el('button', {
       type: 'button', class: 'knopf gross', disabled: !geht, 'data-aktion': 'vorkommen-kaufen',
-      onclick: () => ergebnis(vorkommenKaufen(s, h.sorte, h.rein, 1)),
+      onclick: () => ergebnis(h, vorkommenKaufen(s, h.sorte, h.rein, 1)),
     }, geht ? `Bestellen · ${goldText(r.preis)}` : s.spieler.gold < r.preis ? `Zu teuer (${goldText(r.preis)})` : 'Rucksack voll')))];
 }
 
@@ -182,24 +200,35 @@ function paket(s, h) {
   return [kopf(h, 'Paketfach'), el('div', { class: 'handy-inhalt' },
     liste.length
       ? [liste.map((p) => el('div', { class: 'handy-ware' }, itemIcon({ id: p.id }), el('div', {}, el('div', { class: 'handy-name' }, ITEMS[p.id]?.name ?? p.id), el('div', { class: 'handy-hat' }, `${zahl.format(p.n)} Stück`)), el('span'))),
-        el('div', { class: 'knopf-reihe' }, el('button', { type: 'button', class: 'knopf gross', 'data-aktion': 'paket-abholen', onclick: () => ergebnis(paketAbholen(s)) }, 'Alles abholen'))]
+        el('div', { class: 'handy-fuss' }, el('button', { type: 'button', class: 'knopf gross', 'data-aktion': 'paket-abholen', onclick: () => ergebnis(h, paketAbholen(s)) }, 'Alles abholen'))]
       : el('p', { class: 'handy-leer' }, 'Keine Lieferung wartet.'))];
 }
 
 // ─── Stromnetz ──────────────────────────────────────────────────────────────
 
-const NETZ_TEXT = { an: 'Strom fließt', sicherung: 'Sicherung geflogen', leer: 'Brennstoff fehlt', ohne: 'kein Generator' };
+const NETZ_TEXT = { an: 'Strom fließt', sicherung: 'Sicherung geflogen', leer: 'Brennstoff fehlt', ohne: 'kein Generator', vorrang: 'Anlauf: Pumpen zuerst' };
+
+/** Karten mit Stromanschlüssen (die aktuelle zuerst). */
+function kartenMitStrom(s) {
+  const liste = [];
+  for (const [id, welt] of Object.entries(s.welt || {})) {
+    const def = S.ort?.def.id === id ? S.ort.def : karteHolen(id, s);
+    if (!def || def.fluechtig) continue;
+    const c = stromStand(s, { def, welt });
+    if (c.knoten.size) liste.push({ def, c, hier: S.ort?.def.id === id });
+  }
+  return liste.sort((a, b) => (b.hier - a.hier) || a.def.name.localeCompare(b.def.name, 'de'));
+}
 
 function strom(s, h) {
-  const ort = S.ort;
   const teile = [];
-  const c = ort && s.fabrik?.strom ? stromStand(s, ort) : null;
-  if (!c || !c.knoten.size) teile.push(el('p', { class: 'handy-leer' }, `Auf dieser Karte (${ort?.def.name ?? '–'}) gibt es kein Stromnetz.`));
-  else {
-    teile.push(el('div', { class: 'handy-gruppe' }, ort.def.name));
+  const karten = s.fabrik?.strom ? kartenMitStrom(s) : [];
+  if (!karten.length) teile.push(el('p', { class: 'handy-leer' }, 'Du hast noch kein Stromnetz und keine Maschine mit Strombedarf.'));
+  for (const { def, c, hier } of karten) {
+    teile.push(el('div', { class: 'handy-gruppe' }, `${def.name}${hier ? ' · hier' : ''}`));
     c.netze.filter((n) => n.gens.length || n.verb.length).forEach((n, i) => {
       const info = n.info ?? { status: 'ohne', kap: 0, erzeugt: 0, max: 0 };
-      teile.push(el('div', { class: 'handy-netz', 'data-netz': i },
+      teile.push(el('div', { class: 'handy-netz', 'data-netz': `${def.id}:${i}` },
         el('div', { class: 'kopf' }, `Netz ${i + 1}`, el('span', { class: 'leise' }, NETZ_TEXT[info.status] ?? ''), el('span', { class: `strom-led ${info.status}` })),
         el('div', { class: 'leise' }, `${mw(info.erzeugt)} / ${mw(info.kap)} MW · Höchstbedarf ${mw(info.max)} MW`),
         el('div', { class: 'leise' }, `${n.gens.map((g) => GENERATOREN[g.o.t].name).join(', ') || 'keine Generatoren'} · ${n.verb.length} Verbraucher`)));
@@ -231,6 +260,10 @@ menueReiter({
     const s = S.s;
     const h = zustand(d);
     const seite = (SEITEN[h.app] ?? start)(s, h);
+    // Ergebnis des letzten Kaufs als Leiste unter dem Kopf der App
+    if (h.nachricht?.text && Array.isArray(seite)) {
+      seite.splice(1, 0, el('div', { class: `handy-nachricht ${h.nachricht.art}`, role: 'status', 'data-nachricht': h.nachricht.n }, h.nachricht.text));
+    }
     return el('div', { class: 'handy' }, el('div', { class: 'handy-geraet' },
       el('div', { class: 'handy-schirm', 'data-handy-app': h.app },
         el('div', { class: 'handy-leiste' }, el('span', {}, uhr(s)), el('span', {}, '· Klarnetz'), el('span', { class: 'gold' }, goldText(s.spieler.gold)), symbol('handwerk_akku')),

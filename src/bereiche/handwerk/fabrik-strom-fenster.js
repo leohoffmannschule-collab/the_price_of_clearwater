@@ -6,12 +6,12 @@
 import { ITEMS } from '../../daten.js';
 import * as L from '../../logik.js';
 import { S, meldung } from '../../spiel.js';
-import { fensterArt, fensterRahmen, fensterNeu, el, ton, itemIcon, stil } from '../../ui.js';
+import { fensterArt, fensterRahmen, fensterNeu, el, ton, itemIcon, stil, hudElement } from '../../ui.js';
 import { GENERATOREN, PUMPE, ROHR } from './fabrik-strom-daten.js';
 import { MASCHINEN, RICHTUNGEN } from './fabrik-daten.js';
+import { bauTyp, drehbar, blickR, vorschauDrehen } from './fabrik-objekte.js';
 import { netzUebersicht, sicherungEin, kabelAn, kabelLoesen, kabelLaenge, stromStand, anschlussStatus, mw } from './fabrik-strom.js';
 import { rohrInfo } from './fabrik-rohre.js';
-import { maschineDrehen } from './fabrik-objekte.js';
 import { brennstoffText } from './fabrik-strom-objekte.js';
 
 stil('handwerk-strom', `
@@ -20,7 +20,7 @@ stil('handwerk-strom', `
 .strom-led { width: 14px; height: 14px; flex: none; border: 2px solid var(--holz-dunkel); border-radius: 50%; background: var(--leise); }
 .strom-led.an { background: var(--gut); box-shadow: 0 0 6px var(--gut); }
 .strom-led.sicherung { background: var(--schlecht); box-shadow: 0 0 6px var(--schlecht); }
-.strom-led.leer, .strom-led.ohne, .strom-led.uebergang { background: var(--warn); }
+.strom-led.leer, .strom-led.ohne, .strom-led.uebergang, .strom-led.vorrang { background: var(--warn); }
 .strom-balken { position: relative; height: 18px; border: 2px solid var(--holz-dunkel); border-radius: 4px; background: var(--mulde); overflow: hidden; }
 .strom-balken > span { position: absolute; inset: 0 auto 0 0; width: calc(var(--anteil, 0) * 100%); background: linear-gradient(#a8e87a, var(--gut)); }
 .strom-balken.warn > span { background: linear-gradient(#f8d070, var(--warn)); }
@@ -30,6 +30,7 @@ stil('handwerk-strom', `
 .strom-zeilen { display: grid; grid-template-columns: auto 1fr; gap: 2px 14px; margin: 0; font-variant-numeric: tabular-nums; }
 .strom-zeilen dt { color: var(--leise); }
 .strom-zeilen dd { margin: 0; }
+.strom-rat { margin: 0; padding: 8px 10px; border-radius: 4px; background: #1f3a24; border: 2px solid var(--holz-dunkel); color: #d8f5c0; font-weight: 600; }
 .strom-warn { margin: 0; padding: 8px 10px; border-radius: 4px; background: #4a2a1a; border: 2px solid var(--holz-dunkel); color: #ffd8b0; }
 .strom-liste { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
 .strom-liste li { display: flex; align-items: center; gap: 8px; padding: 4px 8px; background: var(--tafel-hell); border: 2px solid var(--holz-dunkel); border-radius: 4px; }
@@ -45,11 +46,14 @@ const STATUS = {
   sicherung: 'Sicherung geflogen',
   leer: 'Kein Strom – Brennstoff fehlt',
   ohne: 'Kein Generator im Netz',
+  vorrang: 'Anlauf: Pumpen haben Vorrang',
   aus: 'Nicht angeschlossen',
   uebergang: 'Übergangsstrom aus dem Dorf',
   kein: 'Kein Anschluss',
 };
 const nameVon = (o) => (o.t === 'strommast' ? 'Strommast' : GENERATOREN[o.t]?.name ?? MASCHINEN[o.t]?.name ?? (o.t === 'wasserpumpe' ? PUMPE.name : ITEMS[o.t]?.name ?? o.t));
+/** Anleitung zum Anfahren eines Kohlekraftwerks (Fenster von Kraftwerk und Pumpe). */
+const ANLAUF = `Anlauf: Eine Wasserpumpe am Ufer und Rohrleitungen bis ans Kraftwerk legen. Die Pumpe braucht selbst ${PUMPE.leistung} MW – dafür einen Biomasse-Brenner (30 MW) oder vier Wasserräder (je 6 MW) ins selbe Netz hängen. Pumpen haben Vorrang: reicht die Leistung nicht für alle, laufen erst sie, bis das Kraftwerk Wasser hat.`;
 const pct = (x) => `${Math.round(Math.max(0, Math.min(1, x)) * 100)} %`;
 
 function balken(anteil, text, { warn, wasser, max } = {}) {
@@ -74,17 +78,12 @@ function generatorTeil(s, ort, o, kk) {
     el('dt', {}, 'Leistung'), el('dd', {}, `${mw(erzeugt)} von ${mw(g.leistung)} MW`),
     g.frei ? [el('dt', {}, 'Antrieb'), el('dd', {}, 'Wasser, ohne Brennstoff')] : [el('dt', {}, 'Brennstoff'), el('dd', {}, brennstoffText(o.t))],
     o.arb && MASCHINEN[o.t]?.rezepte?.[o.arb] ? [el('dt', {}, 'Brennt'), el('dd', {}, `${ITEMS[o.arb]?.name ?? o.arb}: ${pct(1 - (o.f || 0) / MASCHINEN[o.t].rezepte[o.arb].zeit)} übrig`)] : null,
-    !g.frei ? [el('dt', {}, 'Eingang'), el('dd', {}, `hinten, links und rechts (vorn zeigt ${RICHTUNGEN[o.r | 0]})`)] : null));
+    !g.frei ? [el('dt', {}, 'Eingang'), el('dd', {}, 'an allen vier Seiten (Band oder aus der Hand)')] : null));
   if (!g.frei) teile.push(inhaltListe(o.ein));
   if (g.wasser) {
     teile.push(el('div', {}, el('div', { class: 'leise klein' }, `Wassertank (verbraucht ${g.wasser} m³/min bei voller Last)`),
       balken((o.wa || 0) / g.tank, `${mw(o.wa || 0)} / ${g.tank} m³`, { wasser: true })));
-    if (!((o.wa || 0) > 0)) teile.push(el('p', { class: 'strom-warn' }, 'Kein Wasser: Eine Wasserpumpe am Ufer und Rohrleitungen bis ans Kraftwerk legen. Die Pumpe braucht selbst Strom – zum Anfahren einen Biomasse-Brenner oder ein Wasserrad ins Netz hängen.'));
-  }
-  if (!g.frei) {
-    teile.push(el('div', { class: 'knopf-reihe' }, el('button', {
-      type: 'button', class: 'knopf klein', 'data-aktion': 'drehen', onclick: () => { maschineDrehen(o); ton('menue'); fensterNeu(); },
-    }, 'Drehen ↻')));
+    if (!((o.wa || 0) > 0)) teile.push(el('p', { class: 'strom-warn', 'data-hinweis': 'anlauf' }, ANLAUF));
   }
   return teile;
 }
@@ -129,13 +128,15 @@ fensterArt('handwerk_strom', (d) => {
     teile.push(balken(kap ? i.erzeugt / kap : 0, kap ? `${mw(i.erzeugt)} / ${mw(kap)} MW` : '0 MW', { warn: i.max > kap, max: kap ? i.max / kap : null }));
     teile.push(el('dl', { class: 'strom-zeilen' },
       el('dt', {}, 'Erzeugung'), el('dd', {}, `${mw(i.erzeugt)} MW`),
-      el('dt', {}, 'Verbrauch jetzt'), el('dd', {}, `${mw(u.status === 'an' ? i.bedarf : 0)} MW`),
+      el('dt', {}, 'Verbrauch jetzt'), el('dd', {}, `${mw(i.erzeugt)} MW${u.status === 'vorrang' ? ` (gewünscht ${mw(i.bedarf)} MW)` : ''}`),
       el('dt', {}, 'Kapazität'), el('dd', {}, `${mw(kap)} MW (Generatoren mit Brennstoff)`),
       el('dt', {}, 'Höchstbedarf'), el('dd', {}, `${mw(i.max)} MW, wenn alle Maschinen arbeiten`),
       el('dt', {}, 'Auslastung'), el('dd', {}, pct(i.last)),
       el('dt', {}, 'Netz'), el('dd', {}, `${u.gens.length} Generator${u.gens.length === 1 ? '' : 'en'}, ${u.verb.length} Verbraucher, ${u.masten} Mast${u.masten === 1 ? '' : 'en'}, ${u.kabel} Kabel`)));
     if (u.status === 'sicherung') {
-      teile.push(el('p', { class: 'strom-warn' }, `Überlast: Die Maschinen wollten mehr Strom, als die Generatoren liefern. Das ganze Netz steht. Erst mehr Generatoren anschließen oder Maschinen abklemmen, dann die Sicherung einschalten.`));
+      const grund = u.netz.gens.find((g) => g.o.flg)?.o.flg;
+      teile.push(el('p', { class: 'strom-warn' }, `Überlast${grund ? ` (${mw(grund[0])} MW Bedarf, ${mw(grund[1])} MW Leistung)` : ''}: Die Maschinen wollten mehr Strom, als die Generatoren liefern. Das ganze Netz steht.`));
+      if (u.rat) teile.push(el('p', { class: 'strom-rat', 'data-rat': '' }, u.rat));
       teile.push(el('div', { class: 'knopf-reihe' }, el('button', {
         type: 'button', class: 'knopf', 'data-aktion': 'sicherung', onclick: () => {
           const erg = sicherungEin(s, ort, kk);
@@ -143,6 +144,8 @@ fensterArt('handwerk_strom', (d) => {
           fensterNeu();
         },
       }, 'Sicherung einschalten')));
+    } else if (u.status === 'vorrang') {
+      teile.push(el('p', { class: 'strom-warn' }, `Die Leistung reicht nicht für alle (es fehlen ${mw(i.bedarf - kap)} MW). Pumpen haben Vorrang und laufen, die übrigen Maschinen warten – bis das Kraftwerk Wasser hat oder mehr Generatoren im Netz sind.`));
     } else if (i.max > kap && kap > 0) {
       teile.push(el('p', { class: 'strom-warn' }, `Achtung: Arbeiten alle Maschinen gleichzeitig, brauchen sie ${mw(i.max)} MW – mehr als ${mw(kap)} MW. Dann fliegt die Sicherung.`));
     }
@@ -152,12 +155,12 @@ fensterArt('handwerk_strom', (d) => {
   if (u.gens?.length) {
     teile.push(el('h3', {}, 'Generatoren im Netz'));
     teile.push(el('ul', { class: 'strom-liste' }, u.gens.map((g) => el('li', {}, itemIcon({ id: g.o.t }), el('span', {}, g.name),
-      el('span', { class: g.kann ? '' : 'leise' }, g.kann ? `${mw(g.erzeugt)} / ${mw(g.leistung)} MW` : (GENERATOREN[g.o.t].wasser && !(g.o.wa > 0) ? 'kein Wasser' : 'kein Brennstoff'))))));
+      el('span', { class: g.kann && !g.reserve ? '' : 'leise' }, !g.kann ? (GENERATOREN[g.o.t].wasser && !(g.o.wa > 0) ? 'kein Wasser' : 'kein Brennstoff') : g.reserve ? `Reserve · ${mw(g.leistung)} MW bereit` : `läuft mit · ${mw(g.erzeugt)} / ${mw(g.leistung)} MW`)))));
   }
   if (u.verb?.length) {
     teile.push(el('h3', {}, 'Verbraucher im Netz'));
     teile.push(el('ul', { class: 'strom-liste' }, u.verb.map((v) => el('li', {}, itemIcon({ id: v.o.t }), el('span', {}, v.name),
-      el('span', { class: v.will ? '' : 'leise' }, `${mw(v.leistung)} MW · ${v.will ? 'arbeitet' : 'wartet'}`)))));
+      el('span', { class: v.zustand === 'arbeitet' ? '' : 'leise' }, `${mw(v.zustand === 'arbeitet' ? v.jetzt : v.leistung)} MW · ${v.zustand}`)))));
   }
   return fensterRahmen(nameVon(o), el('div', { class: 'strom-info' }, teile), { klasse: 'breit' });
 }, {
@@ -185,8 +188,9 @@ fensterArt('handwerk_rohrnetz', (d) => {
     const a = anschlussStatus(s, ort, kk);
     teile.push(el('div', { class: 'strom-status' }, el('span', { class: `strom-led ${o.st === 'a' ? 'an' : o.st === 'v' ? 'leer' : 'aus'}` }), el('strong', {}, PUMPE_STATUS[o.st] ?? 'steht')));
     teile.push(el('dl', { class: 'strom-zeilen' },
-      el('dt', {}, 'Förderung'), el('dd', {}, `${PUMPE.rate} m³/min bei vollem Strom`),
-      el('dt', {}, 'Strom'), el('dd', {}, `${PUMPE.leistung} MW · ${a.text}`)));
+      el('dt', {}, 'Förderung'), el('dd', {}, `${PUMPE.rate} m³/min bei vollem Strom${o.pa != null ? ` · zuletzt ${Math.round(o.pa * 100)} %` : ''}`),
+      el('dt', {}, 'Strom'), el('dd', {}, `bis ${PUMPE.leistung} MW (nach Förderung) · ${a.text}`)));
+    if (o.st !== 'a' && o.st !== 'v') teile.push(el('p', { class: 'strom-warn', 'data-hinweis': 'anlauf' }, ANLAUF));
     if (a.n) teile.push(...kabelTeil(s, ort, kk, a.n.max));
   }
   if (!i) {
@@ -211,4 +215,54 @@ fensterArt('handwerk_rohrnetz', (d) => {
   return fensterRahmen(titel, el('div', { class: 'strom-info' }, teile), { klasse: 'breit' });
 }, {
   beispiele: () => [{ x: 0, y: 0, o: { t: 'rohrleitung', fl: 0.5 } }, { x: 0, y: 0, o: { t: 'wasserpumpe', st: 'a' } }],
+});
+
+// ─── Drehen vor dem Legen: Taste R, auf Touch der Knopf „↻" ─────────────────
+
+/** Liegt ein drehbares Fabrikteil in der Hand (Band, Splitter, Zusammenführer, Maschine, Lager)? */
+function drehbarInHand() {
+  const s = S.s;
+  if (!s || S.pause || S.modus) return false;
+  const slot = s.spieler.inv[s.spieler.wahl];
+  return !!slot && drehbar(bauTyp(ITEMS[slot.id]));
+}
+function drehenVorLegen() {
+  const r = blickR();
+  vorschauDrehen();
+  ton('menue');
+  meldung(`Beim Legen zeigt es jetzt ${RICHTUNGEN[blickR()]} (vorher ${RICHTUNGEN[r]}). R oder ↻ dreht weiter.`);
+}
+
+if (typeof window !== 'undefined') {
+  // vor der Werkzeugwahl des Kerns (R wechselt sonst den Platz): nur, solange ein drehbares Teil in der Hand ist
+  window.addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() !== 'r' || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) return;
+    if (!drehbarInHand()) return;
+    e.stopPropagation();
+    e.preventDefault();
+    drehenVorLegen();
+  }, { capture: true });
+}
+
+stil('handwerk-drehen', `
+#handwerk-drehen { position: absolute; right: calc(var(--rand-r) + 6px); bottom: calc(env(safe-area-inset-bottom, 0px) + 232px + var(--slot)); z-index: 6;
+  min-width: 56px; height: 44px; padding: 0 12px; border-radius: 22px; border: 3px solid var(--holz); background: var(--tafel);
+  box-shadow: inset 0 0 0 2px var(--messing); color: var(--text); font-size: 15px; touch-action: manipulation; }
+body:not(.touch) #handwerk-drehen { display: none; }
+`);
+
+hudElement({
+  id: 'handwerk-drehen',
+  reihe: 60,
+  bauen() {
+    return el('button', { type: 'button', 'aria-label': 'Fabrikteil vor dem Legen drehen', onclick: drehenVorLegen }, '↻');
+  },
+  aktualisieren(knopf) {
+    const zeigen = drehbarInHand();
+    if (knopf.hidden === zeigen) knopf.hidden = !zeigen;
+    const text = zeigen ? `↻ ${RICHTUNGEN[blickR()]}` : '↻';
+    if (knopf.textContent !== text) knopf.textContent = text;
+  },
 });

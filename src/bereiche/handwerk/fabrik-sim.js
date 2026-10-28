@@ -198,14 +198,27 @@ export function zutatenGrenze(o, id) {
   return grenze;
 }
 
+/** Wartet hinter der Ware auf dem Band eine andere Zutat, die der Maschine fehlt? */
+function blockiert(o, ware, dahinter) {
+  if (!dahinter) return false;
+  for (const e of dahinter) {
+    if (e.id === ware.id || e.q || e.von) continue;
+    const g = zutatenGrenze(o, e.id);
+    if (g && (o.ein?.[e.id] || 0) < g) return true;
+  }
+  return false;
+}
+
 /**
  * Eine Ware in eine Maschine (oder ein Lager) legen. Über die Grenze hinaus nimmt eine Maschine eine Zutat nur an,
- * wenn sie sonst stillstünde (ausgehungert): so verklemmt ein gemischtes Band (Erz und Kohle) nicht, wenn die
- * vorderste Ware gerade die Zutat ist, von der genug da ist. Höchstens FABRIK.ueberlaufMax je Zutat.
+ * wenn sie sonst stillstünde (ausgehungert) UND die Ware vorn auf dem Band eine andere Zutat blockiert, die dahinter
+ * wartet (`dahinter`: die übrigen Waren des liefernden Bands): so verklemmt ein gemischtes Band (Erz und Kohle) nicht.
+ * Ein reines Kohleband füllt einen Schmelzer nur bis zur Grenze. Höchstens FABRIK.ueberlaufMax je Zutat.
+ * Generatoren nehmen Brennstoff an allen vier Seiten an.
  * Abgewiesenes merkt sich die Maschine in `o.abg` ({ id, g: 'f' passt nicht | 'g' Grenze }) für das Info-Fenster.
  */
-export function maschineAnnehmen(o, ware, d) {
-  if (d === hinten(o.r)) return false; // nicht durch die Ausgangsseite
+export function maschineAnnehmen(o, ware, d, dahinter = null) {
+  if (d === hinten(o.r) && !MASCHINEN[o.t]?.generator) return false; // nicht durch die Ausgangsseite (Generatoren haben keine)
   if (o.t === 'lager') {
     const rest = L.inBehaelter((o.inv ??= Array(FABRIK.lagerFaecher).fill(null)), { id: ware.id, n: 1, q: ware.q, von: ware.von });
     return rest === 0;
@@ -214,7 +227,7 @@ export function maschineAnnehmen(o, ware, d) {
   if (!grenze) { o.abg = { id: ware.id, g: 'f' }; return false; }
   const ein = (o.ein ??= {});
   const n = ein[ware.id] || 0;
-  if (n >= grenze && !(n < FABRIK.ueberlaufMax && hungert(o))) { o.abg = { id: ware.id, g: 'g' }; return false; }
+  if (n >= grenze && !(n < FABRIK.ueberlaufMax && hungert(o) && blockiert(o, ware, dahinter))) { o.abg = { id: ware.id, g: 'g' }; return false; }
   ein[ware.id] = n + 1;
   if (o.abg) delete o.abg;
   return true;
@@ -285,7 +298,7 @@ function annehmen(c, tk, ware, d, ueber, tiefe = 0) {
       if (!Array.isArray(o.inv)) return false;
       return L.inBehaelter(o.inv, { id: ware.id, n: 1, q: ware.q, von: ware.von }) === 0;
     }
-    default: return MASCHINEN[o.t] && o.t !== 'erzbohrer' ? maschineAnnehmen(o, ware, d) : false;
+    default: return MASCHINEN[o.t] && o.t !== 'erzbohrer' ? maschineAnnehmen(o, ware, d, c.dahinter) : false;
   }
 }
 
@@ -303,7 +316,10 @@ function bandSchritt(c, n, dt) {
     let np = e.p + v;
     if (vorn !== null && np > vorn - A) np = vorn - A;
     if (np >= 1) {
-      if (annehmen(c, n.zk, e, o.r, np - 1)) { w.splice(i, 1); continue; }
+      c.dahinter = i === 0 ? w : null; // die vorderste Ware: was dahinter wartet, zählt beim Überlauf
+      const ok = annehmen(c, n.zk, e, o.r, np - 1);
+      c.dahinter = null;
+      if (ok) { w.splice(i, 1); continue; }
       np = 1;
     }
     e.p = np > e.p ? np : e.p;
@@ -497,7 +513,7 @@ export function bandStau(s, ort, x, y, o) {
     case 'lager': return o.r === hinten(ziel.r) ? 'Stau: das Band zeigt in die Ausgangsseite des Lagers' : 'Stau: das Lager ist voll';
     default:
       if (!name) return 'Stau: dort kann nichts hinein';
-      if (o.r === hinten(ziel.r)) return `Stau: das Band zeigt in die Ausgangsseite (${name})`;
+      if (o.r === hinten(ziel.r) && !MASCHINEN[ziel.t]?.generator) return `Stau: das Band zeigt in die Ausgangsseite (${name})`;
       if (!zutatenGrenze(ziel, w[0].id)) return `Stau: ${ware} passt nicht zum Rezept (${name})`;
       return `Stau: der Eingang (${name}) ist voll`;
   }
