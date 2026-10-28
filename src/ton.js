@@ -110,7 +110,14 @@ export function ton(name) {
     case 'fanfare': folge([392, 523, 659, 784, 1046], 0.1, 'square', 0.1, 0.25); break;
     case 'glas': ton1(1200, 0.1, 'sine', 0.12); break;
     case 'dumpf': ton1(120, 0.08, 'triangle', 0.14); break;
-    case 'schlafen': folge([523, 392, 330, 262], 0.18, 'sine', 0.12, 0.4); break;
+    // Kampf und Mine (Bereich mine)
+    case 'block': ton1(1200, 0.06, 'square', 0.12, 900); ton1(1800, 0.12, 'triangle', 0.1, null, 0.03); break;
+    case 'krit': ton1(260, 0.1, 'square', 0.2, 90); rauschen(0.1, 0.3, 2500); ton1(1500, 0.08, 'triangle', 0.1, 2200, 0.02); break;
+    case 'explosion': rauschen(0.9, 0.5, 260); ton1(90, 0.6, 'triangle', 0.35, 30); rauschen(0.25, 0.3, 2500, 'highpass'); break;
+    case 'zischen': rauschen(0.35, 0.12, 5000, 'highpass'); break;
+    case 'stampfer': ton1(70, 0.35, 'triangle', 0.4, 35); rauschen(0.3, 0.35, 400); break;
+    case 'geode': ton1(700, 0.05, 'square', 0.12, 400); rauschen(0.15, 0.3, 3000, 'highpass'); folge([784, 1046, 1318], 0.07, 'triangle', 0.08, 0.15); break;
+    case 'schlafen':folge([523, 392, 330, 262], 0.18, 'sine', 0.12, 0.4); break;
     default: break;
   }
 }
