@@ -14,7 +14,7 @@
 // Grenze. Die Grenze (m³/min) ist die des schwächsten Rohrs. Läuft im selben Fabrik-Schritt wie Strom und Bänder
 // (fabrikSchrittVorher), also auch beim Nachholen. Aufwand je Schritt: O(Rohre + Pumpen), keine Suche je Pumpe.
 
-import { ITEMS, objektTyp } from '../../daten.js';
+import { ITEMS, OBJEKT_TYPEN, objektTyp } from '../../daten.js';
 import * as L from '../../logik.js';
 import { istWasser } from '../../karten.js';
 import { ton, fenster } from '../../spiel.js';
@@ -193,7 +193,7 @@ export function rohrMaske(ort, x, y) {
   let m = 0;
   KREUZ.forEach(([dx, dy], i) => {
     const h = hauptAn(ort, x + dx, y + dy);
-    if (h && (h.o.t === ROHR_T || h.o.t === PUMPE_T || istVerbraucher(h.o))) m |= 1 << i;
+    if (h && (h.o.t === ROHR_T || h.o.t === PUMPE_T || istVerbraucher(h.o) || OBJEKT_TYPEN[h.o.t]?.wasseranschluss)) m |= 1 << i;
   });
   return m;
 }
