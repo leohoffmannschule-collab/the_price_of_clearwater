@@ -102,7 +102,7 @@ test('Verkaufspreise: Bauteile bringen mehr als ihre Barren, ein Barren wird nie
   assert.ok(PREISE.maschinenteil > 2 * PREISE.eisenplatte + 3 * PREISE.kupferdraht);
   assert.ok(PREISE.antriebseinheit > 2 * PREISE.zahnrad + 4 * PREISE.schraube);
 });
-test('Basteln: gestaffelte Zutaten und Bergbau-Stufen, Band von Anfang an aus Holz und Stein', () => {
+test('Basteln: gestaffelte Zutaten, Stufenangaben bleiben, aber ohne Sperre; Band aus Holz und Stein', () => {
   const r = (id) => REZEPTE.find((x) => x.id === id);
   assert.deepEqual(r('foerderband').zutaten, { holz: 2, stein: 2 });
   assert.equal(r('foerderband').menge, 4);
@@ -111,10 +111,9 @@ test('Basteln: gestaffelte Zutaten und Bergbau-Stufen, Band von Anfang an aus Ho
   assert.ok(FREISCHALT.schmelzer < FREISCHALT.konstrukteur && FREISCHALT.konstrukteur < FREISCHALT.assembler);
   assert.ok(r('assembler').zutaten.maschinenteil > 0, 'Assembler braucht Maschinenteile');
   const { s } = neues();
-  assert.ok(!L.rezeptFrei(s, r('foerderband')), 'Stufe 0: noch gesperrt');
-  s.spieler.xp.bergbau = 400; // Stufe 2
-  assert.ok(L.rezeptFrei(s, r('foerderband')));
-  assert.ok(!L.rezeptFrei(s, r('erzbohrer')));
+  assert.ok(L.rezeptFrei(s, r('foerderband')), 'Stufe 0: keine Sperre');
+  assert.ok(L.rezeptFrei(s, r('erzbohrer')), 'auch Bohrer und Assembler ohne Stufe');
+  assert.ok(L.rezeptFrei(s, r('assembler')));
   L.hinzufuegen(s, { id: 'holz', n: 2 }); L.hinzufuegen(s, { id: 'stein', n: 2 });
   assert.ok(L.basteln(s, r('foerderband')).ok);
   assert.equal(L.anzahl(s, 'foerderband'), 4);

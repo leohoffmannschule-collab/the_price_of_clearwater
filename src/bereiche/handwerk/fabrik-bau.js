@@ -75,7 +75,8 @@ const kopie = (inv) => inv.map((z) => (z ? { ...z } : null));
 // ─── Status eines Plans ──────────────────────────────────────────────────────────────────────────
 
 /** Freigeschaltet (Bergbau-Stufe)? */
-export const planFrei = (s, id) => !!BAUPLAENE[id] && L.stufe(s, 'bergbau') >= BAUPLAENE[id].stufe;
+/** Alle Baupläne sind von Anfang an frei (`stufe` bleibt nur als Angabe). */
+export const planFrei = (s, id) => !!BAUPLAENE[id];
 
 /**
  * Zustand eines Plans: { frei, stufe, menge, zutaten: [{ id, name, braucht, hat, fehlt }], moeglich (so viele Bauten gingen

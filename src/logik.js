@@ -1271,7 +1271,7 @@ export const rezepteVon = (art) => REZEPTE.filter((r) => (r.art ?? 'basteln') ==
 export function rezeptFrei(s, r) {
   if (s.rezepte?.includes(r.id)) return true;
   if (r.frei) return !!r.frei(s);
-  if (r.stufe) return stufe(s, r.stufe[0]) >= r.stufe[1];
+  // Fähigkeitsstufen schränken das Basteln nicht ein (`r.stufe` bleibt als Angabe fürs Balancing erhalten).
   return !r.lernen;
 }
 /** Ein Rezept lernen (Fernsehen, Briefe, Belohnungen). Gibt true zurück, wenn es neu war. */

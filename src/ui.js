@@ -697,7 +697,7 @@ function faehigkeitenReiter() {
   const s = S.s;
   const sp = s.spieler;
   const vorteile = {
-    landwirtschaft: 'Bessere Erntequalität, weniger Mühe mit Hacke und Kanne. Schaltet Sprenger und Einmachglas frei.',
+    landwirtschaft: 'Bessere Erntequalität, weniger Mühe mit Hacke und Kanne.',
     angeln: 'Kürzere Wartezeit, bessere Fische und öfter ein Schatz. Ab Stufe 2: Köder basteln.',
     sammeln: 'Weniger Mühe mit der Axt, bessere Funde.',
     bergbau: 'Weniger Mühe mit der Spitzhacke, mehr Erz.',

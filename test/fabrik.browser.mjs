@@ -82,15 +82,9 @@ try {
   });
   await page.keyboard.press('k');
   await page.waitForSelector('.fenster .reiter');
-  let zeile = page.locator('.zeile', { hasText: 'Förderband' });
+  let zeile = page.locator('.zeile', { hasText: 'Förderband' }).first();
   pruefe((await zeile.count()) === 1, 'Das Basteln-Menü zeigt das Förderband');
-  pruefe((await zeile.locator('button:has-text("Basteln")').isDisabled()), 'Noch gesperrt: Bergbau Stufe 2 fehlt');
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
-  await page.evaluate(() => { window.__klarwasser.S.s.spieler.xp.bergbau = 400; });
-  await page.keyboard.press('k');
-  await page.waitForSelector('.fenster .reiter');
-  zeile = page.locator('.zeile', { hasText: 'Förderband' });
+  pruefe(!(await zeile.locator('button:has-text("Basteln")').isDisabled()), 'Keine Stufensperre: schon auf Bergbau Stufe 0 herstellbar');
   pruefe((await zeile.locator('.zutaten').textContent()).includes('2/2 Holz'), 'Kosten: 2 Holz und 2 Stein');
   await zeile.locator('button:has-text("Basteln")').click();
   await page.waitForTimeout(150);

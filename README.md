@@ -133,7 +133,7 @@ Info-Fenster zeigt den Überschuss). Mit einer passenden Zutat in der Hand befü
 lässt sich keine Fabrik bauen. Die Fabrik läuft in Echtzeit, solange du auf der Karte bist (ein Fenster oder die Pause hält sie an); auf
 anderen Karten und über Nacht holt sie nach, höchstens 10 Minuten Echtzeit-Äquivalent je Nachholen. Alle Zahlen stehen in
 `src/bereiche/handwerk/fabrik-daten.js`. Vor dem Legen dreht die Taste R (auf Touch der Knopf ↻) die Richtung eines Bands, Splitters, Zusammenführers, einer Maschine oder eines Lagers; die Meldung beim Drehen nennt die neue Richtung. Bänder gibt es in drei Stufen: **Mk1** 1,5 Felder/s, **Mk2** 3 Felder/s, **Mk3**
-5 Felder/s (bis 6, 12 und 20 Waren pro Sekunde; Basteln ab Bergbau 5 und 7 oder im Handy).
+5 Felder/s (bis 6, 12 und 20 Waren pro Sekunde; im Basteln-Menü oder im Handy).
 
 **Handy.** Du hast es von Anfang an im Rucksack (letzter Platz der Leiste; ältere Spielstände bekommen es beim Laden, bei vollem
 Rucksack liegt es im Paketfach). Benutzen öffnet es, ebenso Menü › Handy (auf dem Handy-Bildschirm über den Menü-Knopf). Die App
@@ -173,26 +173,12 @@ Biomasse-Brenner (30 MW) oder vier Wasserrädern (je 6 MW) im selben Netz an. Pu
 nicht für alle, laufen erst die Pumpen und die übrigen Maschinen warten (ohne dass die Sicherung fliegt), bis das Kraftwerk
 Wasser hat. Eine Pumpe oder ein Kraftwerk darf an mehreren Rohrnetzen hängen.
 
-**Maschinenbau.** Der **Maschinenbauer** (3×3, Werkbank mit Hammer und Funken; Basteln-Menü K ab Bergbau Stufe 4 aus 12 Eisenplatten,
+**Maschinenbau.** Der **Maschinenbauer** (3×3, Werkbank mit Hammer und Funken; Basteln-Menü K aus 12 Eisenplatten,
 24 Schrauben, 6 Zahnrädern, 10 Kupferdraht und 30 Holz, oder im Handy für 3,5 Mio) baut jedes Fabrikteil, das das Handy verkauft, aus
 herstellbaren Teilen selbst: Aktionstaste öffnet das Fenster „Maschinenbau" mit allen 21 Bauplänen, ihren Zutaten (grün = genug, rot =
 zu wenig) und der Mengenwahl ×1, ×5, ×10 und Max. Zutaten kommen aus dem Rucksack und aus Lagern und Truhen bis 3 Felder entfernt
 (Rucksack zuerst); das Ergebnis liegt im Rucksack, ist er voll, im Lager in Reichweite – gebaut wird nur, was ganz hineinpasst.
-Freigeschaltet wird nach Bergbau-Stufe: 4 Band, Kabel, Mast und der Maschinenbauer, 5 Splitter, Zusammenführer, Lager, Band Mk2,
-Bohrer, Schmelzer, Konstrukteur, Brenner, Wasserrad, Rohr, 6 Mischer, Pumpe, Rohr Mk2, 7 Assembler, Band Mk3, 8 Fertiger und
-Kohlekraftwerk. Selbst bauen kostet an Rohstoffen nur einen winzigen Bruchteil des Handy-Preises (0,01 bis 0,16 %, also 1:640 beim
-Fertiger bis 1:8300 beim Stromkabel; Kraftwerk 16.400 g gegen 25 Mio) – die Arbeit steckt in der Fabrik, die die Teile liefert; die
-Handy-Preise sind unverändert. Neue Waren:
-**Schmelzer** 3 Eisenbarren + 1 Kohle → 2 Stahlbarren (8 s); **Konstrukteur** Stahlträger (2 Stahlbarren), Metallrohr (2 Eisenbarren → 3),
-Kabelrolle (3 Kupferdraht), Rahmenplatte (3 Eisenplatten), Nägel (1 Eisenbarren → 8), Zahnstange (1 Stahlbarren); **Assembler**
-Platine, Kühlkörper, Rotor, Stator, Rahmen und Motor (2 Rotoren + 2 Statoren, 14 s); der neue **Mischer** (2×2, 8 MW, Rohrleitung an einer
-beliebigen Seite für das Wasser, Stein vom Band) macht Beton und Betonplatten; der neue **Fertiger** (3×3, 30 MW, vier Zutaten) macht
-Computer (Platine, Kabelrolle, Kühlkörper, Motor; 6900 g) und Antriebssysteme (Motoren, Rahmen, Antriebseinheiten, Zahnstangen; 17.000 g).
-Von Hand basteln lassen sich Nägel (Bergbau 4), Rohr und Kabelrolle (5), Rahmenplatte, Stahlträger, Zahnstange (6), Platine,
-Kühlkörper, Rotor, Stator (7) und Rahmen (8); Motor, Computer, Antriebssystem, Beton, Betonplatte und Stahlbarren nur aus Maschinen. Das
-Info-Fenster aller Maschinen zeigt „Was braucht dieses Rezept?" mit Mengen pro Minute; im Handy listet die App **Bauplan** alle Bauteile
-und Maschinenrezepte, filterbar nach Material und auf „was ich jetzt bauen kann". Alle Zahlen: `fabrik-teile-daten.js` (Waren, Rezepte,
-Preise) und `fabrik-bau-daten.js` (Baupläne, Stufen, Reichweite).
+Alle Baupläne sind von Anfang an frei; die Bergbau-Stufen 4 bis 8 in den Daten sind nur eine Empfehlung, wie weit man etwa sein sollte.
 
 **Fähigkeiten.** Landwirtschaft, Angeln, Sammeln, Bergbau und Kampf steigen bis Stufe 10
 und machen Werkzeuge sparsamer, Ernten besser, die Wartezeit beim Angeln kürzer und die Gesundheit größer.

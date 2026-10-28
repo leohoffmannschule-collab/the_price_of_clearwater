@@ -142,14 +142,13 @@ test('Handarbeit: einfache Zwischenprodukte ja, Motor, Computer, Antriebssystem,
   for (const id of [...ERSTE, 'maschinenteil']) assert.ok(r(id), id);
   assert.ok(FREISCHALT_TEILE.nagel < FREISCHALT_TEILE.rahmen, 'gestaffelt');
 });
-test('Maschinenbauer: von Hand basteln ab Bergbau 4 (auch ohne Handy), sonst nur im Handy', () => {
+test('Maschinenbauer: von Hand basteln ohne Stufensperre (auch ohne Handy), sonst nur im Handy', () => {
   const rez = REZEPTE.find((x) => x.id === 'maschinenbauer');
   assert.deepEqual(rez.stufe, ['bergbau', BAU.basteln]);
   assert.equal(BAU.basteln, 4);
   for (const z of Object.keys(rez.zutaten)) assert.ok(ERSTE.includes(z) || z === 'holz', `Zutat ${z} ist von Hand herstellbar`);
   const { s } = neues({ stufe: 0 });
-  assert.ok(!L.rezeptFrei(s, rez));
-  s.spieler.xp.bergbau = 1e9;
+  assert.ok(L.rezeptFrei(s, rez), 'keine Stufensperre beim Basteln');
   for (const [z, n] of Object.entries(rez.zutaten)) gib(s, z, n);
   assert.ok(L.basteln(s, rez).ok);
   assert.equal(L.anzahl(s, 'maschinenbauer'), 1);
@@ -194,13 +193,12 @@ test('Zutaten der Pläne sind herstellbar: Grundstoff, Handarbeit ab der Plan-St
   assert.ok('motor' in BAUPLAENE.fertiger.zutaten && BAUPLAENE.fertiger.stufe >= BAUPLAENE.assembler.stufe);
   assert.ok('betonplatte' in BAUPLAENE.kohlekraftwerk.zutaten && BAUPLAENE.kohlekraftwerk.stufe >= BAUPLAENE.mischer.stufe);
 });
-test('Freischaltung gestaffelt nach Bergbau-Stufe (4 bis 8)', () => {
+test('Baupläne tragen eine Stufenangabe (4 bis 8), sperren aber nichts', () => {
   const stufen = new Set(Object.values(BAUPLAENE).map((p) => p.stufe));
   assert.deepEqual([...stufen].sort(), [4, 5, 6, 7, 8]);
   const { s } = neues({ stufe: 0 });
-  assert.ok(!planFrei(s, 'foerderband'));
-  s.spieler.xp.bergbau = 1e9;
-  assert.ok(planFrei(s, 'fertiger'));
+  assert.ok(planFrei(s, 'foerderband'));
+  assert.ok(planFrei(s, 'fertiger'), 'auch ohne Bergbau-Stufe frei');
 });
 
 console.log('\nSelbstbau gegen Kaufen');
@@ -331,15 +329,13 @@ test('teils Rucksack, teils Lager: nichts geht verloren (Summe aller Behälter s
   assert.equal(bestand(s, ort, 'eisenplatte'), 20 - 6);
   assert.equal(bestand(s, ort, 'schraube'), 40 - 12);
 });
-test('gesperrt nach Bergbau-Stufe: kein Bau, Hinweis auf die Stufe', () => {
+test('ohne Bergbau-Stufe ist der Bau möglich (keine Stufensperre)', () => {
   const { s, ort } = neues({ stufe: 0 });
   bauer(ort, X0, Y0);
   gib(s, 'eisenplatte', 5); gib(s, 'schraube', 9);
   const erg = bauen(s, ort, kk(X0, Y0), 'foerderband', 1);
-  assert.ok(!erg.ok);
-  assert.match(erg.grund, /Bergbau Stufe 4/);
-  assert.equal(L.anzahl(s, 'eisenplatte'), 5);
-  assert.equal(maxBauten(s, quellen(s, ort, kk(X0, Y0)), 'foerderband'), 0);
+  assert.ok(erg.ok, erg.grund);
+  assert.ok(maxBauten(s, quellen(s, ort, kk(X0, Y0)), 'foerderband') >= 0);
 });
 test('jeder Plan baut sein Teil (alle 21): mit den Zutaten im Rucksack, Stückzahl stimmt', () => {
   for (const [id, p] of Object.entries(BAUPLAENE)) {
