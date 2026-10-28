@@ -578,6 +578,8 @@ CHROMIUM=/opt/pw-browsers/chromium-1194/chrome-linux/chrome node test/fischfarm.
 | `fabrik.browser.mjs` | Browser-Test der Fabrik: Förderband im Basteln-Menü (K, erst ab Bergbau 2), auf dem Hof Bänder, Schmelzer und Bohrer auf einem Vorkommen aus der Hand aufstellen (Blickrichtung), Erz läuft, Barren erreichen die Versandkiste, Info-Fenster, Band drehen, schlafen und verkaufen, Handy-Hochformat 390×844 mit Aktion-Knopf, keine Konsolenfehler, das Spiel läuft weiter; hängt in `npm run test:browser` hinter dem Hühnertest |
 | `fabrik-strom.test.mjs` | Fabrik Stufe 2: Daten und Preise, Netzbildung, Kabelreichweite, Kosten und Kupferdraht, Anschlussgrenzen, Kabel-Werkzeug, Maschinen ohne Strom stehen und mit Strom laufen, Überlast und Sicherung (auch wieder einschalten), Brennstoff nach Brennwert und Last, Brennstoff vom Band und aus der Hand, Info-Zeile, Wasserrad, Ufer-Regel, Wasser über Rohre zum Kraftwerk (Anfahren mit dem Brenner), Kraftwerk-Verbrauch, Durchflussgrenze Mk1/Mk2/gemischt, volles Netz, Nachholen über Nacht gleich live, Bericht bei Überlast, Übergang 7 Tage, alter Stand (Starterpaket, Handy, Brief), neues Spiel mit Handy, Speichern und Laden, Aufheben gibt Kabel zurück, Bänder Mk2/Mk3, Handy-Kauf (Gold, Mengen, voller Rucksack), Vorkommen kaufen und aufstellen |
 | `fabrik-strom.browser.mjs` | Browser-Test Stufe 2: Handy benutzen, Teile und Vorkommen kaufen, Brenner, Mast, Bohrer und Lager aufstellen, Kabel mit dem Werkzeug, Strom fließt, Überlast und Sicherung im Netzfenster, Kabel lösen, Pumpe am Teich, Rohre, Kohlekraftwerk mit Wasser, Rohrfenster, Hochformat 390×844 mit Touch, keine Konsolenfehler, Spiel läuft weiter; hängt in `npm run test:browser` hinter dem Fabriktest |
+| `fabrik-bau.test.mjs` | Fabrik Stufe 3: neue Waren und Rezepte (Verhältnisse, Zeiten, Preise, Handarbeit nur für einfache Teile), Baupläne für alles im Handy, Freischaltung nach Bergbau-Stufe, Selbstbau gegen Handy-Preis, Maschinenbau (Rucksack, Lager und Truhe in Reichweite, Mengenwahl, fehlende Zutaten, voller Rucksack, kein Verlust), Aufstellen und Aufheben ohne Verlust (auch Wasser im Mischer), Mischer mit Pumpe, Rohren und Strom, Fertiger mit vier Eingängen auf einem gemischten Band, Nachholen gleich live, Nacht, Speichern und Laden, alter Stand, Info-Zeilen, Bauplan-Übersicht, Handy-Kauf der neuen Maschinen |
+| `fabrik-bau.browser.mjs` | Browser-Test Stufe 3: Maschinenbauer basteln (K) und aufstellen, Fenster Maschinenbau (Mengen, Max, gesperrt, Lager in Reichweite), Mischer und Fertiger bauen und aufstellen, Wasser aus Rohren, Linie bis zum Computer, Info-Fenster, Handy-App Bauplan mit Filtern, Hochformat 390×844 mit Touch, keine Konsolenfehler, Spiel läuft weiter; hängt in `npm run test:browser` hinter dem Strom-Test |
 | `angeln.browser.mjs` | Browser-Test des Angelns (Chromium, eigener Server): ans Wasser laufen, werfen, die Wartezeit abkürzen, einholen, Fang im Rucksack, Mausklick, Abbruch, Hochformat 390×844, keine Konsolenfehler; läuft mit `npm run test:browser` hinter dem Rauchtest |
 | `raeucherofen.browser.mjs` | Browser-Test des Räucherofens (Chromium, eigener Server): im Basteln-Menü herstellen (1 Holz + 1 Kohle), aufstellen, 300 Karpfen einlegen (200 gehen hinein), schlafen, abholen, Preis im Rucksack und in der Versandkiste zehnfach, Rucksack voll, Aufheben, keine Konsolenfehler, die Figur kann sich danach bewegen; läuft mit `npm run test:browser` hinter dem Angel-Test |
 | `browser.mjs` | Rauchtest in Chromium: neues Spiel, Feldarbeit, Menü, Rundgang bis in die Mine (Orte aus dem Punkte-Vertrag), jedes Item/jede Deko/jedes Gebäude/jedes Objekt/jede Pflanze malt ohne Ersatzbild (alle Jahreszeiten, Tag und Nacht), Ersatzbilder für Fehlendes, Kulling auf einer 100×72-Karte, große Objekte, Beläge, Pflanzenkunst mit `alle`, Kameraführung, alle Fenster öffnen sich mit ihren Beispieldaten, Schlafen, Speichern (v2), Einmachglas leeren (jede Sorte, voller Rucksack; danach muss sich die Spielerin noch bewegen können, denn „die Seite antwortet" genügt nicht: die Spielschleife kann stehen, während der Browser läuft), keine Konsolenfehler |
@@ -1043,3 +1045,53 @@ in `zutatenGrenze`, kleinere Nachhol-Schritte bei schnellen Bändern: höchstens
 (`BAU_TYPEN` für Vorschau und Aufstellen weiterer Typen, `fabrikBeimAufheben`, `itemVonObjekt`, Bandstufe beim Legen, `blickR` und
 `platzPruefen` exportiert), `fabrik-info.js` (Leistung ohne „noch ohne Stromnetz"), `fabrik-kunst-objekte.js` (Bandfarbe und
 -tempo je Stufe). **Kernänderungen: keine.**
+
+## 14. Fabrik Stufe 3: Maschinenbauer, Mischer, Fertiger, mehr Teile (Bereich handwerk, `fabrik-bau*.js`, `fabrik-teile*.js`)
+
+Mehr herstellbare Teile und der Maschinenbauer, der alle Handy-Teile aus ihnen baut. Neue Dateien, je eine Importzeile in
+`handwerk/inhalt.js` (`fabrik-bau-inhalt.js`), `grafik.js` (`fabrik-bau-grafik.js`), `oberflaeche.js` (`fabrik-bau-oberflaeche.js`);
+`fabrik-teile-daten.js` hängt in `fabrik-inhalt.js` **vor** `fabrik-objekte.js`, damit Mischer und Fertiger (Einträge in `MASCHINEN`) von der
+Schleife dort wie jede Maschine als Objekttyp registriert werden. **Kernänderungen: keine.**
+
+| Datei | Inhalt |
+|---|---|
+| `fabrik-teile-daten.js` | Waren (Stahlbarren, Stahlträger, Metallrohr, Kabelrolle, Rahmenplatte, Nägel, Zahnstange, Platine, Kühlkörper, Rotor, Stator, Rahmen, Motor, Beton, Betonplatte, Computer, Antriebssystem; alle mit Kategorie, Preis, Bild-Art, Text, `sorte`), `PREISE_TEILE`, `FREISCHALT_TEILE` (Handarbeit), die Rezepte `*_NEU` und `MISCHER_REZEPTE`, `FERTIGER_REZEPTE`, `MISCHER`; setzt `MASCHINEN.schmelzer/konstrukteur/assembler.rezepte` auf **erweiterte Kopien** (die Tabellen `SCHMELZ_REZEPTE` … der Stufe 1 bleiben unverändert), trägt `mischer` (2×2, 8 MW, wählbar: Beton, Betonplatte) und `fertiger` (3×3, 30 MW, wählbar: Computer, Antriebssystem) ein, Gegenstände `mischer`, `fertiger`, `wasser` und Basteln der einfachen Zwischenprodukte |
+| `fabrik-bau-daten.js` | `BAU` (3×3, Reichweite 3, Mengen 1/5/10, Animation), `BAUPLAENE` (21 Pläne: Gruppe, Bergbau-Stufe 4–8, Menge je Bau, Zutaten), `HANDY_PREISE_NEU` (Maschinenbauer 3,5 Mio, Mischer 5 Mio, Fertiger 10 Mio; ergänzt `HANDY_PREISE` und die Gruppe „Maschinen"), Gegenstand und Basteln-Rezept `maschinenbauer` (Bergbau 4), `rohstoffWert`, `planWert`, `selbstbauVerhaeltnis`, `maschinenRezepte`, `herstellerVon`, `materialien` |
+| `fabrik-bau.js` | Rechnung des Maschinenbauers: `quellen` (Rucksack zuerst, dann Lager und Truhen bis 3 Felder Lücke zur Fläche), `planStatus`, `maxBauten` (Zutaten und Platz, Binärsuche), `bauen` (auf Kopien der Fächer, am Ende übernommen: nichts geht verloren), `bauplanListe`/`rezeptListe`/`rezeptRaten` für Handy und Info, Arbeitsanimation (`bauAktivSetzen`, nur Laufzeit) |
+| `fabrik-bau-objekte.js` | Objekttyp `maschinenbauer` (Platzregel wie alle Fabrikteile, Fenster per Aktionstaste, Aufheben mit `fabrikAufheben`), Wasser des Mischers, Info-Zeilen „Was braucht dieses Rezept?" und „Wasser", `STROM.anschluesse.fertiger = 2`, `wasseranschluss` am Objekttyp Mischer |
+| `fabrik-bau-fenster.js` | Fenster `handwerk_maschinenbau`: alle Pläne nach Gruppen, Zutaten grün/rot, Mengenwahl (bleibt erhalten), gesperrte Pläne mit Stufe; auf dem Handy eine Spalte, Knopf über die ganze Breite |
+| `fabrik-bau-handy.js` | Handy-App „Bauplan" (Kachel am Startbildschirm, Seite in `SEITEN`): Reiter Bauteile/Maschinen, Material-Filter, „Nur, was ich jetzt bauen kann" |
+| `fabrik-bau-kunst.js` | Pixelkunst: 20 Gegenstände, Warensymbole 8×8 (in `MINI` eingetragen), Maschinenbauer (Hammer und Funken beim Bauen), Mischer (kreisende Trommel), Fertiger (Roboterarm, Bildschirm, vier Zutaten-Lampen grün/rot), Symbol der App, Nachtlicht der arbeitenden Maschinen |
+
+**Die Kette** (Menge je Durchgang, Sekunden): Schmelzer 3 Eisenbarren + 1 Kohle → 2 Stahlbarren (8). Konstrukteur: 2 Stahlbarren → Stahlträger (4),
+2 Eisenbarren → 3 Metallrohre (3), 3 Kupferdraht → Kabelrolle (3), 3 Eisenplatten → Rahmenplatte (5), 1 Eisenbarren → 8 Nägel (2), 1 Stahlbarren →
+Zahnstange (4). Assembler: Platine (6 Kupferdraht + 2 Eisenplatten, 6), Kühlkörper (2 Kupferbarren + 2 Eisenplatten, 6), Rotor (3 Metallrohre + 8 Schrauben, 8),
+Stator (3 Metallrohre + 2 Kabelrollen, 8), Rahmen (2 Rahmenplatten + 6 Metallrohre, 12), Motor (2 Rotoren + 2 Statoren, 14). Mischer: Beton (4 Stein +
+2 Wasser → 2, 4), Betonplatte (4 Beton + 1 Eisenplatte + 1 Wasser, 6). Fertiger: Computer (2 Platinen + 2 Kabelrollen + 1 Kühlkörper + 1 Motor, 24, 6900 g),
+Antriebssystem (2 Motoren + 2 Rahmen + 2 Antriebseinheiten + 6 Zahnstangen, 30, 17.000 g). Verkaufspreise: jede Stufe etwa ein Viertel über den
+Zutaten (Test: Ausgangswert > Eingangswert). **Handarbeit** (Basteln, dasselbe Verhältnis wie in der Maschine): Nägel Bergbau 4, Metallrohr und Kabelrolle 5,
+Rahmenplatte, Stahlträger und Zahnstange 6, Platine, Kühlkörper, Rotor, Stator 7, Rahmen 8; **nur aus Maschinen**: Stahlbarren, Motor, Beton, Betonplatte, Computer,
+Antriebssystem.
+
+**Wasser im Mischer.** Wasser ist als Zutat `wasser` im Eingang (`o.ein.wasser`, 1 Einheit = 1 m³), damit die Rezept-Mechanik der Stufe 1 ohne Änderung
+greift (`naechstesRezept`, `willArbeiten`, Grenzen, Info-Fenster, Strom nur bei Arbeit). Der Gegenstand `wasser` trägt `fluessig: true`: `plus` in
+`fabrik-objekte.js` lässt ihn beim Aufheben und beim Rezeptwechsel aus (Wasser kommt nie in den Rucksack). Im Fabrik-Schritt (`fabrikSchrittVorher`, nach dem
+Wasser-Schritt der Rohre, also live, beim Nachholen und über Nacht gleich) holt `mischerWasser` aus den angrenzenden Rohrnetzen (`rohrNetze(...).netzVon`,
+Rohr an einer der acht Randfelder) bis `MISCHER.rate` = 90 m³/min in einen Tank `o.wt` (höchstens `MISCHER.tank` = 4 m³) und legt ganze m³ in den Eingang bis zur
+Grenze des Rezepts; das Wasser verschwindet aus den Rohren (`fl`). Ohne Rohr: keine Arbeit, das Info-Fenster sagt es. Rohre zeichnen den Anschluss über
+`OBJEKT_TYPEN.mischer.wasseranschluss` (`rohrMaske`).
+
+**Maschinenbau.** `bauen(s, ort, kk, id, n | 'max')`: Stufe prüfen (`L.stufe(s, 'bergbau') >= plan.stufe`), Zutaten zählen (Rucksack + Behälter), `maxBauten` sucht die
+größte Zahl Bauten, die nach Zutaten und Platz ganz hineinpasst (Probebau auf Kopien); erst dann werden die Fächer überschrieben. Rucksack-Fächer zuerst, danach nach
+Abstand und Feld sortierte Lager/Truhen (`t` ist `lager` oder `truhe` mit `inv`; Kühlschränke nicht). Ergebnis zuerst in den Rucksack, der Rest in die Behälter.
+
+**Freischaltung der Baupläne** (Bergbau-Stufe): 4 Förderband, Stromkabel, Strommast, Maschinenbauer · 5 Splitter, Zusammenführer, Lager, Band Mk2, Erzbohrer, Schmelzer,
+Konstrukteur, Biomasse-Brenner, Wasserrad, Rohrleitung · 6 Mischer, Wasserpumpe, Rohrleitung Mk2 · 7 Assembler, Band Mk3 · 8 Fertiger, Kohlekraftwerk. Die Zutaten sind je Stufe
+von Hand oder aus Maschinen zu haben (Test), der Assembler braucht keinen Motor, der Fertiger keinen Computer.
+
+**Selbstbau gegen Handy.** `rohstoffWert` rechnet bis zu den Barren (Eisen, Kupfer, Gold zum Verkaufspreis), Stein, Kohle und Holz zurück (Wasser umsonst); `selbstbauVerhaeltnis(id)`
+= Rohstoffwert je Stück geteilt durch den Handy-Preis. Der Test verlangt unter 1 %; die Werte liegen zwischen 1:640 (Fertiger) und 1:8300 (Stromkabel). Die Preise der Stufe 2 sind
+unverändert (Test).
+
+**Änderungen an Dateien der Stufen 1 und 2** (klein, additiv): `fabrik-inhalt.js` (Importzeile), `fabrik-kunst.js` (`MINI` exportiert), `fabrik-objekte.js` (`plus` überspringt `fluessig`),
+`fabrik-rohre.js` (`rohrMaske`: auch Objekttypen mit `wasseranschluss`), `fabrik-handy-fenster.js` (`SEITEN` exportiert), `test/fabrik.test.mjs` (Rezeptzahl des Konstrukteurs `>= 4`).

@@ -7,6 +7,6 @@
   "scripts": {
     "start": "node tools/server.mjs",
     "test": "node test/alle.mjs",
-    "test:browser": "node test/browser.mjs && node test/angeln.browser.mjs && node test/raeucherofen.browser.mjs && node test/fischfarm.browser.mjs && node test/huehner.browser.mjs && node test/fabrik.browser.mjs && node test/fabrik-strom.browser.mjs"
+    "test:browser": "node test/browser.mjs && node test/angeln.browser.mjs && node test/raeucherofen.browser.mjs && node test/fischfarm.browser.mjs && node test/huehner.browser.mjs && node test/fabrik.browser.mjs && node test/fabrik-strom.browser.mjs && node test/fabrik-bau.browser.mjs"
   }
 }

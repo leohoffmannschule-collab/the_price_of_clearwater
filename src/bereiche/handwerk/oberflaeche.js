@@ -34,3 +34,4 @@ fensterArt('truhe', (d) => {
 });
 import './fabrik-fenster.js'; // Fabrik: Info-Fenster der Maschinen
 import './fabrik-strom-oberflaeche.js'; // Fabrik Stufe 2: Stromnetz, Rohrnetz, Handy (Menüreiter)
+import './fabrik-bau-oberflaeche.js'; // Fabrik Stufe 3: Fenster Maschinenbau, Handy-App Bauplan

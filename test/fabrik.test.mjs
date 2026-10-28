@@ -769,7 +769,7 @@ test('Info-Fenster: Name, Rezept, Status, Durchsatz, Inhalt, Ein- und Ausgang in
   assert.equal(i.code, 'a');
   assert.equal(i.durchsatz, 12);
   assert.equal(i.gewaehlt, 'zahnrad');
-  assert.equal(i.rezepte.length, 4);
+  assert.ok(i.rezepte.length >= 4 && ['kupferdraht', 'eisenplatte', 'schraube', 'zahnrad'].every((id) => i.rezepte.some((r) => r.id === id)), 'die vier Rezepte der Stufe 1 (Stufe 3 bringt weitere)');
   assert.deepEqual(i.ein[0].slice(0, 2), ['Eisenbarren', 2]);
   assert.match(i.ausgang, /unten/);
   assert.match(i.eingang, /hinten/);

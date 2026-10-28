@@ -170,6 +170,27 @@ Seite); man kann darüber gehen. Ein Rohrnetz ist ein Behälter (1 m³ je Rohr) 
 Strom. Fließt Wasser, sieht man es im Rohr; die Aktionstaste am Rohr oder an der Pumpe zeigt Füllstand, Zu- und Abfluss und die
 Grenze. Die Pumpe braucht selbst Strom: Ein Kohlekraftwerk fährt man mit einem Biomasse-Brenner oder Wasserrad im selben Netz an.
 
+**Maschinenbau.** Der **Maschinenbauer** (3×3, Werkbank mit Hammer und Funken; Basteln-Menü K ab Bergbau Stufe 4 aus 12 Eisenplatten,
+24 Schrauben, 6 Zahnrädern, 10 Kupferdraht und 30 Holz, oder im Handy für 3,5 Mio) baut jedes Fabrikteil, das das Handy verkauft, aus
+herstellbaren Teilen selbst: Aktionstaste öffnet das Fenster „Maschinenbau" mit allen 21 Bauplänen, ihren Zutaten (grün = genug, rot =
+zu wenig) und der Mengenwahl ×1, ×5, ×10 und Max. Zutaten kommen aus dem Rucksack und aus Lagern und Truhen bis 3 Felder entfernt
+(Rucksack zuerst); das Ergebnis liegt im Rucksack, ist er voll, im Lager in Reichweite – gebaut wird nur, was ganz hineinpasst.
+Freigeschaltet wird nach Bergbau-Stufe: 4 Band, Kabel, Mast und der Maschinenbauer, 5 Splitter, Zusammenführer, Lager, Band Mk2,
+Bohrer, Schmelzer, Konstrukteur, Brenner, Wasserrad, Rohr, 6 Mischer, Pumpe, Rohr Mk2, 7 Assembler, Band Mk3, 8 Fertiger und
+Kohlekraftwerk. Selbst bauen kostet an Rohstoffen nur einen winzigen Bruchteil des Handy-Preises (0,01 bis 0,16 %, also 1:640 beim
+Fertiger bis 1:8300 beim Stromkabel; Kraftwerk 16.400 g gegen 25 Mio) – die Arbeit steckt in der Fabrik, die die Teile liefert; die
+Handy-Preise sind unverändert. Neue Waren:
+**Schmelzer** 3 Eisenbarren + 1 Kohle → 2 Stahlbarren (8 s); **Konstrukteur** Stahlträger (2 Stahlbarren), Metallrohr (2 Eisenbarren → 3),
+Kabelrolle (3 Kupferdraht), Rahmenplatte (3 Eisenplatten), Nägel (1 Eisenbarren → 8), Zahnstange (1 Stahlbarren); **Assembler**
+Platine, Kühlkörper, Rotor, Stator, Rahmen und Motor (2 Rotoren + 2 Statoren, 14 s); der neue **Mischer** (2×2, 8 MW, Rohrleitung an einer
+beliebigen Seite für das Wasser, Stein vom Band) macht Beton und Betonplatten; der neue **Fertiger** (3×3, 30 MW, vier Zutaten) macht
+Computer (Platine, Kabelrolle, Kühlkörper, Motor; 6900 g) und Antriebssysteme (Motoren, Rahmen, Antriebseinheiten, Zahnstangen; 17.000 g).
+Von Hand basteln lassen sich Nägel (Bergbau 4), Rohr und Kabelrolle (5), Rahmenplatte, Stahlträger, Zahnstange (6), Platine,
+Kühlkörper, Rotor, Stator (7) und Rahmen (8); Motor, Computer, Antriebssystem, Beton, Betonplatte und Stahlbarren nur aus Maschinen. Das
+Info-Fenster aller Maschinen zeigt „Was braucht dieses Rezept?" mit Mengen pro Minute; im Handy listet die App **Bauplan** alle Bauteile
+und Maschinenrezepte, filterbar nach Material und auf „was ich jetzt bauen kann". Alle Zahlen: `fabrik-teile-daten.js` (Waren, Rezepte,
+Preise) und `fabrik-bau-daten.js` (Baupläne, Stufen, Reichweite).
+
 **Fähigkeiten.** Landwirtschaft, Angeln, Sammeln, Bergbau und Kampf steigen bis Stufe 10
 und machen Werkzeuge sparsamer, Ernten besser, die Wartezeit beim Angeln kürzer und die Gesundheit größer.
 
@@ -239,7 +260,7 @@ tools/server.mjs Kleiner Dateiserver
 
 ```bash
 npm test                 # alle Tests in Node (test/alle.mjs)
-npm run test:browser     # Browser-Tests (Rauchtest, Angeln, Räucherofen, Fischfarm, Hühner, Fabrik, Strom; Playwright, optional CHROMIUM=/pfad/zu/chrome)
+npm run test:browser     # Browser-Tests (Rauchtest, Angeln, Räucherofen, Fischfarm, Hühner, Fabrik, Strom, Maschinenbau; Playwright, optional CHROMIUM=/pfad/zu/chrome)
 ```
 
 ### Karten bearbeiten

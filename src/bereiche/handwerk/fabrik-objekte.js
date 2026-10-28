@@ -108,7 +108,7 @@ itemBenutzen((c) => {
 
 // ─── Inhalt und Aufheben ────────────────────────────────────────────────────
 
-const plus = (liste, id, n, extra) => { if (n > 0) liste.push({ id, n, ...(extra?.q ? { q: extra.q } : {}), ...(extra?.von ? { von: extra.von } : {}) }); };
+const plus = (liste, id, n, extra) => { if (n > 0 && !ITEMS[id]?.fluessig) liste.push({ id, n, ...(extra?.q ? { q: extra.q } : {}), ...(extra?.von ? { von: extra.von } : {}) }); };
 
 /** Alles, was in einem Fabrikobjekt steckt, als Stapel (für Aufheben und Prüfungen). */
 export function inhaltVon(o) {

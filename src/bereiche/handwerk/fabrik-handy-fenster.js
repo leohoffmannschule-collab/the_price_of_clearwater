@@ -217,7 +217,7 @@ function strom(s, h) {
 
 // ─── Reiter ─────────────────────────────────────────────────────────────────
 
-const SEITEN = { start, bedarf, vorkommen, paket, strom };
+export const SEITEN = { start, bedarf, vorkommen, paket, strom };
 
 function uhr(s) {
   return L.uhrzeit(s.zeit.minute);

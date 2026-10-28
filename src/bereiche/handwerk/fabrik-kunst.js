@@ -95,7 +95,7 @@ function barren(g, f) {
   R(g, 1, 2, 4, 1, hell(f, 0.5));
   R(g, 1, 3, 4, 1, f);
 }
-const MINI = {
+export const MINI = {
   kohle: (g) => { klumpen(g, '#2a2a32'); P(g, 4, 2, '#8a8a96'); P(g, 1, 3, '#5a5a66'); },
   stein: (g) => { klumpen(g, '#c4beb4'); P(g, 4, 4, '#8a8276'); },
   kupferdraht: (g) => { E(g, 3, 3, 2.9, 2.9, '#a85a28'); E(g, 3, 3, 1.9, 1.9, '#e8a060'); P(g, 2, 2, '#6a3a18'); P(g, 3, 3, '#6a3a18'); },
