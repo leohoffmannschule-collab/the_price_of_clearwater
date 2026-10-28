@@ -231,7 +231,9 @@ Schnur ohne Fang ein. Die Zeit läuft über das `dt` der Spielschleife.
   (10 % minus 0,5 % je Stufe, mindestens 5 %), sonst ein Fisch aus der Tabelle (`fischWaehlen`:
   Gewässerart, Jahreszeit, Uhrzeit, Wetter; Gewicht 110 − `seltenheit`). Qualität nach Angelstufe, „perfekt"
   hebt sie öfter an und verdoppelt die Erfahrung (`fangGeben`).
-* **Fangbuch:** `s.angeln = { gefangen: { <fischId>: { n, groesste } } }` (Länge in cm, nur Fische);
+* **Fangbuch:** `s.angeln = { gefangen: { <fischId>: { n, groesste } } }` (Länge in cm; Fische und Krebstiere). Ein Menüreiter
+  `angeln_fangbuch` zeigt den Fortschritt mit Filtern und Schattenrissen. Krebskörbe (`krebskorb`) fangen über Nacht und
+  zählen mit;
   der Hook `ergaenzen` legt es an, auch für ältere Stände. Angezeigt wird es noch nirgends; eine
   Sammlungsseite kann es später lesen.
 * **Ruten und Köder sind nur Zahlen:** `item('angel', { rute: { warten: 1, fenster: 0, schatz: 0 } })`
