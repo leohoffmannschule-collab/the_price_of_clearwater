@@ -234,8 +234,7 @@ Schnur ohne Fang ein. Die Zeit läuft über das `dt` der Spielschleife.
 * **Fangbuch:** `s.angeln = { gefangen: { <fischId>: { n, groesste } } }` (Länge in cm; Fische und Krebstiere). Ein Menüreiter
   `angeln_fangbuch` zeigt den Fortschritt mit Filtern und Schattenrissen. Krebskörbe (`krebskorb`) fangen über Nacht und
   zählen mit;
-  der Hook `ergaenzen` legt es an, auch für ältere Stände. Angezeigt wird es noch nirgends; eine
-  Sammlungsseite kann es später lesen.
+  der Hook `ergaenzen` legt es an, auch für ältere Stände.
 * **Ruten und Köder sind nur Zahlen:** `item('angel', { rute: { warten: 1, fenster: 0, schatz: 0 } })`
   (Faktor auf die Wartezeit, Zusatz zum Einhol-Fenster in s, Zusatz zur Schatzchance), Köder
   `koeder: { biss: 0.5, fenster, schatz }` (`biss` ist der Faktor auf die Wartezeit). Eine bessere Rute ist ein
